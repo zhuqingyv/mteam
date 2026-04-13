@@ -347,6 +347,44 @@ const tools = [
       required: ["from", "to"],
     },
   },
+  // ── 人事管理 ──────────────────────────────
+  {
+    name: "request_member",
+    description: "申请团队成员加入项目。每个成员在同一 session 中只允许一个实例。如果返回 existing=true，必须用 SendMessage 联系已有实例，严禁重新 spawn 新实例。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        caller: { type: "string", description: "申请人（通常是 guozong）" },
+        member: { type: "string", description: "要申请的成员 call_name" },
+        project: { type: "string", description: "项目名" },
+        task: { type: "string", description: "任务描述" },
+      },
+      required: ["caller", "member", "project", "task"],
+    },
+  },
+  {
+    name: "activate",
+    description: "成员激活，获取角色定义和记忆。成员 spawn 后第一件事调用此工具。如果你的 agent name 包含数字后缀（如 laochui-2），说明你是重复实例，必须立即通知 team lead 并停止工作。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        member: { type: "string", description: "自己的 call_name" },
+      },
+      required: ["member"],
+    },
+  },
+  {
+    name: "release_member",
+    description: "郭总主动释放成员锁（仅 guozong/leader 可用）",
+    inputSchema: {
+      type: "object",
+      properties: {
+        caller: { type: "string", description: "调用者" },
+        member: { type: "string", description: "被释放的成员" },
+      },
+      required: ["caller", "member"],
+    },
+  },
 ] as const;
 
 // ──────────────────────────────────────────────
@@ -764,6 +802,116 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         return ok({ success: acqResult.success, from, to, project: fromLock.project, task: fromLock.task });
+      }
+
+      // ── request_member ────────────────────
+      case "request_member": {
+        const caller = str("caller");
+        const member = str("member");
+        const project = str("project");
+        const task = str("task");
+
+        // 检查成员是否存在
+        const profile = getProfile(MEMBERS_DIR, member);
+        if (!profile) {
+          return ok({ granted: false, reason: `成员 ${member} 不存在` });
+        }
+
+        const existing = readLock(MEMBERS_DIR, member);
+
+        if (!existing) {
+          // 无锁 → 直接获取锁
+          const result = acquireLock(MEMBERS_DIR, member, sessionPid, sessionStart, project, task);
+          if (result.success) {
+            const lock = readLock(MEMBERS_DIR, member);
+            if (lock) registerLockNonce(member, lock.nonce);
+            appendWorkLog(MEMBERS_DIR, member, {
+              event: "check_in",
+              timestamp: new Date().toISOString(),
+              project,
+              task,
+              note: `requested by ${caller}`,
+            });
+          }
+          return ok({ granted: result.success, member_info: profile, error: result.error });
+        }
+
+        if (existing.session_pid === sessionPid) {
+          // 同 session → 已在本 session 工作
+          return ok({ granted: true, note: "⚠️ 该成员已在本session中激活。请用 SendMessage 给现有实例发消息，禁止重新 spawn。", member_info: profile, existing: true });
+        }
+
+        // 他人 session → 尝试 takeover（内部判断进程是否已死）
+        const takeResult = takeover(MEMBERS_DIR, member, sessionPid, sessionStart, project, task);
+        if (takeResult.success) {
+          const lock = readLock(MEMBERS_DIR, member);
+          if (lock) registerLockNonce(member, lock.nonce);
+          appendWorkLog(MEMBERS_DIR, member, {
+            event: "check_in",
+            timestamp: new Date().toISOString(),
+            project,
+            task,
+            note: `takeover by ${caller} from pid ${existing.session_pid}`,
+          });
+          return ok({ granted: true, member_info: profile });
+        }
+
+        return ok({
+          granted: false,
+          reason: `成员正在 ${existing.project} 项目工作，由session ${existing.session_pid} 占用`,
+        });
+      }
+
+      // ── activate ──────────────────────────
+      case "activate": {
+        const member = str("member");
+
+        const lock = readLock(MEMBERS_DIR, member);
+        if (!lock) {
+          return ok({ error: "未经申请，请先通过 request_member 申请" });
+        }
+
+        const personaPath = path.join(MEMBERS_DIR, member, "persona.md");
+        const persona = fs.existsSync(personaPath)
+          ? fs.readFileSync(personaPath, "utf-8")
+          : "";
+
+        const memory_generic = readMemory(MEMBERS_DIR, member, "generic");
+        const memory_project = readMemory(MEMBERS_DIR, member, "project", lock.project);
+        const team_rules = readShared(SHARED_DIR, "rules");
+
+        return ok({
+          persona,
+          memory_generic,
+          memory_project,
+          current_task: { project: lock.project, task: lock.task },
+          team_rules,
+        });
+      }
+
+      // ── release_member ────────────────────
+      case "release_member": {
+        const caller = str("caller");
+        const member = str("member");
+        checkPrivilege(caller, "release_member");
+
+        const lock = readLock(MEMBERS_DIR, member);
+        if (!lock) {
+          return ok({ success: false, error: "成员未持锁" });
+        }
+
+        const result = releaseLock(MEMBERS_DIR, member, lock.nonce);
+        if (result.success) {
+          unregisterLockNonce(member);
+          appendWorkLog(MEMBERS_DIR, member, {
+            event: "check_out",
+            timestamp: new Date().toISOString(),
+            project: lock.project,
+            task: lock.task,
+            note: `released by ${caller}`,
+          });
+        }
+        return ok(result);
       }
 
       default:

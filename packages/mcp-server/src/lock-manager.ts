@@ -23,12 +23,19 @@ function readLockFile(lockPath: string): LockData | null {
 
 function isProcessAlive(pid: number, sessionStart: string): boolean {
   try {
-    execSync(`kill -0 ${pid}`, { stdio: "ignore" });
+    execSync(`kill -0 ${pid}`, { stdio: "pipe" });
     const actualStart = execSync(`ps -p ${pid} -o lstart=`, {
       encoding: "utf-8",
     }).trim();
     return actualStart === sessionStart;
-  } catch {
+  } catch (err) {
+    // kill -0 失败有两种情况：
+    // 1. "Operation not permitted" (EPERM) — 进程存在但无权发信号，视为存活
+    // 2. "No such process" — 进程确实不存在，视为死亡
+    const stderr = (err as { stderr?: Buffer }).stderr?.toString() ?? "";
+    if (stderr.includes("Operation not permitted") || stderr.includes("not permitted")) {
+      return true;
+    }
     return false;
   }
 }
