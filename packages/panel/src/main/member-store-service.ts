@@ -28,7 +28,6 @@ export type MemberType = 'permanent' | 'temporary'
 export interface Profile {
   uid: string
   name: string
-  display_name: string
   role: MemberRole
   type: MemberType
   joined_at: string

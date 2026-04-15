@@ -12,7 +12,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/preload/index.ts'),
-          'terminal-preload': resolve('src/preload/terminal-preload.ts')
+          'terminal-preload': resolve('src/preload/terminal-preload.ts'),
+          'overlay-preload': resolve('src/preload/overlay-preload.ts')
         },
         output: {
           entryFileNames: '[name].js'
@@ -21,6 +22,10 @@ export default defineConfig({
     }
   },
   renderer: {
+    server: {
+      port: 5199,
+      strictPort: false
+    },
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer')
@@ -31,7 +36,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
-          terminal: resolve('src/renderer/terminal.html')
+          terminal: resolve('src/renderer/terminal.html'),
+          overlay: resolve('src/renderer/overlay.html')
         }
       }
     }

@@ -25,13 +25,12 @@ interface Props {
   uid: string
   displayName: string
   size?: number
-  status?: 'reserved' | 'working' | 'online' | 'offline'
+  status?: 'reserved' | 'working' | 'offline'
 }
 
 const dotClass: Record<string, string> = {
   reserved: 'dotReserved',
   working: 'dotWorking',
-  online: 'dotOnline',
   offline: 'dotOffline',
 }
 

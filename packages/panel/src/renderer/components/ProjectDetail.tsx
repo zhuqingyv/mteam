@@ -225,8 +225,8 @@ export function ProjectDetail({ projectId, onBack }: Props) {
                     className={`${styles.memberCard} ${inProject ? styles.memberIn : ''}`}
                     onClick={() => toggleMember(m.name)}
                   >
-                    <Avatar uid={m.uid} displayName={m.displayName} size={28} status={m.status} />
-                    <span className={styles.memberName}>{m.displayName}</span>
+                    <Avatar uid={m.uid} displayName={m.name} size={28} status={m.status} />
+                    <span className={styles.memberName}>{m.name}</span>
                     {inProject && <span className={styles.memberCheck}>✓</span>}
                   </div>
                 )

@@ -3,10 +3,9 @@
 interface MemberStatus {
   uid: string
   name: string
-  displayName: string
   role: string
   type: 'permanent' | 'temporary'
-  status: 'reserved' | 'working' | 'online' | 'offline'
+  status: 'reserved' | 'working' | 'offline'
   busy: boolean
   project?: string
   task?: string
@@ -43,7 +42,6 @@ interface MemberDetail {
   profile: {
     uid: string
     name: string
-    display_name: string
     role: string
     type: 'permanent' | 'temporary'
     joined_at: string
@@ -51,7 +49,7 @@ interface MemberDetail {
   persona: string | null
   memory: string | null
   workLog: WorkLogEntry[]
-  status: 'reserved' | 'working' | 'online' | 'offline'
+  status: 'reserved' | 'working' | 'offline'
   busy: boolean
   project?: string
   task?: string
@@ -70,7 +68,7 @@ interface StoreMcpItem {
 
 interface McpStoreData {
   store: StoreMcpItem[]
-  memberMounts: { member: string; displayName: string; mcps: string[] }[]
+  memberMounts: { member: string; name: string; mcps: string[] }[]
 }
 
 interface RegistryPackage {
@@ -119,12 +117,28 @@ interface ProjectData {
 }
 
 interface Window {
+  overlayBridge: {
+    onWindowPositions: (cb: (positions: Array<{
+      id: number
+      memberName: string
+      x: number
+      y: number
+      w: number
+      h: number
+      color: number[]
+    }>) => void) => void
+    onMessageEvents: (cb: (messages: Array<{
+      from: string
+      to: string
+      startTime: number
+      duration: number
+    }>) => void) => void
+  }
   api: {
     scanAgentClis: (force?: boolean) => Promise<{ found: { name: string; bin: string; version: string; status: string }[] }>
     selectDirectory: () => Promise<{ canceled: boolean; path: string | null }>
     launchMember: (opts: {
       memberName: string
-      displayName: string
       cliBin: string
       cliName: string
       isLeader?: boolean

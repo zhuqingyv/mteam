@@ -44,7 +44,6 @@ export function MemberList({ onMemberClick }: Props) {
 
   const reservedMembers = members.filter((m) => m.status === 'reserved')
   const workingGroups = groupByProject(members)
-  const onlineMembers = members.filter((m) => m.status === 'online')
   const offlineMembers = members.filter((m) => m.status === 'offline')
 
   return (
@@ -61,9 +60,9 @@ export function MemberList({ onMemberClick }: Props) {
               className={`${styles.memberRow} ${styles.reservedRow} ${idx === reservedMembers.length - 1 ? styles.last : ''}`}
               onClick={() => onMemberClick(member.name)}
             >
-              <Avatar uid={member.uid} displayName={member.displayName} size={24} status="reserved" />
+              <Avatar uid={member.uid} displayName={member.name} size={24} status="reserved" />
               <span className={`${styles.memberName} ${member.type === 'temporary' ? styles.tempName : ''}`}>
-                {member.displayName}
+                {member.name}
               </span>
               <span className={styles.taskText}>
                 {member.caller ? `by ${truncate(member.caller, 8)}` : ''}{member.project ? ` · ${truncate(member.project, 8)}` : ''}
@@ -86,9 +85,9 @@ export function MemberList({ onMemberClick }: Props) {
                 className={`${styles.memberRow} ${idx === projectMembers.length - 1 ? styles.last : ''}`}
                 onClick={() => onMemberClick(member.name)}
               >
-                <Avatar uid={member.uid} displayName={member.displayName} size={24} status="working" />
+                <Avatar uid={member.uid} displayName={member.name} size={24} status="working" />
                 <span className={`${styles.memberName} ${member.type === 'temporary' ? styles.tempName : ''}`}>
-                  {member.displayName}
+                  {member.name}
                 </span>
                 <span className={styles.taskText}>
                   {truncate(member.task ?? '', 12)}
@@ -104,27 +103,6 @@ export function MemberList({ onMemberClick }: Props) {
         <div className={styles.emptyBusy}>暂无进行中的任务</div>
       )}
 
-      {/* 在线 — 心跳活跃但无任务 */}
-      {onlineMembers.length > 0 && (
-        <div className={styles.idleSection}>
-          <div className={styles.idleLabel}>在线</div>
-          <div className={styles.idleGrid}>
-            {onlineMembers.map((m) => (
-              <div
-                key={m.uid}
-                className={styles.idleCard}
-                onClick={() => onMemberClick(m.name)}
-                title={m.name}
-              >
-                <Avatar uid={m.uid} displayName={m.displayName} size={32} status="online" />
-                <span className={styles.idleName}>{m.displayName}</span>
-                <span className={styles.idleRole}>{m.role}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* 离线 */}
       {offlineMembers.length > 0 && (
         <div className={styles.idleSection}>
@@ -137,8 +115,8 @@ export function MemberList({ onMemberClick }: Props) {
                 onClick={() => onMemberClick(m.name)}
                 title={m.name}
               >
-                <Avatar uid={m.uid} displayName={m.displayName} size={32} status="offline" />
-                <span className={styles.idleName}>{m.displayName}</span>
+                <Avatar uid={m.uid} displayName={m.name} size={32} status="offline" />
+                <span className={styles.idleName}>{m.name}</span>
                 <span className={styles.idleRole}>{m.role}</span>
               </div>
             ))}

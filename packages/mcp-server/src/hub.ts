@@ -119,7 +119,20 @@ async function callPanel<T>(
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
-    return (await res.json()) as T;
+
+    const json = (await res.json()) as Record<string, unknown>;
+
+    // Panel 非 2xx → 抛错，让 catch 走本地回退
+    if (!res.ok) {
+      throw new Error((json?.error as string) ?? `Panel returned ${res.status}`);
+    }
+
+    // Panel API 统一 { ok, data } 包裹 — 解包 data
+    if (json && json.ok !== undefined && "data" in json) {
+      return json.data as T;
+    }
+
+    return json as T;
   } finally {
     clearTimeout(timer);
   }
@@ -132,6 +145,7 @@ interface SessionState {
   id: string;
   pid: number;
   lstart: string;
+  memberName: string; // CLAUDE_MEMBER env var at registration time (empty for leader)
   activatedMembers: Set<string>;
   memorySavedMembers: Set<string>;
   lockNonces: Map<string, string>; // memberName -> nonce
@@ -176,12 +190,13 @@ function deleteReservationFile(member: string): void {
   try { fs.rmSync(path.join(MEMBERS_DIR, member, "reservation.json"), { force: true }); } catch {}
 }
 
-function registerSession(pid: number, lstart: string): string {
+function registerSession(pid: number, lstart: string, member: string = ""): string {
   const id = crypto.randomUUID();
   const state: SessionState = {
     id,
     pid,
     lstart,
+    memberName: member,
     activatedMembers: new Set(),
     memorySavedMembers: new Set(),
     lockNonces: new Map(),
@@ -189,7 +204,7 @@ function registerSession(pid: number, lstart: string): string {
     lastActivity: Date.now(),
   };
   sessions.set(id, state);
-  process.stderr.write(`[hub] session registered: ${id} (pid=${pid})\n`);
+  process.stderr.write(`[hub] session registered: ${id} (pid=${pid}${member ? ` member=${member}` : ""})\n`);
   return id;
 }
 
@@ -257,7 +272,7 @@ function checkPrivilege(caller: string, action: string): void {
   const permissions = gov.permissions as Record<string, string[]> | undefined;
   const allowed = permissions?.[action] ?? permissions?.["approve_rule"] ?? [];
   const profile = getProfile(MEMBERS_DIR, caller);
-  const isPrivileged = allowed.includes(caller) || profile?.role === "leader";
+  const isPrivileged = allowed.includes(caller) || profile?.role === "leader" || profile?.role === "总控";
   if (!isPrivileged) {
     throw new Error(`caller '${caller}' does not have permission to ${action}`);
   }
@@ -365,27 +380,27 @@ export const tools = [
   // ── 记忆 ──────────────────────────────────
   {
     name: "save_memory",
-    description: "【成员自己调用】保存工作记忆到持久化仓库（generic 通用或 project 项目专属）。deactivate 前必须调用。→ 如有团队级教训，继续调 submit_experience。",
+    description: "【成员自己调用】保存工作记忆到持久化仓库（generic 通用或 project 项目专属）。deactivate 前必须调用。→ 如有团队级教训，继续调 submit_experience。返回值：{ saved: true }。",
     inputSchema: {
       type: "object",
       properties: {
         member: { type: "string" },
-        scope: { type: "string", enum: ["generic", "project"] },
+        scope: { type: "string", enum: ["generic", "project"], description: "记忆范围。scope='project' 时 project 必填" },
         content: { type: "string" },
-        project: { type: "string", description: "scope=project 时必填" },
+        project: { type: "string", description: "项目名。仅 scope='project' 时需要" },
       },
       required: ["member", "scope", "content"],
     },
   },
   {
     name: "read_memory",
-    description: "【成员自己调用】读取持久化记忆仓库中的内容。activate 已自动返回记忆，此工具用于中途查阅。→ 查团队共享经验用 read_shared 或 search_experience。",
+    description: "【成员自己调用】读取持久化记忆仓库中的内容。activate 已自动返回记忆，此工具用于中途查阅。→ 查团队共享经验用 read_shared 或 search_experience。返回值：{ content: string }。",
     inputSchema: {
       type: "object",
       properties: {
         member: { type: "string" },
-        scope: { type: "string", enum: ["generic", "project"] },
-        project: { type: "string" },
+        scope: { type: "string", enum: ["generic", "project"], description: "记忆范围。不填默认 generic。scope='project' 时 project 必填" },
+        project: { type: "string", description: "项目名。仅 scope='project' 时需要，scope='generic' 时忽略" },
       },
       required: ["member"],
     },
@@ -485,13 +500,12 @@ export const tools = [
       type: "object",
       properties: {
         caller: { type: "string" },
-        name: { type: "string" },
-        display_name: { type: "string" },
+        name: { type: "string", description: "成员名（汉字）" },
         role: { type: "string" },
         skills: { type: "array", items: { type: "string" } },
         description: { type: "string" },
       },
-      required: ["caller", "name", "display_name", "role"],
+      required: ["caller", "name", "role"],
     },
   },
   {
@@ -564,7 +578,7 @@ export const tools = [
   },
   {
     name: "handoff",
-    description: "交接：成员将任务移交给另一个成员。→ 自动释放 from 的锁并为 to 获取锁。to 需要 activate 获取上下文后继续工作。",
+    description: "交接：成员将任务移交给另一个成员。→ 自动释放 from 的锁并为 to 获取正式锁。交接后 to 成员的终端中会收到通知，to 需要调用 activate（无需 reservation_code，handoff 已自动转移正式锁）加载上下文后继续工作。返回值：{ success, from, to, project, task, hint? }。",
     inputSchema: {
       type: "object",
       properties: {
@@ -578,7 +592,7 @@ export const tools = [
   // ── 人事管理 ──────────────────────────────
   {
     name: "request_member",
-    description: "预约成员。auto_spawn=true 时预约成功后自动创建终端窗口，成员在独立窗口中工作。→ 预约有效期 3 分 30 秒。→ 推荐：auto_spawn=true 让成员在独立终端工作。",
+    description: "预约成员。auto_spawn=true 时预约成功后自动创建终端窗口，成员在独立窗口中工作。→ 预约有效期 3 分 30 秒。→ 推荐：auto_spawn=true 让成员在独立终端工作。返回值：成功时 { reserved:true, reservation_code, usage_hint, member_brief, spawn_result? }；失败时 { reserved:false, reason }。",
     inputSchema: {
       type: "object",
       properties: {
@@ -606,12 +620,12 @@ export const tools = [
   },
   {
     name: "activate",
-    description: "【成员自己调用，leader 不要调】用预约码激活记忆工作区：验证预约 → 转正式锁 → 加载人设、历史记忆、项目规则、协作关系。被 spawn 后第一件事调此工具。",
+    description: "【成员自己调用，leader 不要调】用预约码激活记忆工作区：验证预约 → 转正式锁 → 加载人设、历史记忆、项目规则、协作关系。被 spawn 后第一件事调此工具。激活后返回：persona（人设）、memory_generic（通用记忆）、memory_project（项目记忆）、project_rules（项目规则）、team_rules（团队规则）、collaborators（同项目成员）。",
     inputSchema: {
       type: "object",
       properties: {
         member: { type: "string", description: "自己的 call_name" },
-        reservation_code: { type: "string", description: "预约码（request_member 返回）" },
+        reservation_code: { type: "string", description: "预约码（request_member 返回）。推荐必填。无预约码时走向后兼容流程（需已持有正式锁，如 handoff 转移的锁）" },
       },
       required: ["member"],
     },
@@ -918,12 +932,12 @@ export const tools = [
   // ── Agent CLI 管理 ──────────────────────────
   {
     name: "scan_agent_clis",
-    description: "扫描本地已安装的 agent CLI（claude/aider/gemini 等）。返回 found + not_found 列表。",
+    description: "【Panel 内部/Leader 调用】扫描本地已安装的 agent CLI（claude/aider/gemini 等）。用于 auto_spawn 前确认目标 CLI 可用。返回值：{ found: [{name, path}], not_found: [string] }。",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
   {
     name: "spawn_pty_session",
-    description: "在 Panel 中启动 agent CLI 的终端窗口。→ 指定成员和 CLI，会打开一个独立终端窗口运行该 CLI。",
+    description: "【Panel 内部调用】在 Panel 中启动 agent CLI 的终端窗口。→ 指定成员和 CLI，会打开一个独立终端窗口运行该 CLI。一般通过 request_member(auto_spawn=true) 间接触发，无需直接调用。返回值：{ session_id, member, cli_name }。",
     inputSchema: {
       type: "object",
       properties: {
@@ -936,12 +950,12 @@ export const tools = [
   },
   {
     name: "list_pty_sessions",
-    description: "列出运行中的 PTY session（成员名、CLI、状态）。",
+    description: "【Leader/Panel 调用】列出运行中的 PTY session（成员名、CLI、状态）。用于查看当前所有成员终端窗口的运行情况。返回值：{ sessions: [{ session_id, memberId, cli_name, status, cwd? }] }。",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
   {
     name: "kill_pty_session",
-    description: "终止 PTY session。→ 成员异常时强制停止。",
+    description: "【Leader 调用】终止 PTY session。→ 成员异常退出或卡住时强制关闭其终端窗口。正常流程下成员 deactivate 会自动退出。返回值：{ killed: boolean }。",
     inputSchema: {
       type: "object",
       properties: {
@@ -953,7 +967,7 @@ export const tools = [
   // ── 跨 Agent 消息 ──────────────────────────
   {
     name: "send_msg",
-    description: "发消息给其他 agent。消息在目标 agent 空闲时自动投递到其终端。→ 跨 agent 协作的主要通信方式。",
+    description: "发消息给其他 agent。消息通过 PTY stdin 直接写入目标 agent 终端。→ 跨 agent 协作的主要通信方式，支持 leader 向成员下达指令、成员间互相协调。返回值：{ sent: boolean, delivery?: string }。",
     inputSchema: {
       type: "object",
       properties: {
@@ -966,7 +980,7 @@ export const tools = [
   },
   {
     name: "check_inbox",
-    description: "查看自己的消息收件箱。→ 手动检查是否有其他 agent 发来的消息。",
+    description: "查看自己的消息收件箱。→ 手动检查是否有其他 agent 发来的消息。返回值：{ messages: [{ from, content, priority, timestamp }] }。",
     inputSchema: {
       type: "object",
       properties: {
@@ -1278,7 +1292,7 @@ export async function handleToolCall(
           return ok({ member, profile, lock, status, online, working: !!lock, last_seen: hb?.last_seen });
         }
         // All members
-        let members: Array<{ uid: string; name: string; display_name: string; role: string }>;
+        let members: Array<{ uid: string; name: string; role: string }>;
         try {
           members = await callPanel<typeof members>("GET", "/api/member/list");
         } catch {
@@ -1293,7 +1307,7 @@ export async function handleToolCall(
           try { hb = await callPanel<typeof hb>("GET", `/api/member/${mEnc}/heartbeat`); } catch { hb = readHeartbeat(MEMBERS_DIR, m.name); }
           const online = hb !== null && (Date.now() - hb.last_seen_ms) < HEARTBEAT_TIMEOUT_MS;
           const status = lock && online ? "working" : online ? "online" : "offline";
-          statuses.push({ uid: m.uid, member: m.name, display_name: m.display_name, role: m.role, status, online, working: !!lock, last_seen: hb?.last_seen, lock });
+          statuses.push({ uid: m.uid, member: m.name, role: m.role, status, online, working: !!lock, last_seen: hb?.last_seen, lock });
         }
         return ok(statuses);
       }
@@ -1436,7 +1450,6 @@ export async function handleToolCall(
         const caller = str("caller");
         checkPrivilege(caller, "hire_temp");
         const name = str("name");
-        const displayName = str("display_name");
         const role = str("role");
         const skills = Array.isArray(a["skills"])
           ? (a["skills"] as string[])
@@ -1445,7 +1458,6 @@ export async function handleToolCall(
         const profile: MemberProfile = {
           uid: crypto.randomUUID(),
           name,
-          display_name: displayName,
           role,
           type: "temporary",
           joined_at: new Date().toISOString(),
@@ -1519,7 +1531,7 @@ export async function handleToolCall(
 
       // ── team_report ───────────────────────
       case "team_report": {
-        let members: Array<{ uid: string; name: string; display_name: string; role: string }>;
+        let members: Array<{ uid: string; name: string; role: string }>;
         try {
           members = await callPanel<typeof members>("GET", "/api/member/list");
         } catch {
@@ -1531,9 +1543,9 @@ export async function handleToolCall(
           let lock: unknown;
           try { lock = await callPanel("GET", `/api/member/${encodeURIComponent(m.name)}/lock`); } catch { lock = readLock(MEMBERS_DIR, m.name); }
           if (lock) {
-            working.push({ uid: m.uid, name: m.name, display_name: m.display_name, role: m.role, lock });
+            working.push({ uid: m.uid, name: m.name, role: m.role, lock });
           } else {
-            idle.push({ uid: m.uid, name: m.name, display_name: m.display_name, role: m.role });
+            idle.push({ uid: m.uid, name: m.name, role: m.role });
           }
         }
         return ok({ working, idle, total: members.length });
@@ -1542,7 +1554,7 @@ export async function handleToolCall(
       // ── project_dashboard ─────────────────
       case "project_dashboard": {
         const project = str("project");
-        let members: Array<{ uid: string; name: string; display_name: string }>;
+        let members: Array<{ uid: string; name: string }>;
         try {
           members = await callPanel<typeof members>("GET", "/api/member/list");
         } catch {
@@ -1553,7 +1565,7 @@ export async function handleToolCall(
           let lock: { project: string; task: string; locked_at: string } | null;
           try { lock = await callPanel<typeof lock>("GET", `/api/member/${encodeURIComponent(m.name)}/lock`); } catch { lock = readLock(MEMBERS_DIR, m.name); }
           if (lock && lock.project === project) {
-            result.push({ uid: m.uid, name: m.name, display_name: m.display_name, task: lock.task, locked_at: lock.locked_at });
+            result.push({ uid: m.uid, name: m.name, task: lock.task, locked_at: lock.locked_at });
           }
         }
         return ok({ project, members: result });
@@ -1649,7 +1661,7 @@ export async function handleToolCall(
           to,
           project: fromLock.project,
           task: fromLock.task,
-          ...(acqResult.success ? { hint: "→ 交接完成。接收方需要通过 request_member 预约 + spawn Agent + activate 后继续工作" } : {}),
+          ...(acqResult.success ? { hint: "→ 交接完成。接收方需调用 activate（无需 reservation_code，handoff 已转移正式锁）加载上下文后继续工作" } : {}),
         });
       }
 
@@ -1776,7 +1788,6 @@ export async function handleToolCall(
             member_brief: {
               name: profile.name,
               role: profile.role,
-              display_name: profile.display_name,
               description: profile.description ?? "",
             },
             ...(takeoverSpawnResult ? { spawn_result: takeoverSpawnResult } : {}),
@@ -1844,7 +1855,6 @@ export async function handleToolCall(
           member_brief: {
             name: profile.name,
             role: profile.role,
-            display_name: profile.display_name,
             description: profile.description ?? "",
           },
           ...(spawnResult ? { spawn_result: spawnResult } : {}),
@@ -2019,8 +2029,7 @@ export async function handleToolCall(
         return ok({
           identity: {
             uid: profile?.uid ?? member,
-            name: member,
-            display_name: profile?.display_name ?? member,
+            name: profile?.name ?? member,
             role: profile?.role ?? "unknown",
           },
           persona,
@@ -2074,7 +2083,7 @@ export async function handleToolCall(
 
       // ── get_roster ────────────────────────
       case "get_roster": {
-        let members: Array<{ uid: string; name: string; display_name: string; role: string; type: string; description?: string }>;
+        let members: Array<{ uid: string; name: string; role: string; type: string; description?: string }>;
         try {
           members = await callPanel<typeof members>("GET", "/api/member/list");
         } catch {
@@ -2104,7 +2113,6 @@ export async function handleToolCall(
           roster.push({
             uid: m.uid,
             name: m.name,
-            display_name: m.display_name,
             role: m.role,
             type: m.type,
             description: (m as any).description ?? "",
@@ -2557,38 +2565,20 @@ export async function handleToolCall(
 
       // ── send_msg ──────────────────────────────
       case "send_msg": {
-        let to = str("to");
+        const to = str("to");
         const content = str("content");
         const priority = optStr("priority");
 
-        // 名字解析：to 可能是 display_name（如 "正方辩手"），需解析为 call_name（如 "zhengfang"）
-        // getSessionByMemberId 用 call_name 查找 PTY session，不解析会导致消息无法投递
-        let toProfile: { name: string } | null = null;
-        try { toProfile = await callPanel<typeof toProfile>("GET", `/api/member/${encodeURIComponent(to)}`); } catch { toProfile = getProfile(MEMBERS_DIR, to); }
-        if (!toProfile) {
-          // to 不是有效 call_name，尝试按 display_name 查找
-          let allMembers: Array<{ name: string; display_name: string }>;
-          try { allMembers = await callPanel<typeof allMembers>("GET", "/api/member/list"); } catch { allMembers = listMembers(MEMBERS_DIR); }
-          const matched = allMembers.find((m) => m.display_name === to);
-          if (matched) {
-            process.stderr.write(`[send_msg] resolved display_name "${to}" → call_name "${matched.name}"\n`);
-            to = matched.name;
-          }
-        }
-
-        // 推断发送方：从锁文件中找当前 session 持有的成员
+        // 推断发送方：优先从 activatedMembers 取，
+        // 否则回退到 session 注册时的 memberName（leader 场景）
         let from = "unknown";
-        let senderMembers: Array<{ name: string }>;
-        try { senderMembers = await callPanel<typeof senderMembers>("GET", "/api/member/list"); } catch { senderMembers = listMembers(MEMBERS_DIR); }
-        for (const entry of senderMembers) {
-          let lock: { session_pid: number } | null;
-          try { lock = await callPanel<typeof lock>("GET", `/api/member/${encodeURIComponent(entry.name)}/lock`); } catch { lock = readLock(MEMBERS_DIR, entry.name); }
-          if (lock && lock.session_pid === session.pid) {
-            from = entry.name;
-            break;
-          }
+        if (session.activatedMembers.size > 0) {
+          from = session.activatedMembers.values().next().value as string;
+        } else if (session.memberName) {
+          from = session.memberName;
         }
 
+        // 名字解析统一由 Panel 端完成，Hub 端直接透传 to 参数
         try {
           const data = await callPanel("POST", "/api/message/send", {
             from,
@@ -2597,7 +2587,6 @@ export async function handleToolCall(
             priority: priority ?? "normal",
           });
 
-          // 消息已入队，idle-detector 会在目标成员 CLI 空闲时自动投递到 PTY
           return ok(data);
         } catch (err) {
           return ok({ error: `Panel 通信失败: ${(err as Error).message}` });
@@ -2608,7 +2597,8 @@ export async function handleToolCall(
       case "check_inbox": {
         const member = str("member");
         try {
-          const data = await callPanel("GET", `/api/message/inbox/${encodeURIComponent(member)}`);
+          // 使用 DELETE 方法消费消息（读取后清空队列，避免重复投递）
+          const data = await callPanel("DELETE", `/api/message/inbox/${encodeURIComponent(member)}`);
           return ok(data);
         } catch (err) {
           return ok({ error: `Panel 通信失败: ${(err as Error).message}` });
@@ -2690,7 +2680,6 @@ const server = http.createServer(async (req, res) => {
         return {
           uid: m.uid,
           name: m.name,
-          display_name: m.display_name,
           role: m.role,
           type: m.type,
           status,
@@ -2709,11 +2698,11 @@ const server = http.createServer(async (req, res) => {
 
     // POST /api/session/register
     if (method === "POST" && url === "/api/session/register") {
-      const body = await readBody(req) as { pid?: number; lstart?: string };
+      const body = await readBody(req) as { pid?: number; lstart?: string; member?: string };
       if (typeof body.pid !== "number" || typeof body.lstart !== "string") {
         return jsonResponse(res, 400, { error: "missing pid or lstart" });
       }
-      const sessionId = registerSession(body.pid, body.lstart);
+      const sessionId = registerSession(body.pid, body.lstart, body.member || "");
       return jsonResponse(res, 200, { session_id: sessionId });
     }
 
@@ -2768,9 +2757,37 @@ const server = http.createServer(async (req, res) => {
 const HEARTBEAT_SWEEP_INTERVAL_MS = 60_000;
 
 setInterval(async () => {
+  // ⚠️ 心跳巡检：kill -9 / crash / 断电等异常退出不会触发正常清理流程，
+  // 所以这里必须双重检查：
+  // 1. 心跳超时（> 3 分钟未更新）
+  // 2. 心跳对应的 PID 已死亡（即使心跳时间很新）
+  // 两者任一命中即清理。
+
+  // 收集需要清理的成员：心跳超时 OR PID 已死
+  const zombieMembers = new Set<string>();
   const staleMembers = scanStaleHeartbeats(MEMBERS_DIR, HEARTBEAT_TIMEOUT_MS);
-  for (const member of staleMembers) {
-    process.stderr.write(`[heartbeat-sweep] ${member} timed out, auto cleanup\n`);
+  for (const m of staleMembers) zombieMembers.add(m);
+
+  // 额外检查：心跳存在但 PID 已死（覆盖 kill -9 后不到 3 分钟的窗口期）
+  // heartbeat 不存 lstart，所以只做 PID 存活检查（kill -0）
+  if (fs.existsSync(MEMBERS_DIR)) {
+    const entries = fs.readdirSync(MEMBERS_DIR, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || zombieMembers.has(entry.name)) continue;
+      const hb = readHeartbeat(MEMBERS_DIR, entry.name);
+      if (!hb) continue;
+      try {
+        process.kill(hb.session_pid, 0);
+        // PID 存活，不清理
+      } catch {
+        // PID 不存在，无论心跳多新都要清理
+        zombieMembers.add(entry.name);
+      }
+    }
+  }
+
+  for (const member of zombieMembers) {
+    process.stderr.write(`[heartbeat-sweep] ${member} zombie detected, auto cleanup\n`);
 
     // 找到持锁的 session 并释放
     for (const session of sessions.values()) {
@@ -2785,11 +2802,24 @@ setInterval(async () => {
             timestamp: new Date().toISOString(),
             project: lock.project,
             task: lock.task,
-            note: "auto-released by heartbeat timeout",
+            note: "auto-released by heartbeat sweep (zombie)",
           });
         }
         break;
       }
+    }
+
+    // 如果 lock 不属于任何 session（Panel 直接持有的），也要强制清理
+    const remainingLock = readLock(MEMBERS_DIR, member);
+    if (remainingLock && !isProcessAlive(remainingLock.session_pid, remainingLock.session_start)) {
+      forceRelease(MEMBERS_DIR, member);
+      appendWorkLog(MEMBERS_DIR, member, {
+        event: "check_out",
+        timestamp: new Date().toISOString(),
+        project: remainingLock.project,
+        task: remainingLock.task,
+        note: "force-released by heartbeat sweep (orphan lock, pid dead)",
+      });
     }
 
     await cleanupMemberMcps(member);

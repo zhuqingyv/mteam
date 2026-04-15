@@ -91,7 +91,7 @@ export function ProjectList() {
                 <div className={styles.memberAvatars}>
                   {p.members.slice(0, 5).map((name) => {
                     const m = getMemberInfo(name)
-                    return <Avatar key={name} uid={m?.uid ?? name} displayName={m?.displayName ?? name} size={18} />
+                    return <Avatar key={name} uid={m?.uid ?? name} displayName={m?.name ?? name} size={18} />
                   })}
                   {p.members.length > 5 && <span className={styles.moreMembers}>+{p.members.length - 5}</span>}
                   {p.members.length === 0 && <span className={styles.noMembers}>无成员</span>}

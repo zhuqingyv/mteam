@@ -53,26 +53,42 @@ function launchHub(): void {
   });
 }
 
-// ── 连接 Hub（自动唤起）──
+// ── 连接 Hub（按需唤起）──
+// Panel 内 spawn 的成员终端设置 TEAM_HUB_NO_LAUNCH=1，跳过自动唤起
+const skipLaunch = process.env.TEAM_HUB_NO_LAUNCH === "1";
 let HUB_URL = getHubUrl();
 
 if (!(await isHubAlive(HUB_URL))) {
-  process.stderr.write(`[mcp-team-hub] Hub 未运行，自动唤起...\n`);
-  launchHub();
+  if (skipLaunch) {
+    // Panel 内启动，Hub 应该已在运行，等一下再试
+    process.stderr.write(`[mcp-team-hub] Hub 未就绪，等待中（Panel 模式）...\n`);
+    let ready = false;
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      HUB_URL = getHubUrl();
+      if (await isHubAlive(HUB_URL)) { ready = true; break; }
+    }
+    if (!ready) {
+      process.stderr.write(`[mcp-team-hub] ⚠️ Hub 连接超时\n`);
+      process.exit(1);
+    }
+  } else {
+    process.stderr.write(`[mcp-team-hub] Hub 未运行，自动唤起...\n`);
+    launchHub();
 
-  // 等 hub 起来（最多 8 秒）
-  let ready = false;
-  for (let i = 0; i < 40; i++) {
-    await new Promise((r) => setTimeout(r, 200));
-    HUB_URL = getHubUrl(); // port 文件可能刚写入
-    if (await isHubAlive(HUB_URL)) { ready = true; break; }
+    let ready = false;
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      HUB_URL = getHubUrl();
+      if (await isHubAlive(HUB_URL)) { ready = true; break; }
+    }
+    if (!ready) {
+      process.stderr.write(`[mcp-team-hub] ⚠️ Hub 启动超时，检查日志: ${path.join(HUB_DIR, "hub.log")}\n`);
+      process.exit(1);
+    }
+    process.stderr.write(`[mcp-team-hub] Hub 已唤起 (${HUB_URL})\n`);
   }
-  if (!ready) {
-    process.stderr.write(`[mcp-team-hub] ⚠️ Hub 启动超时，检查日志: ${path.join(HUB_DIR, "hub.log")}\n`);
-    process.exit(1);
-  }
-  process.stderr.write(`[mcp-team-hub] Hub 已唤起 (${HUB_URL})\n`);
-} else {
+} else if (!skipLaunch) {
   // Hub 已在运行，但 Panel 可能已关闭 — 调 cli.ts start 确保 Panel 也在
   launchHub();
 }
@@ -86,12 +102,14 @@ try {
   lstart = new Date().toString();
 }
 
+const memberName = process.env.CLAUDE_MEMBER || "";
+
 let sessionId: string;
 try {
   const res = await fetch(`${HUB_URL}/api/session/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pid: ppid, lstart }),
+    body: JSON.stringify({ pid: ppid, lstart, member: memberName }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json() as { session_id: string };
@@ -108,26 +126,46 @@ const MCP_INSTRUCTIONS = [
   "",
   "## team-hub 是什么",
   "team-hub 不创建 agent（创建 agent 用你自己的 Agent tool）。",
-  "team-hub 是成员的记忆仓库，管理：人设模板、工作记忆、工作锁。",
+  "team-hub 是成员的记忆仓库，管理：人设模板、工作记忆、工作锁、MCP 代理、项目管理。",
   "",
-  "## 你（Leader）的用法",
-  "1. get_roster() → 查看成员花名册：名称、职业、简介、忙闲",
-  "2. request_member(member, project, task) → 预约成员，返回预约码(reservation_code)和 spawn 指令",
-  "3. 按 spawn_hint 用 Agent tool 创建 teammate",
-  "4. teammate 启动后用预约码自己 activate，加载记忆和人设，你不用管",
-  "5. team_report() 监控进展",
+  "## Leader 用法",
+  "1. get_roster() → 查看花名册，选人",
+  "2. request_member(member, project, task, auto_spawn=true) → 预约成员，自动创建终端窗口",
+  "3. send_msg(to=member, content=任务描述) → 给成员下达指令",
+  "4. team_report() / project_dashboard(project) → 监控进展",
   "",
-  "## 成员（teammate）启动后自己做的事",
-  "activate(预约码→加载记忆) → 执行任务 → save_memory(保存记忆) → deactivate(释放工作区)",
+  "## 成员生命周期",
+  "activate(reservation_code) → 执行任务 → checkpoint() → save_memory() → deactivate()",
+  "",
+  "## 成员专用工具（leader 不要调）",
+  "activate, save_memory, read_memory, deactivate, submit_experience, checkpoint, check_in, check_out, check_inbox",
+  "",
+  "## 跨 Agent 通信",
+  "- send_msg(to, content) → 消息写入目标 agent 终端 stdin",
+  "- check_inbox(member) → 查看收到的消息",
+  "",
+  "## 治理流程",
+  "propose_rule → review_rules → approve_rule / reject_rule（leader 审批）",
+  "",
+  "## 项目管理",
+  "create_project → request_member 时指定 project → add_project_rule 设约束 → update_project 更新进度",
+  "",
+  "## MCP 代理",
+  "install_store_mcp（团队商店）→ 成员 mount_mcp 挂载 → proxy_tool 调用。leader 也可 install_member_mcp 为指定成员安装。",
+  "",
+  "## 权限模型",
+  "- leader：request_member, force_release, release_member, hire_temp, evaluate_temp, approve/reject_rule, install/uninstall MCP",
+  "- 成员：activate, save_memory, read_memory, deactivate, submit_experience, checkpoint, check_in/out, mount/unmount_mcp, proxy_tool",
+  "- 所有人：get_roster, get_status, team_report, search_experience, read_shared, send_msg, check_inbox",
   "",
   "## 重要",
   "- activate / save_memory / deactivate 是成员自己调的，leader 不要调",
-  "- request_member 返回 reserved=true + reservation_code，预约 2 分钟内有效",
+  "- request_member 返回 reserved=true + reservation_code + usage_hint，预约 3 分 30 秒内有效",
   "- 预约超时未激活自动释放，无需手动清理",
 ].join("\n");
 
 const server = new Server(
-  { name: "mcp-team-hub", version: "0.1.0" },
+  { name: "teamhub", version: "0.1.0" },
   { capabilities: { tools: {} }, instructions: MCP_INSTRUCTIONS }
 );
 

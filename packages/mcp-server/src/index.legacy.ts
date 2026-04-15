@@ -401,13 +401,12 @@ const tools = [
       type: "object",
       properties: {
         caller: { type: "string" },
-        name: { type: "string" },
-        display_name: { type: "string" },
+        name: { type: "string", description: "成员名（汉字）" },
         role: { type: "string" },
         skills: { type: "array", items: { type: "string" } },
         description: { type: "string" },
       },
-      required: ["caller", "name", "display_name", "role"],
+      required: ["caller", "name", "role"],
     },
   },
   {
@@ -1041,7 +1040,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           const hb = readHeartbeat(MEMBERS_DIR, m.name);
           const online = hb !== null && (Date.now() - hb.last_seen_ms) < HEARTBEAT_TIMEOUT_MS;
           const status = lock && online ? "working" : online ? "online" : "offline";
-          return { uid: m.uid, member: m.name, display_name: m.display_name, role: m.role, status, online, working: !!lock, last_seen: hb?.last_seen, lock };
+          return { uid: m.uid, member: m.name, role: m.role, status, online, working: !!lock, last_seen: hb?.last_seen, lock };
         });
         return ok(statuses);
       }
@@ -1157,7 +1156,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const caller = str("caller");
         checkPrivilege(caller, "hire_temp");
         const name = str("name");
-        const displayName = str("display_name");
         const role = str("role");
         const skills = Array.isArray(a["skills"])
           ? (a["skills"] as string[])
@@ -1166,7 +1164,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const profile: MemberProfile = {
           uid: crypto.randomUUID(),
           name,
-          display_name: displayName,
           role,
           type: "temporary",
           joined_at: new Date().toISOString(),
@@ -1232,9 +1229,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         for (const m of members) {
           const lock = readLock(MEMBERS_DIR, m.name);
           if (lock) {
-            working.push({ uid: m.uid, name: m.name, display_name: m.display_name, role: m.role, lock });
+            working.push({ uid: m.uid, name: m.name, role: m.role, lock });
           } else {
-            idle.push({ uid: m.uid, name: m.name, display_name: m.display_name, role: m.role });
+            idle.push({ uid: m.uid, name: m.name, role: m.role });
           }
         }
         return ok({ working, idle, total: members.length });
@@ -1248,7 +1245,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         for (const m of members) {
           const lock = readLock(MEMBERS_DIR, m.name);
           if (lock && lock.project === project) {
-            result.push({ uid: m.uid, name: m.name, display_name: m.display_name, task: lock.task, locked_at: lock.locked_at });
+            result.push({ uid: m.uid, name: m.name, task: lock.task, locked_at: lock.locked_at });
           }
         }
         return ok({ project, members: result });
@@ -1437,8 +1434,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return ok({
           identity: {
             uid: profile?.uid ?? member,
-            name: member,
-            display_name: profile?.display_name ?? member,
+            name: profile?.name ?? member,
             role: profile?.role ?? "unknown",
           },
           persona,
@@ -1500,7 +1496,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           return {
             uid: m.uid,
             name: m.name,
-            display_name: m.display_name,
             role: m.role,
             type: m.type,
             status: memberStatus,

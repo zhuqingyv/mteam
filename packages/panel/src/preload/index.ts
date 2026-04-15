@@ -59,7 +59,6 @@ contextBridge.exposeInMainWorld('api', {
   },
   launchMember: (opts: {
     memberName: string
-    displayName: string
     cliBin: string
     cliName: string
     isLeader?: boolean

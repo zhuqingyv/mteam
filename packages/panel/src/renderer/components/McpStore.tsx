@@ -67,7 +67,7 @@ export function McpStore() {
   function getMountedMembers(mcpName: string): string[] {
     return memberMounts
       .filter((m) => m.mcps.includes(mcpName))
-      .map((m) => m.displayName)
+      .map((m) => m.name)
   }
 
   return (

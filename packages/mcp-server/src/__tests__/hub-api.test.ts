@@ -145,7 +145,7 @@ describe("hub-api integration workflow", () => {
     }) as {
       reserved: boolean;
       reservation_code: string;
-      member_brief: { name: string; role: string; display_name: string };
+      member_brief: { name: string; role: string };
       spawn_hint: string;
       persona?: string;
     };
@@ -164,11 +164,10 @@ describe("hub-api integration workflow", () => {
     // request_member 不再返回 persona
     expect(data.persona).toBeUndefined();
 
-    // member_brief 替代了 member_info，包含 name/role/display_name
+    // member_brief 包含 name/role
     expect(data).toHaveProperty("member_brief");
     expect(data.member_brief.name).toBe(TEST_MEMBER);
     expect(typeof data.member_brief.role).toBe("string");
-    expect(typeof data.member_brief.display_name).toBe("string");
 
     expect(typeof data.spawn_hint).toBe("string");
     expect(data.spawn_hint.length).toBeGreaterThan(0);
@@ -181,7 +180,7 @@ describe("hub-api integration workflow", () => {
       member: TEST_MEMBER,
       reservation_code: reservationCode,
     }) as {
-      identity: { uid: string; name: string; display_name: string; role: string };
+      identity: { uid: string; name: string; role: string };
       persona: string;
       memory_generic: unknown;
       memory_project: unknown;
@@ -460,7 +459,7 @@ describe("reservation mechanism", () => {
       reservation_code: string;
       granted?: boolean;
       persona?: string;
-      member_brief: { name: string; role: string; display_name: string };
+      member_brief: { name: string; role: string };
       spawn_hint: string;
     };
 
@@ -476,7 +475,6 @@ describe("reservation mechanism", () => {
     expect(reqData).toHaveProperty("member_brief");
     expect(reqData.member_brief.name).toBe(TEST_MEMBER);
     expect(typeof reqData.member_brief.role).toBe("string");
-    expect(typeof reqData.member_brief.display_name).toBe("string");
 
     // spawn_hint 包含成员名
     expect(typeof reqData.spawn_hint).toBe("string");
@@ -723,7 +721,7 @@ describe("data accuracy", () => {
       member: TEST_MEMBER,
       project: ACCURACY_PROJECT,
       task: ACCURACY_TASK,
-    }) as { reserved: boolean; reservation_code: string; member_brief: { name: string; role: string; display_name: string }; persona?: string };
+    }) as { reserved: boolean; reservation_code: string; member_brief: { name: string; role: string }; persona?: string };
 
     expect(data.reserved).toBe(true);
     expect(typeof data.reservation_code).toBe("string");
@@ -734,7 +732,6 @@ describe("data accuracy", () => {
     // member_brief 包含基本信息
     expect(data.member_brief.name).toBe(TEST_MEMBER);
     expect(typeof data.member_brief.role).toBe("string");
-    expect(typeof data.member_brief.display_name).toBe("string");
 
     accuracyReservationCode = data.reservation_code;
   });

@@ -1,6 +1,6 @@
 import React from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { pageAtom, sessionsAtom, workingCountAtom, onlineCountAtom, offlineCountAtom, mcpStoreAtom, activeProjectsCountAtom, type Page } from '../store/atoms'
+import { pageAtom, sessionsAtom, workingCountAtom, reservedCountAtom, offlineCountAtom, mcpStoreAtom, activeProjectsCountAtom, type Page } from '../store/atoms'
 import styles from './NavBar.module.css'
 
 const tabs: { key: Page; label: string }[] = [
@@ -13,7 +13,7 @@ export function NavBar() {
   const [page, setPage] = useAtom(pageAtom)
   const sessions = useAtomValue(sessionsAtom)
   const workingCount = useAtomValue(workingCountAtom)
-  const onlineCount = useAtomValue(onlineCountAtom)
+  const reservedCount = useAtomValue(reservedCountAtom)
   const offlineCount = useAtomValue(offlineCountAtom)
   const { store } = useAtomValue(mcpStoreAtom)
   const activeProjects = useAtomValue(activeProjectsCountAtom)
@@ -38,7 +38,7 @@ export function NavBar() {
         ))}
       </div>
       <div className={styles.stats}>
-        {sessions.length} Claude · {workingCount}忙 · {onlineCount}在线 · {offlineCount}离线
+        {sessions.length} Claude · {workingCount}忙 · {reservedCount}预约 · {offlineCount}离线
       </div>
     </div>
   )

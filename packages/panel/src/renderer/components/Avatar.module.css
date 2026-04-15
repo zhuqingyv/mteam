@@ -28,10 +28,6 @@
   background: var(--dot-green);
 }
 
-.dotOnline {
-  background: var(--dot-yellow, #eab308);
-}
-
 .dotOffline {
   background: var(--dot-gray);
 }

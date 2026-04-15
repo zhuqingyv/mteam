@@ -8,7 +8,8 @@ export type AgentState = 'IDLE' | 'BUSY' | 'UNKNOWN'
 
 // 匹配 Claude CLI prompt — 去除 ANSI 转义码后检测
 // 覆盖 CSI 序列 (\x1b[...X) 和 OSC 序列 (\x1b]...\x07 或 \x1b]...\x1b\\)
-const ANSI_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-9;]*[a-zA-Z]/g
+// 含 private-mode 前缀 (?, >, =, !) 如 \x1b[?25h
+const ANSI_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[?>=!]?[0-9;]*[a-zA-Z]/g
 
 // 匹配两种 Claude CLI 空闲状态：
 // 1. prompt 符号 ❯ 或 > 在末尾（普通模式）

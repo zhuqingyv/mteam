@@ -103,6 +103,17 @@ export function peekAll(memberId: string): Message[] {
 }
 
 /**
+ * 消费成员队列中所有待投递消息（读取并清空）。
+ * 用于 check_inbox：读后即消费，避免 flushQueue 重复 PTY 投递。
+ */
+export function consumeAll(memberId: string): Message[] {
+  const q = getQueue(memberId)
+  const messages = [...q]
+  queues.set(memberId, [])
+  return messages
+}
+
+/**
  * 清空成员队列。
  */
 export function clearQueue(memberId: string): void {

@@ -10,7 +10,6 @@ interface AgentCli {
 
 interface Props {
   memberName: string
-  displayName: string
   onClose: () => void
 }
 
@@ -21,7 +20,7 @@ const mockClis: AgentCli[] = [
 type LaunchState = 'idle' | 'loading' | 'trusting' | 'success' | 'error'
 type Step = 'cli' | 'workspace' | 'trust'
 
-export function LeadModal({ memberName, displayName, onClose }: Props) {
+export function LeadModal({ memberName, onClose }: Props) {
   const [clis, setClis] = useState<AgentCli[]>([])
   const [selected, setSelected] = useState<AgentCli | null>(null)
   const [step, setStep] = useState<Step>('cli')
@@ -82,7 +81,6 @@ export function LeadModal({ memberName, displayName, onClose }: Props) {
     try {
       const result = await window.api?.launchMember?.({
         memberName,
-        displayName,
         cliBin: selected.bin,
         cliName: selected.name,
         isLeader: true,
@@ -143,7 +141,7 @@ export function LeadModal({ memberName, displayName, onClose }: Props) {
     <div className={styles.overlay} onClick={handleOverlayClick}>
       <div className={styles.modal}>
         <div className={styles.header}>
-          <span className={styles.title}>带队 {displayName}</span>
+          <span className={styles.title}>带队 {memberName}</span>
           <button className={styles.closeBtn} onClick={onClose}>×</button>
         </div>
 
@@ -215,7 +213,7 @@ export function LeadModal({ memberName, displayName, onClose }: Props) {
 
               {launchState === 'success' && (
                 <div className={styles.toast}>
-                  已启动 {selected?.name} — {displayName}
+                  已启动 {selected?.name} — {memberName}
                 </div>
               )}
 

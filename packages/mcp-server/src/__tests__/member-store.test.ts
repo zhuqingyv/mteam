@@ -30,7 +30,6 @@ function makeProfile(overrides: Partial<MemberProfile> = {}): MemberProfile {
   return {
     uid: "test-uid-001",
     name: "alice",
-    display_name: "Alice",
     role: "dev",
     type: "permanent",
     joined_at: "2024-01-01T00:00:00Z",
@@ -46,7 +45,6 @@ describe("saveProfile / getProfile", () => {
     expect(loaded).not.toBeNull();
     expect(loaded!.uid).toBe("test-uid-001");
     expect(loaded!.name).toBe("alice");
-    expect(loaded!.display_name).toBe("Alice");
     expect(loaded!.role).toBe("dev");
     expect(loaded!.type).toBe("permanent");
   });
@@ -80,8 +78,8 @@ describe("saveProfile / getProfile", () => {
 describe("listMembers", () => {
   test("returns all saved profiles", () => {
     saveProfile(membersDir, makeProfile({ name: "alice", uid: "uid-a" }));
-    saveProfile(membersDir, makeProfile({ name: "bob", uid: "uid-b", display_name: "Bob" }));
-    saveProfile(membersDir, makeProfile({ name: "carol", uid: "uid-c", display_name: "Carol" }));
+    saveProfile(membersDir, makeProfile({ name: "bob", uid: "uid-b" }));
+    saveProfile(membersDir, makeProfile({ name: "carol", uid: "uid-c" }));
 
     const members = listMembers(membersDir);
     expect(members.length).toBe(3);

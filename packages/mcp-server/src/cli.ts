@@ -209,7 +209,7 @@ function launchPanel(): void {
   const child = spawn(electronBin, [mainEntry], {
     detached: true,
     stdio: "ignore",
-    env: { ...process.env, MCP_HUB_DIR: HUB_DIR },
+    env: { ...process.env, MCP_HUB_DIR: HUB_DIR, ELECTRON_RENDERER_URL: '' },
     cwd: panelDir,
   });
   child.unref();

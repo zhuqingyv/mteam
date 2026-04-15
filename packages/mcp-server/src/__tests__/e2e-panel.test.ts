@@ -120,7 +120,6 @@ const MEMBERS_DIR = path.join(TEAM_HUB_DIR, "members");
 
 type MemberState = {
   name: string;
-  display_name: string;
   status: string;
   working: boolean;
   online: boolean;

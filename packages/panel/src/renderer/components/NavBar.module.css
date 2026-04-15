@@ -10,6 +10,7 @@
 .tabs {
   display: flex;
   gap: 2px;
+  flex-shrink: 0;
 }
 
 .tab {
@@ -50,4 +51,8 @@
 .stats {
   font-size: 10px;
   color: var(--text-idle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }

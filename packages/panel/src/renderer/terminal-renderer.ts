@@ -11,6 +11,9 @@ declare global {
       sendInput: (data: string) => void
       notifyReady: (cols: number, rows: number) => void
       notifyResize: (cols: number, rows: number) => void
+      getMemberColor: () => Promise<number[]>
+      getMemberName: () => Promise<string>
+      closeWindow: () => void
     }
   }
 }
@@ -104,3 +107,19 @@ document.addEventListener('paste', (e: ClipboardEvent) => {
   }
   // Pure text paste: let xterm.js handle normally
 }, true)  // capture phase to intercept before xterm.js
+
+// ── Titlebar ──────────────────────────────────────────────────────────────────
+const closeBtn = document.getElementById('btn-close')
+if (closeBtn) {
+  closeBtn.addEventListener('click', () => {
+    window.terminalBridge?.closeWindow()
+  })
+}
+
+// Set member name in titlebar via IPC
+const titleLabel = document.getElementById('titlebar-label')
+if (titleLabel && window.terminalBridge?.getMemberName) {
+  window.terminalBridge.getMemberName().then((name: string) => {
+    titleLabel.textContent = name || '成员'
+  })
+}

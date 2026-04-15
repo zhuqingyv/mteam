@@ -56,8 +56,9 @@ function jsonResponse(res: http.ServerResponse, status: number, data: unknown): 
 // ── Message router reference (set after setupMessageRouter is called) ─────────
 
 let _messageRouter: {
-  sendMessage: (from: string, to: string, content: string, priority?: string) => string
+  sendMessage: (from: string, to: string, content: string, priority?: string) => { id: string; delivered: boolean; error?: string }
   getInbox: (memberId: string) => unknown[]
+  consumeInbox: (memberId: string) => unknown[]
 } | null = null
 
 export function setMessageRouter(router: typeof _messageRouter): void {
@@ -89,7 +90,7 @@ function getMemberStatus(name: string): {
   lock: Lock | null
   heartbeat: Heartbeat | null
   reservation: Reservation | null
-  status: 'reserved' | 'working' | 'online' | 'offline'
+  status: 'reserved' | 'working' | 'offline'
 } | null {
   const profile = store.getMember(MEMBERS_DIR, name)
   if (!profile) return null
@@ -103,11 +104,19 @@ function getMemberStatus(name: string): {
   if (reservation && !validReservation) {
     store.deleteReservation(MEMBERS_DIR, name)
   }
-  const heartbeatAlive = heartbeat !== null
-    && (Date.now() - heartbeat.last_seen_ms) < store.HEARTBEAT_TIMEOUT_MS
-
-  const status: 'reserved' | 'working' | 'online' | 'offline' =
-    lock ? 'working' : validReservation ? 'reserved' : heartbeatAlive ? 'online' : 'offline'
+  let status: 'reserved' | 'working' | 'offline'
+  if (lock) {
+    status = 'working'
+  } else {
+    const ptySession = getPtySessions().find((s) => s.memberId === name && s.status === 'running')
+    if (ptySession) {
+      status = 'working'
+    } else if (validReservation) {
+      status = 'reserved'
+    } else {
+      status = 'offline'
+    }
+  }
 
   return { profile, lock, heartbeat, reservation: validReservation, status }
 }
@@ -186,15 +195,8 @@ export function startPanelApi(): void {
           bin = found.bin
         }
 
-        // Read display_name from profile.json
-        let displayName = body.member
-        const profilePath = join(homedir(), '.claude', 'team-hub', 'members', body.member, 'profile.json')
-        if (existsSync(profilePath)) {
-          try {
-            const profile = JSON.parse(readFileSync(profilePath, 'utf-8'))
-            if (profile.display_name) displayName = profile.display_name
-          } catch { /* fallback to member code name */ }
-        }
+        // memberName is now the Chinese name (folder name = profile.name)
+        const displayName = body.member
 
         // Pre-write workspace trust for member before spawning
         // so the member CLI doesn't prompt for trust dialog
@@ -222,7 +224,6 @@ export function startPanelApi(): void {
         // openTerminalWindow handles PTY spawn + window + persona injection
         const result = openTerminalWindow({
           memberName: body.member,
-          displayName,
           cliBin: bin,
           cliName: body.cli_name,
           isLeader: body.is_leader ?? false,
@@ -292,18 +293,25 @@ export function startPanelApi(): void {
         if (!_messageRouter) {
           return jsonResponse(res, 503, { error: 'message router not ready' })
         }
-        const id = _messageRouter.sendMessage(body.from, body.to, body.content, body.priority)
-        return jsonResponse(res, 200, { ok: true, id })
+        const result = _messageRouter.sendMessage(body.from, body.to, body.content, body.priority)
+        if (result.error) {
+          return jsonResponse(res, 400, { ok: false, error: result.error })
+        }
+        return jsonResponse(res, 200, { ok: true, id: result.id, delivered: result.delivered })
       }
 
-      // GET /api/message/inbox/:member
+      // GET /api/message/inbox/:member — 只读查看（不消费）
+      // DELETE /api/message/inbox/:member — 消费式读取（读后清空，避免重复 PTY 投递）
       const inboxMatch = url.match(/^\/api\/message\/inbox\/([^/]+)$/)
-      if (method === 'GET' && inboxMatch) {
+      if (inboxMatch && (method === 'GET' || method === 'DELETE')) {
         const member = decodeURIComponent(inboxMatch[1])
         if (!_messageRouter) {
           return jsonResponse(res, 503, { error: 'message router not ready' })
         }
-        const messages = _messageRouter.getInbox(member)
+        // DELETE = 消费式读取（check_inbox 使用），GET = 只读查看
+        const messages = method === 'DELETE'
+          ? _messageRouter.consumeInbox(member)
+          : _messageRouter.getInbox(member)
         return jsonResponse(res, 200, { member, messages })
       }
 
@@ -332,8 +340,8 @@ export function startPanelApi(): void {
       // POST /api/member/create — 创建成员
       if (method === 'POST' && url === '/api/member/create') {
         const body = await readBody(req) as Partial<Profile>
-        if (!body.name || !body.display_name || !body.role) {
-          return jsonResponse(res, 400, { ok: false, error: 'name, display_name, role are required' })
+        if (!body.name || !body.role) {
+          return jsonResponse(res, 400, { ok: false, error: 'name, role are required' })
         }
         const existing = store.getMember(MEMBERS_DIR, body.name)
         if (existing) {
@@ -342,7 +350,6 @@ export function startPanelApi(): void {
         const profile: Profile = {
           uid: body.uid ?? randomUUID(),
           name: body.name,
-          display_name: body.display_name,
           role: body.role,
           type: body.type ?? 'temporary',
           joined_at: body.joined_at ?? new Date().toISOString(),
@@ -794,8 +801,8 @@ export function startPanelApi(): void {
       // POST /api/members — create/save profile
       if (method === 'POST' && url === '/api/members') {
         const body = await readBody(req) as Partial<Profile>
-        if (!body.name || !body.display_name || !body.role) {
-          return jsonResponse(res, 400, { ok: false, error: 'name, display_name, role are required' })
+        if (!body.name || !body.role) {
+          return jsonResponse(res, 400, { ok: false, error: 'name, role are required' })
         }
         const existing = store.getMember(MEMBERS_DIR, body.name)
         if (existing) {
@@ -804,7 +811,6 @@ export function startPanelApi(): void {
         const profile: Profile = {
           uid: body.uid ?? randomUUID(),
           name: body.name,
-          display_name: body.display_name,
           role: body.role,
           type: body.type ?? 'temporary',
           joined_at: body.joined_at ?? new Date().toISOString(),

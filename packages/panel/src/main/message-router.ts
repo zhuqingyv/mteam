@@ -2,24 +2,25 @@ import {
   enqueue,
   dequeue,
   peekAll,
+  consumeAll,
   clearQueue,
   expireSweep,
   type Message
 } from './message-queue'
-import { createIdleDetector } from './idle-detector'
-import {
-  getSessionByMemberId,
-  writeToPty,
-  getPtySessions,
-  getPtyBuffer
-} from './pty-manager'
+import { createReadyDetector } from './ready-detector'
+import { getSessionByMemberId, writeToPty } from './pty-manager'
+import { updateMessages } from './overlay-window'
 
 export type { Message }
 
 // ── Internal state ────────────────────────────────────────────────────────────
 
-// memberId → detector destroy fn
-const detectors = new Map<string, () => void>()
+// memberId → { sessionId, destroy }
+const readyDetectors = new Map<string, { sessionId: string; destroy: () => void }>()
+
+// 已就绪的成员（ready-detector 触发后加入）
+const readyMembers = new Set<string>()
+
 
 // 消息 TTL：10 分钟
 const MESSAGE_TTL_MS = 10 * 60 * 1000
@@ -27,11 +28,58 @@ const MESSAGE_TTL_MS = 10 * 60 * 1000
 // TTL sweep 定时器
 let sweepTimer: ReturnType<typeof setInterval> | null = null
 
+// ── Active message tracking for overlay tentacles ─────────────────────────────
+interface ActiveMessage {
+  from: string
+  to: string
+  startTime: number   // performance.now() / 1000, synced with overlay renderer clock
+  duration: number     // seconds
+}
+
+const activeMessages: ActiveMessage[] = []
+const MESSAGE_ANIMATION_DURATION = 3 // seconds
+
+let activeMessageTimer: ReturnType<typeof setInterval> | null = null
+
+/** Sweep expired active messages and push current list to overlay */
+function tickActiveMessages(): void {
+  const now = performance.now() / 1000
+  // Remove expired
+  for (let i = activeMessages.length - 1; i >= 0; i--) {
+    if (now - activeMessages[i].startTime > activeMessages[i].duration) {
+      activeMessages.splice(i, 1)
+    }
+  }
+  // If all messages expired, stop the timer and send one final empty update
+  if (activeMessages.length === 0 && activeMessageTimer) {
+    clearInterval(activeMessageTimer)
+    activeMessageTimer = null
+    updateMessages([])
+    return
+  }
+  updateMessages(activeMessages)
+}
+
+/** Record a new active message for overlay animation */
+function addActiveMessage(from: string, to: string): void {
+  activeMessages.push({
+    from,
+    to,
+    startTime: performance.now() / 1000,
+    duration: MESSAGE_ANIMATION_DURATION
+  })
+  // Start tick timer on-demand if not already running
+  if (!activeMessageTimer) {
+    activeMessageTimer = setInterval(tickActiveMessages, 100)
+  }
+  tickActiveMessages()
+}
+
 // ── Role lookup (从 team-hub 成员目录读) ─────────────────────────────────────
 
 import { homedir } from 'os'
 import { join } from 'path'
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 
 function getMemberRole(memberName: string): string {
   const profilePath = join(homedir(), '.claude/team-hub/members', memberName, 'profile.json')
@@ -45,41 +93,25 @@ function getMemberRole(memberName: string): string {
 }
 
 /**
- * 名字解析：将 display_name 或 call_name 统一解析为 call_name。
- * PTY session 的 memberId 用的是 call_name（目录名），消息路由必须对齐。
+ * 名字解析：验证成员名是否存在。
+ * 目录名 = profile.name = 汉字名，直接匹配。
+ * 返回 null 表示成员不存在，调用方应返回错误而非静默入队。
  */
-function resolveCallName(nameOrDisplay: string): string {
-  // 如果已经是有效的 call_name（目录存在），直接返回
-  const directPath = join(homedir(), '.claude/team-hub/members', nameOrDisplay, 'profile.json')
-  if (existsSync(directPath)) return nameOrDisplay
-
-  // 按 display_name 扫描
-  const membersDir = join(homedir(), '.claude/team-hub/members')
-  if (!existsSync(membersDir)) return nameOrDisplay
-  try {
-    const dirs = readdirSync(membersDir).filter((d) =>
-      statSync(join(membersDir, d)).isDirectory()
-    )
-    for (const dir of dirs) {
-      const pPath = join(membersDir, dir, 'profile.json')
-      if (!existsSync(pPath)) continue
-      try {
-        const profile = JSON.parse(readFileSync(pPath, 'utf-8')) as { display_name?: string }
-        if (profile.display_name === nameOrDisplay) {
-          process.stderr.write(`[msg-router] resolved display_name "${nameOrDisplay}" → call_name "${dir}"\n`)
-          return dir
-        }
-      } catch { /* skip */ }
-    }
-  } catch { /* skip */ }
-  return nameOrDisplay
+function resolveCallName(name: string): string | null {
+  // 目录存在即有效
+  const directPath = join(homedir(), '.claude/team-hub/members', name, 'profile.json')
+  if (existsSync(directPath)) return name
+  // 没找到，返回 null
+  return null
 }
 
 // ── Envelope format ───────────────────────────────────────────────────────────
 
 function formatEnvelope(msg: Message): string {
   const role = getMemberRole(msg.from)
-  return `[team-hub] 来自 ${msg.from}(${role}):\n${msg.content}\n---END---\n`
+  // 压成单行，避免多行 paste 提交问题
+  const oneLine = msg.content.replace(/\n/g, ' ')
+  return `[team-hub] 来自 ${msg.from}(${role}): ${oneLine}`
 }
 
 // ── Flush: dequeue and inject into PTY ───────────────────────────────────────
@@ -100,39 +132,25 @@ function flushQueue(memberId: string): void {
 
   const envelope = formatEnvelope(msg)
   process.stderr.write(`[msg-router] flushQueue: writing to PTY ${session.id}, msg from ${msg.from}, len=${envelope.length}\n`)
-  writeToPty(session.id, envelope + '\r')
-}
-
-// ── Ensure detector exists for a session ─────────────────────────────────────
-
-function ensureDetector(memberId: string, sessionId: string, cliName: string): void {
-  if (detectors.has(memberId)) {
-    process.stderr.write(`[msg-router] ensureDetector: ${memberId} already has detector, skip\n`)
-    return
-  }
-
-  process.stderr.write(`[msg-router] ensureDetector: creating detector for ${memberId}, sessionId=${sessionId}\n`)
-
-  const detector = createIdleDetector({
-    sessionId,
-    cliName,
-    onIdle: () => {
-      process.stderr.write(`[msg-router] onIdle fired for ${memberId}\n`)
-      flushQueue(memberId)
-    },
-    onBusy: () => {
-      // 无需处理
-    }
-  })
-
-  detectors.set(memberId, detector.destroy)
+  // 文本和提交键分开发，避免长文本被当成 paste blob 吞掉 \r
+  writeToPty(session.id, envelope)
+  setTimeout(() => {
+    writeToPty(session.id, '\r')
+  }, 150)
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+export interface SendResult {
+  id: string
+  delivered: boolean
+  error?: string
+}
+
 export function setupMessageRouter(): {
-  sendMessage: (from: string, to: string, content: string, priority?: string) => string
+  sendMessage: (from: string, to: string, content: string, priority?: string) => SendResult
   getInbox: (memberId: string) => Message[]
+  consumeInbox: (memberId: string) => Message[]
   clearInbox: (memberId: string) => void
 } {
   // 启动 TTL sweep（每分钟）
@@ -147,80 +165,59 @@ export function setupMessageRouter(): {
     to: string,
     content: string,
     priority?: string
-  ): string {
+  ): SendResult {
     const p: 'normal' | 'urgent' =
       priority === 'urgent' ? 'urgent' : 'normal'
 
-    // 解析 to 为 call_name，确保与 PTY session 的 memberId 一致
+    // 名字解析统一在 Panel 端完成（Hub 端直接透传 to）
     const resolvedTo = resolveCallName(to)
+    if (resolvedTo === null) {
+      // 目标成员不存在，返回错误而不是静默入队
+      process.stderr.write(`[msg-router] sendMessage: target '${to}' not found, reject\n`)
+      return { id: '', delivered: false, error: `目标成员 '${to}' 不存在` }
+    }
+
     const id = enqueue({ from, to: resolvedTo, content, priority: p })
     process.stderr.write(`[msg-router] sendMessage: from=${from}, to=${to}(resolved=${resolvedTo}), content=${content.slice(0, 50)}\n`)
 
-    // 确保目标成员有 idle-detector，空闲时自动 flush 队列
-    const session = getSessionByMemberId(resolvedTo)
-    process.stderr.write(`[msg-router] sendMessage: session for ${resolvedTo} = ${session ? session.id : 'NULL'}\n`)
-    if (session) {
-      ensureDetector(resolvedTo, session.id, session.cliName)
+    // Notify overlay for tentacle animation
+    addActiveMessage(from, resolvedTo)
+
+    // 如果目标成员已就绪且有 PTY session，直接投递
+    let delivered = false
+    if (readyMembers.has(resolvedTo)) {
+      const session = getSessionByMemberId(resolvedTo)
+      if (session) {
+        flushQueue(resolvedTo)
+        delivered = true
+      }
     }
 
-    return id
+    return { id, delivered }
   }
 
   function getInbox(memberId: string): Message[] {
     return peekAll(memberId)
   }
 
+  /**
+   * 消费收件箱：读取所有消息并清空队列。
+   * 用于 check_inbox，避免消息被 flushQueue 重复 PTY 投递。
+   */
+  function consumeInbox(memberId: string): Message[] {
+    return consumeAll(memberId)
+  }
+
   function clearInbox(memberId: string): void {
     clearQueue(memberId)
   }
 
-  return { sendMessage, getInbox, clearInbox }
-}
-
-// 用于 syncDetectors 兜底检查的 idle 匹配（与 idle-detector.ts 一致）
-const SYNC_ANSI_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-9;]*[a-zA-Z]/g
-const SYNC_IDLE_PATTERN = /(?:[❯>]\s*$|shift\+tab to cycle\)\s*$)/
-
-/**
- * 当新 PTY session 出现时，补注册探测器。
- * 在 pty-manager spawn 之后调用（index.ts 每 5 秒调用）。
- * 方案 C 补充：顺带检查 buffer 尾部，如果已经 idle 且队列有消息就立即 flush。
- */
-export function syncDetectors(): void {
-  const runningSessions = getPtySessions().filter((s) => s.status === 'running')
-  if (runningSessions.length > 0) {
-    process.stderr.write(`[msg-router] syncDetectors: ${runningSessions.length} running sessions, detectors=${detectors.size}\n`)
-  }
-  for (const session of runningSessions) {
-    ensureDetector(session.memberId, session.id, session.cliName)
-
-    // 兜底：检查 buffer 尾部，如果 CLI 已 idle 且队列有消息，直接 flush
-    const pending = peekAll(session.memberId)
-    if (pending.length > 0) {
-      const buf = getPtyBuffer(session.id)
-      if (buf) {
-        const clean = buf.replace(SYNC_ANSI_RE, '')
-        if (SYNC_IDLE_PATTERN.test(clean.trimEnd())) {
-          process.stderr.write(`[msg-router] syncDetectors: ${session.memberId} is idle with ${pending.length} pending msgs, flushing\n`)
-          flushQueue(session.memberId)
-        }
-      }
-    }
-  }
-
-  // 清理已无效 session 的探测器
-  for (const [memberId, destroy] of detectors) {
-    const stillRunning = runningSessions.some((s) => s.memberId === memberId)
-    if (!stillRunning) {
-      destroy()
-      detectors.delete(memberId)
-    }
-  }
+  return { sendMessage, getInbox, consumeInbox, clearInbox }
 }
 
 /**
- * 成员 CLI 就绪后调用：注册 detector + 立即检查留言队列。
- * 此时 session 已注册到 pty-manager，getSessionByMemberId 必能找到。
+ * 成员 CLI 就绪后调用：创建 ready detector，onReady 时 flush 一次初始消息。
+ * 之后的消息由成员通过 MCP check_inbox 主动获取。
  */
 export function onMemberReady(memberId: string): void {
   const session = getSessionByMemberId(memberId)
@@ -231,23 +228,29 @@ export function onMemberReady(memberId: string): void {
 
   process.stderr.write(`[msg-router] onMemberReady: ${memberId} ready, sessionId=${session.id}\n`)
 
-  // 注册 idle detector（如果尚未注册）
-  ensureDetector(memberId, session.id, session.cliName)
+  // 如果已有 detector 且 session 没变，跳过
+  const existing = readyDetectors.get(memberId)
+  if (existing) {
+    if (existing.sessionId === session.id) return
+    // session 变了，销毁旧的
+    existing.destroy()
+    readyDetectors.delete(memberId)
+  }
 
-  // 立即检查留言队列，若 CLI 已 idle 则直接投递
-  const pending = peekAll(memberId)
-  if (pending.length > 0) {
-    const buf = getPtyBuffer(session.id)
-    if (buf) {
-      const clean = buf.replace(SYNC_ANSI_RE, '')
-      if (SYNC_IDLE_PATTERN.test(clean.trimEnd())) {
-        process.stderr.write(`[msg-router] onMemberReady: ${memberId} is idle with ${pending.length} pending msgs, flushing\n`)
+  const detector = createReadyDetector({
+    sessionId: session.id,
+    onReady: () => {
+      process.stderr.write(`[msg-router] onReady fired for ${memberId}, marking ready + flushing\n`)
+      readyMembers.add(memberId)
+      // 就绪时一次性投递所有积压消息
+      const pending = peekAll(memberId)
+      for (let i = 0; i < pending.length; i++) {
         flushQueue(memberId)
-      } else {
-        process.stderr.write(`[msg-router] onMemberReady: ${memberId} has ${pending.length} pending msgs but not idle yet, detector will handle\n`)
       }
     }
-  }
+  })
+
+  readyDetectors.set(memberId, { sessionId: session.id, destroy: detector.destroy })
 }
 
 export function teardownMessageRouter(): void {
@@ -255,8 +258,14 @@ export function teardownMessageRouter(): void {
     clearInterval(sweepTimer)
     sweepTimer = null
   }
-  for (const [, destroy] of detectors) {
-    destroy()
+  if (activeMessageTimer) {
+    clearInterval(activeMessageTimer)
+    activeMessageTimer = null
   }
-  detectors.clear()
+  activeMessages.length = 0
+  for (const [, entry] of readyDetectors) {
+    entry.destroy()
+  }
+  readyDetectors.clear()
+  readyMembers.clear()
 }

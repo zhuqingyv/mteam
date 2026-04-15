@@ -7,10 +7,10 @@ import {
   powerMonitor,
   shell
 } from 'electron'
-import { join, resolve } from 'path'
+import { join, resolve, dirname } from 'path'
 import { homedir } from 'os'
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'fs'
-import { execSync } from 'child_process'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, openSync, closeSync } from 'fs'
+import { execSync, spawn } from 'child_process'
 import chokidar, { FSWatcher } from 'chokidar'
 import { scanAgentClis } from './agent-cli-scanner'
 import { openTerminalWindow, setupTerminalIpc } from './terminal-window'
@@ -26,8 +26,9 @@ import {
   attachWindow,
   type SpawnOptions
 } from './pty-manager'
-import { setupMessageRouter, syncDetectors, teardownMessageRouter } from './message-router'
+import { setupMessageRouter, teardownMessageRouter } from './message-router'
 import { startPanelApi, stopPanelApi, setMessageRouter } from './panel-api'
+import { createOverlay } from './overlay-window'
 
 // ── 常量 ──────────────────────────────────────────────────────────────────────
 const TEAM_HUB_DIR = resolve(homedir(), '.claude/team-hub')
@@ -46,6 +47,7 @@ interface SessionFile {
 
 interface LockFile {
   nonce: string
+  // 注意：字段名是 session_pid 不是 pid（历史上曾用 pid，已统一为 session_pid）
   session_pid: number
   session_start: string
   project: string
@@ -69,13 +71,9 @@ interface ReservationFile {
   ttl_ms: number
 }
 
-/** 心跳超时：3 分钟（与 MCP server 一致） */
-const HEARTBEAT_TIMEOUT_MS = 3 * 60 * 1000
-
 interface ProfileFile {
   uid: string
   name: string
-  display_name: string
   role: string
   type: 'permanent' | 'temporary'
   joined_at: string
@@ -84,11 +82,10 @@ interface ProfileFile {
 export interface MemberStatus {
   uid: string
   name: string
-  displayName: string
   role: string
   type: 'permanent' | 'temporary'
-  /** 四态：reserved=已预约待激活, working=有锁, online=心跳活跃无锁, offline=无心跳或超时 */
-  status: 'reserved' | 'working' | 'online' | 'offline'
+  /** 三态：reserved=已预约待激活, working=有锁或PTY运行, offline=其余 */
+  status: 'reserved' | 'working' | 'offline'
   /** 向后兼容 */
   busy: boolean
   project?: string
@@ -197,26 +194,24 @@ function scanTeamStatus(): TeamStatus {
       const hasReservation = reservation !== null
         && (Date.now() - reservation.created_at <= reservation.ttl_ms)
 
-      // 心跳是否活跃
-      const heartbeatAlive = heartbeat !== null
-        && (Date.now() - heartbeat.last_seen_ms) < HEARTBEAT_TIMEOUT_MS
-
-      // 四态判定：reserved → working → online → offline
-      let status: 'reserved' | 'working' | 'online' | 'offline'
+      // 三态判定：working → reserved → offline
+      let status: 'reserved' | 'working' | 'offline'
       if (lock) {
         status = 'working'
-      } else if (hasReservation) {
-        status = 'reserved'
-      } else if (heartbeatAlive) {
-        status = 'online'
       } else {
-        status = 'offline'
+        const ptySession = getPtySessions().find((s) => s.memberId === memberDir && s.status === 'running')
+        if (ptySession) {
+          status = 'working'
+        } else if (hasReservation) {
+          status = 'reserved'
+        } else {
+          status = 'offline'
+        }
       }
 
       members.push({
         uid: profile.uid ?? memberDir,
         name: profile.name,
-        displayName: profile.display_name,
         role: profile.role,
         type: profile.type,
         status,
@@ -499,7 +494,7 @@ export interface StoreMcpItem {
 
 export interface McpStoreData {
   store: StoreMcpItem[]
-  memberMounts: { member: string; displayName: string; mcps: string[] }[]
+  memberMounts: { member: string; name: string; mcps: string[] }[]
 }
 
 function getMcpStore(): McpStoreData {
@@ -529,7 +524,7 @@ function getMcpStore(): McpStoreData {
           if (mcps.length > 0) {
             memberMounts.push({
               member: dir,
-              displayName: profile?.display_name ?? dir,
+              name: profile?.name ?? dir,
               mcps: mcps.map((m) => m.name)
             })
           }
@@ -547,7 +542,7 @@ export interface MemberDetail {
   persona: string | null
   memory: string | null
   workLog: WorkLogEntry[]
-  status: 'reserved' | 'working' | 'online' | 'offline'
+  status: 'reserved' | 'working' | 'offline'
   busy: boolean
   project?: string
   task?: string
@@ -601,10 +596,19 @@ function getMemberDetail(memberName: string): MemberDetail | null {
   // TTL 检查：过期则标记为无效（不删文件，由 service 层清理）
   const hasReservation = reservation2 !== null
     && (Date.now() - reservation2.created_at <= reservation2.ttl_ms)
-  const heartbeatAlive = heartbeat !== null
-    && (Date.now() - heartbeat.last_seen_ms) < HEARTBEAT_TIMEOUT_MS
-  const status: 'reserved' | 'working' | 'online' | 'offline' =
-    lock ? 'working' : hasReservation ? 'reserved' : heartbeatAlive ? 'online' : 'offline'
+  let status: 'reserved' | 'working' | 'offline'
+  if (lock) {
+    status = 'working'
+  } else {
+    const ptySession = getPtySessions().find((s) => s.memberId === memberName && s.status === 'running')
+    if (ptySession) {
+      status = 'working'
+    } else if (hasReservation) {
+      status = 'reserved'
+    } else {
+      status = 'offline'
+    }
+  }
 
   return {
     profile,
@@ -849,7 +853,6 @@ function setupIpc(): void {
 
   ipcMain.handle('launch-member', (_event, opts: {
     memberName: string
-    displayName: string
     cliBin: string
     cliName: string
     isLeader?: boolean
@@ -868,8 +871,9 @@ function setupIpc(): void {
 
   ipcMain.handle('send-message', (_event, from: string, to: string, content: string, priority?: string) => {
     if (!messageRouter) return { ok: false, reason: 'router not ready' }
-    const id = messageRouter.sendMessage(from, to, content, priority)
-    return { ok: true, id }
+    const result = messageRouter.sendMessage(from, to, content, priority)
+    if (result.error) return { ok: false, reason: result.error }
+    return { ok: true, id: result.id, delivered: result.delivered }
   })
 
   ipcMain.handle('get-inbox', (_event, memberId: string) => {
@@ -889,6 +893,75 @@ function setupIpc(): void {
   })
 }
 
+// ── 确保 Hub 服务运行 ────────────────────────────────────────────────────────
+// Panel 依赖 Hub HTTP 服务（127.0.0.1:58578）提供团队数据。
+// MCP server 也通过 Hub 代理读写成员状态，如果 Hub 没启动，MCP 工具会全部失败。
+// 因此 Panel 启动时主动拉起 Hub，保证整个系统可用。
+async function ensureHub(): Promise<void> {
+  const HUB_DIR = join(homedir(), '.claude', 'team-hub')
+  const pidFile = join(HUB_DIR, 'hub.pid')
+  const portFile = join(HUB_DIR, 'hub.port')
+  const defaultPort = 58578
+
+  function getPort(): number {
+    try {
+      const p = parseInt(readFileSync(portFile, 'utf-8').trim(), 10)
+      return isNaN(p) ? defaultPort : p
+    } catch { return defaultPort }
+  }
+
+  async function isHealthy(port: number): Promise<boolean> {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/health`, { signal: AbortSignal.timeout(2000) })
+      return res.ok
+    } catch { return false }
+  }
+
+  const port = getPort()
+  if (await isHealthy(port)) {
+    console.log(`[panel] Hub already running on port ${port}`)
+    return
+  }
+
+  // Hub 没在跑，启动它
+  // hub.ts 路径：相对于 panel/out/main/index.js → ../../mcp-server/src/hub.ts
+  const hubScript = join(__dirname, '../../../mcp-server/src/hub.ts')
+
+  if (!existsSync(hubScript)) {
+    console.warn(`[panel] Hub script not found: ${hubScript}`)
+    return
+  }
+
+  let bunBin = 'bun'
+  try { bunBin = execSync('which bun', { encoding: 'utf-8', timeout: 3000 }).trim() || bunBin } catch {}
+
+  mkdirSync(HUB_DIR, { recursive: true })
+  const logFile = join(HUB_DIR, 'hub.log')
+  const logFd = openSync(logFile, 'a')
+
+  const child = spawn(bunBin, ['run', hubScript], {
+    detached: true,
+    stdio: ['ignore', logFd, logFd],
+    env: { ...process.env },
+    cwd: dirname(hubScript),
+  })
+  child.unref()
+  closeSync(logFd)
+
+  // 等待 Hub 就绪（最多 5 秒，每 200ms 轮询）
+  let ready = false
+  for (let i = 0; i < 25; i++) {
+    await new Promise(r => setTimeout(r, 200))
+    if (await isHealthy(getPort())) { ready = true; break }
+  }
+
+  if (ready) {
+    console.log(`[panel] Hub started successfully`)
+  } else {
+    console.warn(`[panel] Hub startup timeout, check ${logFile}`)
+  }
+}
+
 // ── App 生命周期 ──────────────────────────────────────────────────────────────
 app.name = 'MCP-Team-Hub'
 const gotLock = app.requestSingleInstanceLock()
@@ -902,16 +975,82 @@ if (!gotLock) {
     }
   })
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    // 先确保 Hub 服务在跑，MCP server 和 Panel 都依赖它
+    await ensureHub()
+
+    // ⚠️ 启动清理：kill -9 / crash / 断电等异常退出不会触发 win.on('closed')，
+    // 所以这里是最后防线。必须覆盖：
+    // 1. lock.json 对应的 session_pid 不存在或 lstart 不匹配
+    // 2. heartbeat.json 对应的 session_pid 不存在（含无 lock 的孤儿心跳）
+    // 3. heartbeat.json 超时未更新（> 3 分钟）
+    try {
+      const STALE_HEARTBEAT_MS = 3 * 60 * 1000
+      const memberDirs = readdirSync(MEMBERS_DIR).filter((d) => {
+        try { return statSync(join(MEMBERS_DIR, d)).isDirectory() } catch { return false }
+      })
+      for (const dir of memberDirs) {
+        let cleaned = false
+
+        // 检查 lock.json
+        const lockPath = join(MEMBERS_DIR, dir, 'lock.json')
+        if (existsSync(lockPath)) {
+          try {
+            const lock = JSON.parse(readFileSync(lockPath, 'utf-8')) as LockFile
+            // 注意：字段名是 session_pid 不是 pid
+            const pid = lock.session_pid
+            if (pid) {
+              // 用 isPidAlive + lstart 双重校验，防止 PID 复用误判
+              const alive = isPidAlive(pid) && getPidLstart(pid) === lock.session_start
+              if (!alive) {
+                rmSync(lockPath, { force: true })
+                cleaned = true
+              }
+            } else {
+              // lock 格式异常，直接删
+              rmSync(lockPath, { force: true })
+              cleaned = true
+            }
+          } catch {
+            rmSync(lockPath, { force: true })
+            cleaned = true
+          }
+        }
+
+        // 检查 heartbeat.json（独立于 lock 检查，覆盖孤儿心跳场景）
+        const hbPath = join(MEMBERS_DIR, dir, 'heartbeat.json')
+        if (existsSync(hbPath)) {
+          try {
+            const hb = JSON.parse(readFileSync(hbPath, 'utf-8')) as HeartbeatFile
+            const pid = hb.session_pid
+            const pidDead = pid ? !isPidAlive(pid) : true
+            const timedOut = hb.last_seen_ms ? (Date.now() - hb.last_seen_ms > STALE_HEARTBEAT_MS) : true
+            if (pidDead || timedOut) {
+              rmSync(hbPath, { force: true })
+              cleaned = true
+            }
+          } catch {
+            rmSync(hbPath, { force: true })
+            cleaned = true
+          }
+        }
+
+        if (cleaned) {
+          // 也清掉可能残留的 reservation
+          const resPath = join(MEMBERS_DIR, dir, 'reservation.json')
+          try { rmSync(resPath, { force: true }) } catch {}
+        }
+      }
+    } catch {}
+
     setupIpc()
     setupTerminalIpc()
     startPanelApi()
     createWindow()
+    createOverlay()
     startWatcher()
     startPoll()
     setupPowerMonitor()
-    // 每 5s 同步 PTY session → idle detector 绑定
-    setInterval(() => syncDetectors(), 5000)
   })
 
   app.on('window-all-closed', () => {
@@ -921,6 +1060,18 @@ if (!gotLock) {
   })
 
   app.on('before-quit', () => {
+    // 清理所有成员的 lock 和 heartbeat 文件
+    try {
+      const memberDirs = readdirSync(MEMBERS_DIR).filter((d) => {
+        try { return statSync(join(MEMBERS_DIR, d)).isDirectory() } catch { return false }
+      })
+      for (const dir of memberDirs) {
+        const lockPath = join(MEMBERS_DIR, dir, 'lock.json')
+        const hbPath = join(MEMBERS_DIR, dir, 'heartbeat.json')
+        try { rmSync(lockPath, { force: true }) } catch {}
+        try { rmSync(hbPath, { force: true }) } catch {}
+      }
+    } catch {}
     // Cleanup message router
     teardownMessageRouter()
     // Stop Panel HTTP API and remove panel.port file

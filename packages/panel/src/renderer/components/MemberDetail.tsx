@@ -159,20 +159,19 @@ export function MemberDetail({ memberName, onBack }: Props) {
       {/* 顶栏 */}
       <div className={styles.topBar}>
         <button className={styles.backBtn} onClick={onBack}>←</button>
-        <span className={styles.topName}>{profile.display_name}</span>
+        <span className={styles.topName}>{profile.name}</span>
       </div>
 
       {/* Profile 卡片 */}
       <div className={styles.profileCard}>
-        <Avatar uid={profile.uid} displayName={profile.display_name} size={56} status={status} />
+        <Avatar uid={profile.uid} displayName={profile.name} size={56} status={status} />
         <div className={styles.profileInfo}>
-          <div className={styles.displayName}>{profile.display_name}</div>
+          <div className={styles.displayName}>{profile.name}</div>
           <div className={styles.meta}>
             <span className={styles.roleBadge}>{profile.role}</span>
             {profile.type === 'temporary' && <span className={styles.tempBadge}>临时</span>}
           </div>
           <div className={styles.subMeta}>
-            <span className={styles.nameLabel}>{profile.name}</span>
             <span className={styles.uidLabel}>{profile.uid.slice(0, 8)}</span>
           </div>
         </div>
@@ -190,7 +189,6 @@ export function MemberDetail({ memberName, onBack }: Props) {
       {showLeadModal && (
         <LeadModal
           memberName={profile.name}
-          displayName={profile.display_name}
           onClose={() => setShowLeadModal(false)}
         />
       )}
