@@ -402,20 +402,43 @@ ${isLeader ? '你被指派为 leader。使用 teamhub MCP 的 request_member(aut
   return { ok: true, winId: win.id }
 }
 
-// ── Member color mapping ─────────────────────────────────────────────────────
-const MEMBER_COLORS: Record<string, number[]> = {
-  '老锤': [30, 140, 255],
-  '小快': [255, 60, 90],
-  '阿构': [0, 200, 130],
-  '刺猬': [255, 180, 30],
-  '阿点': [180, 80, 255]
-}
+// ── Member color from profile uid (matches Avatar.tsx palette) ──────────────
+const PALETTE_HEX = [
+  '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
+  '#ec4899', '#f43f5e', '#ef4444', '#f97316',
+  '#eab308', '#84cc16', '#22c55e', '#14b8a6',
+  '#06b6d4', '#0ea5e9', '#3b82f6', '#2563eb',
+]
+const PALETTE_RGB: number[][] = PALETTE_HEX.map(hex => [
+  parseInt(hex.slice(1, 3), 16),
+  parseInt(hex.slice(3, 5), 16),
+  parseInt(hex.slice(5, 7), 16),
+])
 const DEFAULT_COLOR = [80, 140, 255]
+
+function uidToColorRgb(uid: string): number[] {
+  let hash = 0
+  for (let i = 0; i < uid.length; i++) {
+    hash = ((hash << 5) - hash + uid.charCodeAt(i)) | 0
+  }
+  return PALETTE_RGB[Math.abs(hash) % PALETTE_RGB.length]
+}
+
+function getMemberColor(memberName: string): number[] {
+  const profilePath = join(MEMBERS_DIR, memberName, 'profile.json')
+  try {
+    if (existsSync(profilePath)) {
+      const profile = JSON.parse(readFileSync(profilePath, 'utf-8'))
+      if (profile.uid) return uidToColorRgb(profile.uid)
+    }
+  } catch { /* fallback */ }
+  return DEFAULT_COLOR
+}
 
 function getMemberColorByWinId(winId: number): number[] {
   const session = sessions.get(winId)
   if (!session) return DEFAULT_COLOR
-  return MEMBER_COLORS[session.memberName] ?? DEFAULT_COLOR
+  return getMemberColor(session.memberName)
 }
 
 // ── Overlay: window position tracking ───────────────────────────────────────
@@ -446,7 +469,7 @@ export function getAllTerminalPositions(): Array<{
       y: bounds.y + BODY_PADDING,
       w: bounds.width - BODY_PADDING * 2,
       h: bounds.height - BODY_PADDING * 2,
-      color: MEMBER_COLORS[session.memberName] ?? DEFAULT_COLOR
+      color: getMemberColor(session.memberName)
     })
   }
   return result
@@ -465,10 +488,14 @@ export function setupTerminalIpc(): void {
   })
 
   // Get member color for liquid border rendering
+  // Note: use win.getTitle() (set to memberName) instead of sessions map,
+  // because renderer may call this before session is registered in terminal-ready
   ipcMain.handle('get-member-color', (event) => {
-    const winId = BrowserWindow.fromWebContents(event.sender)?.id
-    if (winId == null) return DEFAULT_COLOR
-    return getMemberColorByWinId(winId)
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return DEFAULT_COLOR
+    const name = win.getTitle()
+    if (!name) return DEFAULT_COLOR
+    return getMemberColor(name)
   })
 
   // Get member name for titlebar display

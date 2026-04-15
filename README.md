@@ -4,6 +4,11 @@ AI team **m**anager with **m**emory.
 
 Spawn a team of AI agents, each with their own persona, role, and persistent memory. They communicate, collaborate, and grow together in a visual desktop environment.
 
+## Screenshots
+
+![Panel dark theme with liquid borders](docs/screenshots/panel-dark-theme.png)
+![Panel overview](docs/screenshots/panel-overview.png)
+
 ## What it does
 
 - **Team Management** — hire, assign tasks, track status. Each member runs in an independent terminal with their own Claude Code session.
@@ -130,7 +135,7 @@ All state lives in `~/.claude/team-hub/`:
 - **Terminal**: xterm.js + node-pty
 - **State**: File-based (JSON + Markdown), no database
 - **Protocol**: MCP (Model Context Protocol) over stdio/HTTP
-- **Visualization**: Canvas 2D SDF rendering for communication tentacles
+- **Visualization**: WebGL2 SDF rendering — liquid borders, directed tentacles, flow particles
 
 ## License
 

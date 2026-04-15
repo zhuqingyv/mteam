@@ -1,3 +1,5 @@
+// ── WebGL2 Overlay Renderer: tentacles between terminal windows ──────────────
+
 declare global {
   interface Window {
     overlayBridge: {
@@ -8,450 +10,449 @@ declare global {
 }
 
 const canvas = document.getElementById('c') as HTMLCanvasElement
-const ctx = canvas.getContext('2d')!
+const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false })!
+if (!gl) throw new Error('WebGL2 not supported')
 
-let W = 0, H = 0
-let DPR = window.devicePixelRatio || 1
-function resize(): void {
-  DPR = window.devicePixelRatio || 1
-  // Canvas bitmap in physical pixels; CSS size stays at logical pixels
-  W = canvas.width = Math.round(window.innerWidth * DPR)
-  H = canvas.height = Math.round(window.innerHeight * DPR)
-  canvas.style.width = window.innerWidth + 'px'
-  canvas.style.height = window.innerHeight + 'px'
-}
-resize()
-window.addEventListener('resize', resize)
-
-// ── Data from main process ──
+// ── Data from main process ──────────────────────────────────────────────────
 
 interface BoxInfo {
-  id: number
-  memberName: string
-  x: number
-  y: number
-  w: number
-  h: number
+  id: number; memberName: string
+  x: number; y: number; w: number; h: number
   color: number[]
 }
 
 interface MessageEvent {
-  from: string
-  to: string
-  startTime: number
-  duration: number
+  from: string; to: string; startTime: number; duration: number
 }
 
-/** Wire format from main process (uses elapsed instead of startTime for clock sync) */
 interface MessageEventWire {
-  from: string
-  to: string
-  elapsed: number
-  duration: number
+  from: string; to: string; elapsed: number; duration: number
 }
 
 let boxes: BoxInfo[] = []
 let messages: MessageEvent[] = []
 
-// ── On-demand render loop control ──
-let rafId: number | null = null
+// On-demand render loop
 let isRunning = false
-
 function startLoop(): void {
-  if (!isRunning) {
-    isRunning = true
-    rafId = requestAnimationFrame(draw)
-  }
+  if (!isRunning) { isRunning = true; requestAnimationFrame(draw) }
 }
+function stopLoop(): void { isRunning = false }
 
-function stopLoop(): void {
-  isRunning = false
-}
-
-window.overlayBridge.onWindowPositions(pos => {
-  boxes = pos
-  startLoop()
-})
+window.overlayBridge.onWindowPositions(pos => { boxes = pos; startLoop() })
 window.overlayBridge.onMessageEvents((msgs: MessageEventWire[]) => {
-  // Rebuild local startTime from elapsed: startTime = localNow - elapsed
   const localNow = performance.now() / 1000
   messages = msgs.map(m => ({
-    from: m.from,
-    to: m.to,
-    startTime: localNow - m.elapsed,
-    duration: m.duration
+    from: m.from, to: m.to,
+    startTime: localNow - m.elapsed, duration: m.duration
   }))
   startLoop()
 })
 
-// ── SDF constants (base values in logical pixels, scaled by DPR at render time) ──
+function resize(): void {
+  const dpr = window.devicePixelRatio || 1
+  canvas.width = Math.round(window.innerWidth * dpr)
+  canvas.height = Math.round(window.innerHeight * dpr)
+  canvas.style.width = window.innerWidth + 'px'
+  canvas.style.height = window.innerHeight + 'px'
+  gl.viewport(0, 0, canvas.width, canvas.height)
+}
+resize()
+window.addEventListener('resize', resize)
 
-const BASE_CORNER_RADIUS = 12
-const BASE_BW = 4
-const BASE_RES = 3
+// ── Tentacle geometry (computed on CPU, passed as uniforms) ──────────────────
+
+const MAX_TENTACLES = 8
 const BEZIER_SAMPLES = 12
 
-// Effective values — updated each frame with current DPR
-let CORNER_RADIUS = BASE_CORNER_RADIUS
-let BW = BASE_BW
-let RES = BASE_RES
-
-// ── SDF primitives (from demo/liquid-merge.html) ──
-
-function roundedBoxSDF(px: number, py: number, b: BoxInfo): number {
-  const cx = b.x + b.w / 2, cy = b.y + b.h / 2
-  const dx = Math.abs(px - cx) - b.w / 2 + CORNER_RADIUS
-  const dy = Math.abs(py - cy) - b.h / 2 + CORNER_RADIUS
-  return Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) + Math.min(Math.max(dx, dy), 0) - CORNER_RADIUS
-}
-
-function smin(a: number, b: number, k: number): number {
-  const h = Math.max(k - Math.abs(a - b), 0) / k
-  return Math.min(a, b) - h * h * h * k / 6
-}
-
-function distToCubicBezier(
-  px: number, py: number,
-  p0x: number, p0y: number, p1x: number, p1y: number,
-  p2x: number, p2y: number, p3x: number, p3y: number
-): { dist: number; t: number } {
-  let minDist = Infinity
-  let bestT = 0
-  for (let i = 0; i <= BEZIER_SAMPLES; i++) {
-    const t = i / BEZIER_SAMPLES
-    const it = 1 - t
-    const it2 = it * it
-    const it3 = it2 * it
-    const t2 = t * t
-    const t3 = t2 * t
-    const bx = it3 * p0x + 3 * it2 * t * p1x + 3 * it * t2 * p2x + t3 * p3x
-    const by = it3 * p0y + 3 * it2 * t * p1y + 3 * it * t2 * p2y + t3 * p3y
-    const d = Math.hypot(px - bx, py - by)
-    if (d < minDist) {
-      minDist = d
-      bestT = t
-    }
-  }
-  return { dist: minDist, t: bestT }
-}
-
-function tentacleSDF(
-  px: number, py: number,
-  p0x: number, p0y: number, p1x: number, p1y: number,
-  p2x: number, p2y: number, p3x: number, p3y: number,
+interface TentacleData {
+  p0x: number; p0y: number; p1x: number; p1y: number
+  p2x: number; p2y: number; p3x: number; p3y: number
   reach: number
-): { dist: number; t: number } {
-  const { dist, t } = distToCubicBezier(px, py, p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y)
-  const rootWidth = BW * 1.2
-  const midWidth = BW * 0.35
-  const edgeFactor = 4 * (t - 0.5) * (t - 0.5) // 1 at t=0,1 ; 0 at t=0.5
-  const width = midWidth + (rootWidth - midWidth) * edgeFactor
-  const sdfDist = dist - width * Math.min(reach * 1.5, 1)
-  return { dist: sdfDist, t }
+  headPos: number; tailPos: number
+  fuseSrc: number; fuseDst: number
+  colorA: number[]; colorB: number[]
 }
 
-function findEdgeExit(cx: number, cy: number, nx: number, ny: number, box: BoxInfo, maxDist: number): number {
-  const step = 2 * DPR
+function findEdgeExit(
+  cx: number, cy: number, nx: number, ny: number,
+  bx: number, by: number, bw: number, bh: number,
+  cornerR: number, maxDist: number, dpr: number
+): number {
+  const step = 2 * dpr
   for (let s = 0; s < maxDist; s += step) {
-    if (roundedBoxSDF(cx + nx * s, cy + ny * s, box) > 0) {
-      return s
-    }
+    const px = cx + nx * s, py = cy + ny * s
+    // inline roundedBoxSDF
+    const dx = Math.abs(px - (bx + bw / 2)) - bw / 2 + cornerR
+    const dy = Math.abs(py - (by + bh / 2)) - bh / 2 + cornerR
+    const sdf = Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) + Math.min(Math.max(dx, dy), 0) - cornerR
+    if (sdf > 0) return s
   }
   return maxDist * 0.5
 }
 
-// ── Helper: find box by memberName ──
+// ── Shaders ─────────────────────────────────────────────────────────────────
 
-function boxByName(name: string): BoxInfo | undefined {
-  return boxes.find(b => b.memberName === name)
+const VERT = `#version 300 es
+in vec2 a_pos;
+void main() { gl_Position = vec4(a_pos, 0, 1); }
+`
+
+// Fragment shader: evaluates SDF for up to MAX_TENTACLES tentacles + their endpoint boxes
+// Layout per tentacle (8 vec4):
+//   [0] = (p0.x, p0.y, p1.x, p1.y)
+//   [1] = (p2.x, p2.y, p3.x, p3.y)
+//   [2] = (reach, headPos, tailPos, fuseSrc)
+//   [3] = (colorA.r, colorA.g, colorA.b, fuseDst)
+//   [4] = (colorB.r, colorB.g, colorB.b, 0)
+//   [5] = (srcBox.x, srcBox.y, srcBox.w, srcBox.h)
+//   [6] = (dstBox.x, dstBox.y, dstBox.w, dstBox.h)
+//   [7] = reserved
+const FRAG = `#version 300 es
+precision highp float;
+
+uniform vec2 u_res;
+uniform float u_time;
+uniform float u_dpr;
+uniform int u_tentCount;
+
+uniform vec4 u_tent[${MAX_TENTACLES} * 8];
+
+out vec4 o_color;
+
+const float CORNER_R_BASE = 12.0;
+const float BW_BASE = 4.0;
+const int BEZIER_SAMPLES = 12;
+
+float roundedBoxSDF(vec2 p, vec4 box, float cr) {
+    vec2 center = box.xy + box.zw * 0.5;
+    vec2 d = abs(p - center) - box.zw * 0.5 + cr;
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - cr;
 }
 
-// ── Tentacle data ──
-
-interface TentacleInfo {
-  ai: number
-  bi: number
-  reach: number
-  p0x: number; p0y: number
-  p1x: number; p1y: number
-  p2x: number; p2y: number
-  p3x: number; p3y: number
-  minX: number; maxX: number
-  minY: number; maxY: number
+float safeSmin(float a, float b, float k) {
+    if (k < 0.001) return min(a, b);
+    float h = max(k - abs(a - b), 0.0) / k;
+    return min(a, b) - h * h * h * k / 6.0;
 }
 
-// ── Main render loop ──
+// Evaluate cubic bezier at parameter t
+vec2 bezierAt(vec2 p0, vec2 p1, vec2 p2, vec2 p3, float t) {
+    float it = 1.0 - t;
+    return it*it*it*p0 + 3.0*it*it*t*p1 + 3.0*it*t*t*p2 + t*t*t*p3;
+}
+
+// Returns vec3(dist, globalT, 0)
+// Only samples the bezier in [tailPos, headPos] range
+vec3 tentacleSDF(vec2 p, vec2 p0, vec2 p1, vec2 p2, vec2 p3,
+                 float reach, float headPos, float tailPos, float bw) {
+    float minDist = 1e10;
+    float bestT = 0.0;
+    float span = headPos - tailPos;
+    if (span < 0.001) return vec3(1e10, 0.0, 0.0);
+
+    for (int i = 0; i <= BEZIER_SAMPLES; i++) {
+        float t = tailPos + float(i) / float(BEZIER_SAMPLES) * span;
+        vec2 b = bezierAt(p0, p1, p2, p3, t);
+        float d = length(p - b);
+        if (d < minDist) { minDist = d; bestT = t; }
+    }
+
+    // Width profile: thick in the middle, tapered at head and tail
+    float rootW = bw * 1.2;
+    float midW = bw * 0.35;
+    // Parabolic base width along the full curve
+    float ef = 4.0 * (bestT - 0.5) * (bestT - 0.5);
+    float w = midW + (rootW - midW) * ef;
+
+    // Head/tail tapering to a point
+    float headFade = smoothstep(headPos, headPos - 0.12, bestT);
+    float tailFade = smoothstep(tailPos, tailPos + 0.12, bestT);
+    w *= headFade * tailFade;
+
+    float sdfDist = minDist - w * min(reach * 1.5, 1.0);
+    return vec3(sdfDist, bestT, 0.0);
+}
+
+void main() {
+    vec2 px = vec2(gl_FragCoord.x, u_res.y - gl_FragCoord.y);
+    float cr = CORNER_R_BASE * u_dpr;
+    float bw = BW_BASE * u_dpr;
+
+    if (u_tentCount == 0) discard;
+
+    float bestDist = 1e10;
+    vec3 bestColor = vec3(0.0);
+    float bestGlow = 0.0;
+
+    for (int ti = 0; ti < ${MAX_TENTACLES}; ti++) {
+        if (ti >= u_tentCount) break;
+        int base = ti * 8;
+
+        vec2 p0 = u_tent[base + 0].xy;
+        vec2 p1 = u_tent[base + 0].zw;
+        vec2 p2 = u_tent[base + 1].xy;
+        vec2 p3 = u_tent[base + 1].zw;
+        float reach   = u_tent[base + 2].x;
+        float headPos = u_tent[base + 2].y;
+        float tailPos = u_tent[base + 2].z;
+        float fuseSrc = u_tent[base + 2].w;
+        vec3  cA      = u_tent[base + 3].xyz;
+        float fuseDst = u_tent[base + 3].w;
+        vec3  cB      = u_tent[base + 4].xyz;
+        vec4  boxSrc  = u_tent[base + 5];
+        vec4  boxDst  = u_tent[base + 6];
+
+        // Box SDFs
+        float dSrc = roundedBoxSDF(px, boxSrc, cr);
+        float dDst = roundedBoxSDF(px, boxDst, cr);
+
+        // Tentacle SDF (only in tailPos..headPos range)
+        vec3 tsdf = tentacleSDF(px, p0, p1, p2, p3, reach, headPos, tailPos, bw);
+        float tDist = tsdf.x;
+        float tParam = tsdf.y;
+
+        // Directional fusion: source fuses when fuseSrc > 0, dest fuses when fuseDst > 0
+        float kRoot = 18.0 * u_dpr;
+        float fusedSrc = safeSmin(dSrc, tDist, kRoot * fuseSrc);
+        float fusedDst = safeSmin(dDst, tDist, kRoot * fuseDst);
+
+        // Global composite: fuse the two sides together
+        float gSDF = safeSmin(fusedSrc, fusedDst, 14.0 * u_dpr);
+
+        // Wobble
+        vec2 refCenter = boxSrc.xy + boxSrc.zw * 0.5;
+        float angle = atan(px.y - refCenter.y, px.x - refCenter.x);
+        float wobble = sin(angle * 5.0 + u_time * 1.5) * 1.0
+                     + sin(angle * 8.0 + u_time * 2.3) * 0.6
+                     + sin(angle * 13.0 + u_time * 1.1) * 0.4;
+        float hw = bw * 0.5 + wobble;
+
+        float d = abs(gSDF) - hw;
+
+        // Flow particles: 4 bright dots moving along tailPos→headPos
+        float dotGlow = 0.0;
+        float span = headPos - tailPos;
+        if (span > 0.01) {
+            for (int di = 0; di < 4; di++) {
+                float dotT = tailPos + fract(float(di) * 0.25 + u_time * 0.8) * span;
+                vec2 dotPos = bezierAt(p0, p1, p2, p3, dotT);
+                float dotDist = length(px - dotPos);
+                dotGlow += exp(-dotDist * dotDist / (bw * bw * 6.0)) * 0.4;
+            }
+        }
+
+        if (d < bestDist) {
+            bestDist = d;
+            float ct = tParam;
+            ct = ct * ct * (3.0 - 2.0 * ct);
+            bestColor = mix(cA, cB, ct);
+            bestGlow = dotGlow;
+        }
+    }
+
+    float edge = 2.0 * u_dpr;
+    float val = 1.0 - smoothstep(-edge, edge, bestDist);
+    if (val < 0.01 && bestGlow < 0.01) discard;
+
+    float a = val * 0.85 + bestGlow;
+    a = min(a, 1.0);
+    vec3 col = bestColor + bestGlow * vec3(1.0);
+    col = min(col, vec3(1.0));
+    o_color = vec4(col * a, a);
+}
+`
+
+function compile(type: number, src: string): WebGLShader {
+  const s = gl.createShader(type)!
+  gl.shaderSource(s, src)
+  gl.compileShader(s)
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+    throw new Error(gl.getShaderInfoLog(s) || 'shader error')
+  return s
+}
+
+const prog = gl.createProgram()!
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT))
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG))
+gl.linkProgram(prog)
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS))
+  throw new Error(gl.getProgramInfoLog(prog) || 'link error')
+gl.useProgram(prog)
+
+// Fullscreen quad
+const buf = gl.createBuffer()!
+gl.bindBuffer(gl.ARRAY_BUFFER, buf)
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW)
+const aPos = gl.getAttribLocation(prog, 'a_pos')
+gl.enableVertexAttribArray(aPos)
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0)
+
+const uRes = gl.getUniformLocation(prog, 'u_res')!
+const uTime = gl.getUniformLocation(prog, 'u_time')!
+const uDpr = gl.getUniformLocation(prog, 'u_dpr')!
+const uTentCount = gl.getUniformLocation(prog, 'u_tentCount')!
+const uTent: WebGLUniformLocation[] = []
+for (let i = 0; i < MAX_TENTACLES * 8; i++) {
+  uTent.push(gl.getUniformLocation(prog, `u_tent[${i}]`)!)
+}
+
+gl.enable(gl.BLEND)
+gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+
+// ── Draw ────────────────────────────────────────────────────────────────────
 
 function draw(ts: number): void {
   const time = ts / 1000
+  const dpr = window.devicePixelRatio || 1
 
-  // overlay 动态 resize 时需要同步 canvas 尺寸
-  const expectedW = Math.round(window.innerWidth * (window.devicePixelRatio || 1))
-  const expectedH = Math.round(window.innerHeight * (window.devicePixelRatio || 1))
-  if (canvas.width !== expectedW || canvas.height !== expectedH) {
-    resize()
-  }
+  const ew = Math.round(window.innerWidth * dpr)
+  const eh = Math.round(window.innerHeight * dpr)
+  if (canvas.width !== ew || canvas.height !== eh) resize()
 
-  // Scale SDF constants by DPR
-  CORNER_RADIUS = BASE_CORNER_RADIUS * DPR
-  BW = BASE_BW * DPR
-  RES = Math.max(1, Math.round(BASE_RES * DPR))
+  gl.clearColor(0, 0, 0, 0)
+  gl.clear(gl.COLOR_BUFFER_BIT)
 
-  ctx.clearRect(0, 0, W, H)
+  if (boxes.length < 2 || messages.length === 0) { stopLoop(); return }
 
-  // Nothing to do without at least 2 boxes or active messages
-  if (boxes.length < 2 || messages.length === 0) {
-    stopLoop()
-    return
-  }
-
-  // Scale box coordinates from logical pixels to physical pixels (canvas bitmap space)
-  const scaledBoxes: BoxInfo[] = boxes.map(b => ({
+  // Scale boxes to physical pixels
+  const scaled = boxes.map(b => ({
     ...b,
-    x: b.x * DPR,
-    y: b.y * DPR,
-    w: b.w * DPR,
-    h: b.h * DPR,
+    x: b.x * dpr, y: b.y * dpr, w: b.w * dpr, h: b.h * dpr,
   }))
 
-  // Build pair reach matrix (indexed by box array position)
-  const n = scaledBoxes.length
-  const pairReach: number[][] = Array.from({ length: n }, () => new Array(n).fill(0))
-
+  const CR = 12 * dpr
   const now = performance.now() / 1000
-  for (const msg of messages) {
-    const fromIdx = scaledBoxes.findIndex(b => b.memberName === msg.from)
-    const toIdx = scaledBoxes.findIndex(b => b.memberName === msg.to)
-    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) continue
 
+  // ── Lifecycle: each message is a directed tentacle (from → to) ──────────
+  interface TentacleLifecycle {
+    fromIdx: number; toIdx: number
+    mt: number            // normalized time 0→1
+    headPos: number; tailPos: number
+    fuseSrc: number; fuseDst: number
+    reach: number
+  }
+
+  const lives: TentacleLifecycle[] = []
+
+  for (const msg of messages) {
+    const fi = scaled.findIndex(b => b.memberName === msg.from)
+    const ti = scaled.findIndex(b => b.memberName === msg.to)
+    if (fi < 0 || ti < 0 || fi === ti) continue
     const mt = (now - msg.startTime) / msg.duration
     if (mt < 0 || mt > 1) continue
+    if (lives.length >= MAX_TENTACLES) break
+
+    // Compute lifecycle parameters from mt
+    let headPos: number, tailPos: number, fuseSrc: number, fuseDst: number
+
+    if (mt < 0.05) {
+      // Sprout: head slowly pushes out a tiny bit
+      headPos = (mt / 0.05) * 0.1
+      tailPos = 0
+    } else if (mt < 0.40) {
+      // Extend: head reaches from 0.1 to 1.0
+      headPos = 0.1 + ((mt - 0.05) / 0.35) * 0.9
+      tailPos = 0
+    } else if (mt < 0.55) {
+      // Contact: head at 1, tail at 0, fusion transitions
+      headPos = 1.0
+      tailPos = 0
+    } else if (mt < 0.80) {
+      // Detach: tail chases head (0→1)
+      headPos = 1.0
+      tailPos = (mt - 0.55) / 0.25
+    } else {
+      // Absorb: tail catches up past 1.0, tentacle shrinks to nothing
+      headPos = 1.0 + (mt - 0.80) / 0.20 * 0.05
+      tailPos = 1.0 + (mt - 0.80) / 0.20 * 0.05
+    }
+
+    // fuseSrc: 1.0 while t<0.4, then linearly to 0 at t=0.6
+    if (mt < 0.40) fuseSrc = 1.0
+    else if (mt < 0.60) fuseSrc = 1.0 - (mt - 0.40) / 0.20
+    else fuseSrc = 0.0
+
+    // fuseDst: 0 while t<0.35, then linearly to 1 at t=0.55
+    if (mt < 0.35) fuseDst = 0.0
+    else if (mt < 0.55) fuseDst = (mt - 0.35) / 0.20
+    else fuseDst = 1.0
+
+    // reach envelope: smooth bell for overall width modulation
     const reach = Math.pow(Math.sin(mt * Math.PI), 0.65)
-    pairReach[fromIdx][toIdx] = Math.max(pairReach[fromIdx][toIdx], reach)
-    pairReach[toIdx][fromIdx] = Math.max(pairReach[toIdx][fromIdx], reach)
+
+    lives.push({ fromIdx: fi, toIdx: ti, mt, headPos, tailPos, fuseSrc, fuseDst, reach })
   }
 
-  // Pre-compute active tentacle pairs and Bezier control points
-  const tentacles: TentacleInfo[] = []
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      if (pairReach[i][j] < 0.02) continue
-      const a = scaledBoxes[i], b = scaledBoxes[j]
-      const acx = a.x + a.w / 2, acy = a.y + a.h / 2
-      const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2
-      const dx = bcx - acx, dy = bcy - acy
-      const len = Math.hypot(dx, dy)
-      if (len < 1) continue
-      const nx = dx / len, ny = dy / len
+  // ── Build tentacle geometry ──────────────────────────────────────────────
+  const tentacles: TentacleData[] = []
+  const tentacleBoxPairs: { src: typeof scaled[0]; dst: typeof scaled[0]; fromIdx: number; toIdx: number }[] = []
 
-      const aExit = findEdgeExit(acx, acy, nx, ny, a, len * 0.5)
-      const bExit = findEdgeExit(bcx, bcy, -nx, -ny, b, len * 0.5)
+  for (const life of lives) {
+    const src = scaled[life.fromIdx], dst = scaled[life.toIdx]
+    const scx = src.x + src.w / 2, scy = src.y + src.h / 2
+    const dcx = dst.x + dst.w / 2, dcy = dst.y + dst.h / 2
+    const dx = dcx - scx, dy = dcy - scy
+    const len = Math.hypot(dx, dy)
+    if (len < 1) continue
+    const nx = dx / len, ny = dy / len
 
-      const p0x = acx + nx * aExit
-      const p0y = acy + ny * aExit
-      const p3x = bcx - nx * bExit
-      const p3y = bcy - ny * bExit
+    const srcExit = findEdgeExit(scx, scy, nx, ny, src.x, src.y, src.w, src.h, CR, len * 0.5, dpr)
+    const dstExit = findEdgeExit(dcx, dcy, -nx, -ny, dst.x, dst.y, dst.w, dst.h, CR, len * 0.5, dpr)
 
-      const gapLen = Math.hypot(p3x - p0x, p3y - p0y)
-      if (gapLen < 5 * DPR) continue
+    const p0x = scx + nx * srcExit, p0y = scy + ny * srcExit
+    const p3x = dcx - nx * dstExit, p3y = dcy - ny * dstExit
 
-      const perpX = -ny, perpY = nx
-      const wobbleAmt = gapLen * 0.25
-      const offset1 = Math.sin(time * 1.7 + i * 2.3 + j * 1.1) * wobbleAmt
-                     + Math.sin(time * 2.9 + j * 3.1) * wobbleAmt * 0.4
-      const offset2 = Math.sin(time * 2.1 + j * 1.7 + i * 2.9) * wobbleAmt
-                     + Math.cos(time * 1.3 + i * 2.7) * wobbleAmt * 0.4
+    const gapLen = Math.hypot(p3x - p0x, p3y - p0y)
+    if (gapLen < 5 * dpr) continue
 
-      const p1x = p0x + (p3x - p0x) * 0.33 + perpX * offset1
-      const p1y = p0y + (p3y - p0y) * 0.33 + perpY * offset1
-      const p2x = p0x + (p3x - p0x) * 0.67 + perpX * offset2
-      const p2y = p0y + (p3y - p0y) * 0.67 + perpY * offset2
+    const perpX = -ny, perpY = nx
+    const wobbleAmt = gapLen * 0.25
+    const o1 = Math.sin(time * 1.7 + life.fromIdx * 2.3 + life.toIdx * 1.1) * wobbleAmt
+             + Math.sin(time * 2.9 + life.toIdx * 3.1) * wobbleAmt * 0.4
+    const o2 = Math.sin(time * 2.1 + life.toIdx * 1.7 + life.fromIdx * 2.9) * wobbleAmt
+             + Math.cos(time * 1.3 + life.fromIdx * 2.7) * wobbleAmt * 0.4
 
-      tentacles.push({
-        ai: i, bi: j, reach: pairReach[i][j],
-        p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y,
-        minX: Math.min(p0x, p1x, p2x, p3x) - BW * 3,
-        maxX: Math.max(p0x, p1x, p2x, p3x) + BW * 3,
-        minY: Math.min(p0y, p1y, p2y, p3y) - BW * 3,
-        maxY: Math.max(p0y, p1y, p2y, p3y) + BW * 3,
-      })
-    }
+    tentacles.push({
+      p0x, p0y,
+      p1x: p0x + (p3x - p0x) * 0.33 + perpX * o1,
+      p1y: p0y + (p3y - p0y) * 0.33 + perpY * o1,
+      p2x: p0x + (p3x - p0x) * 0.67 + perpX * o2,
+      p2y: p0y + (p3y - p0y) * 0.67 + perpY * o2,
+      p3x, p3y,
+      reach: life.reach,
+      headPos: life.headPos, tailPos: life.tailPos,
+      fuseSrc: life.fuseSrc, fuseDst: life.fuseDst,
+      colorA: src.color, colorB: dst.color
+    })
+    tentacleBoxPairs.push({ src, dst, fromIdx: life.fromIdx, toIdx: life.toIdx })
   }
 
-  // Early out: no active tentacles
-  if (tentacles.length === 0) {
-    stopLoop()
-    return
+  if (tentacles.length === 0) { stopLoop(); return }
+
+  // Upload uniforms
+  gl.uniform2f(uRes, canvas.width, canvas.height)
+  gl.uniform1f(uTime, time)
+  gl.uniform1f(uDpr, dpr)
+  gl.uniform1i(uTentCount, tentacles.length)
+
+  for (let ti = 0; ti < tentacles.length; ti++) {
+    const t = tentacles[ti]
+    const base = ti * 8
+    const pair = tentacleBoxPairs[ti]
+
+    gl.uniform4f(uTent[base + 0], t.p0x, t.p0y, t.p1x, t.p1y)
+    gl.uniform4f(uTent[base + 1], t.p2x, t.p2y, t.p3x, t.p3y)
+    gl.uniform4f(uTent[base + 2], t.reach, t.headPos, t.tailPos, t.fuseSrc)
+    gl.uniform4f(uTent[base + 3], t.colorA[0] / 255, t.colorA[1] / 255, t.colorA[2] / 255, t.fuseDst)
+    gl.uniform4f(uTent[base + 4], t.colorB[0] / 255, t.colorB[1] / 255, t.colorB[2] / 255, 0)
+    gl.uniform4f(uTent[base + 5], pair.src.x, pair.src.y, pair.src.w, pair.src.h)
+    gl.uniform4f(uTent[base + 6], pair.dst.x, pair.dst.y, pair.dst.w, pair.dst.h)
+    gl.uniform4f(uTent[base + 7], 0, 0, 0, 0) // reserved
   }
 
-  // Compute global bounding box of all tentacles for minimal rendering area
-  let globalMinX = Infinity, globalMinY = Infinity
-  let globalMaxX = -Infinity, globalMaxY = -Infinity
-  for (const t of tentacles) {
-    if (t.minX < globalMinX) globalMinX = t.minX
-    if (t.minY < globalMinY) globalMinY = t.minY
-    if (t.maxX > globalMaxX) globalMaxX = t.maxX
-    if (t.maxY > globalMaxY) globalMaxY = t.maxY
-  }
-
-  // Clamp to canvas
-  const renderX0 = Math.max(0, Math.floor(globalMinX / RES) * RES)
-  const renderY0 = Math.max(0, Math.floor(globalMinY / RES) * RES)
-  const renderX1 = Math.min(W, Math.ceil(globalMaxX))
-  const renderY1 = Math.min(H, Math.ceil(globalMaxY))
-  const renderW = renderX1 - renderX0
-  const renderH = renderY1 - renderY0
-
-  if (renderW <= 0 || renderH <= 0) {
-    stopLoop()
-    return
-  }
-
-  // Create ImageData for the tentacle region only
-  const imgData = ctx.createImageData(renderW, renderH)
-  const data = imgData.data
-  // All pixels start at RGBA(0,0,0,0) = fully transparent — correct for overlay
-
-  for (let py = renderY0; py < renderY1; py += RES) {
-    for (let px = renderX0; px < renderX1; px += RES) {
-
-      // Step 1: Compute raw rounded-box SDF for each box
-      const boxDists = new Float32Array(n)
-      for (let i = 0; i < n; i++) {
-        boxDists[i] = roundedBoxSDF(px, py, scaledBoxes[i])
-      }
-
-      // Step 2: Per-box fused SDF = smin(box SDF, each of its tentacles)
-      // This creates the "growing out of the border" bulge at roots
-      const fusedDists = new Float32Array(n)
-      for (let i = 0; i < n; i++) {
-        fusedDists[i] = boxDists[i]
-      }
-
-      // Track closest tentacle info for color gradient
-      let closestTentT = -1
-      let closestTentAi = -1
-      let closestTentBi = -1
-      let closestTentDist = Infinity
-
-      for (const tent of tentacles) {
-        // Bounding box quick reject
-        if (px < tent.minX || px > tent.maxX || py < tent.minY || py > tent.maxY) continue
-
-        const { dist: tSDF, t: bezierT } = tentacleSDF(px, py,
-          tent.p0x, tent.p0y, tent.p1x, tent.p1y,
-          tent.p2x, tent.p2y, tent.p3x, tent.p3y, tent.reach)
-
-        // Track the closest tentacle for color interpolation
-        if (tSDF < closestTentDist) {
-          closestTentDist = tSDF
-          closestTentT = bezierT
-          closestTentAi = tent.ai
-          closestTentBi = tent.bi
-        }
-
-        // Fuse tentacle into both endpoint boxes (root fusion k scales with DPR)
-        const kRoot = 18 * DPR
-        fusedDists[tent.ai] = smin(fusedDists[tent.ai], tSDF, kRoot)
-        fusedDists[tent.bi] = smin(fusedDists[tent.bi], tSDF, kRoot)
-      }
-
-      // Step 3: Global SDF = smin across connected fused-box fields
-      let globalSDF = Infinity
-      let closestBox = -1
-      let secondBox = -1
-      let closestDist = Infinity
-      let secondDist = Infinity
-
-      for (let i = 0; i < n; i++) {
-        const d = fusedDists[i]
-        if (d < closestDist) {
-          secondDist = closestDist
-          secondBox = closestBox
-          closestDist = d
-          closestBox = i
-        } else if (d < secondDist) {
-          secondDist = d
-          secondBox = i
-        }
-      }
-
-      // If the two closest boxes have an active tentacle, smin-fuse them
-      let hasTentacleLink = false
-      if (closestBox >= 0 && secondBox >= 0) {
-        for (const tent of tentacles) {
-          if ((tent.ai === closestBox && tent.bi === secondBox) ||
-              (tent.ai === secondBox && tent.bi === closestBox)) {
-            hasTentacleLink = true
-            break
-          }
-        }
-      }
-
-      if (hasTentacleLink) {
-        globalSDF = smin(closestDist, secondDist, 14 * DPR)
-      } else {
-        globalSDF = closestDist
-      }
-
-      // Step 4: Render border from globalSDF with wobble
-      if (closestBox < 0) continue
-      const cb = scaledBoxes[closestBox]
-      const ccx = cb.x + cb.w / 2, ccy = cb.y + cb.h / 2
-      const angle = Math.atan2(py - ccy, px - ccx)
-      const wobble = Math.sin(angle * 5 + time * 1.5) * 1.0
-                   + Math.sin(angle * 8 + time * 2.3) * 0.6
-                   + Math.sin(angle * 13 + time * 1.1) * 0.4
-      const halfW = BW / 2 + wobble
-
-      const d = Math.abs(globalSDF) - halfW
-      const aa = 2 * DPR // anti-aliasing width in physical pixels
-      let val: number
-      if (d > aa) { val = 0 }
-      else if (d < -aa) { val = 1 }
-      else { val = 1 - (d + aa) / (aa * 2) }
-
-      if (val < 0.01) continue
-
-      // Step 5: Color — use Bezier t for gradient along tentacle path
-      let totalR: number, totalG: number, totalB: number
-      if (closestTentDist < BW * 2 && closestTentAi >= 0 && closestTentBi >= 0) {
-        // Pixel is near a tentacle — use Bezier t for color gradient
-        let colorT = closestTentT
-        colorT = colorT * colorT * (3 - 2 * colorT) // smoothstep
-        const cA = scaledBoxes[closestTentAi].color
-        const cB = scaledBoxes[closestTentBi].color
-        totalR = cA[0] * (1 - colorT) + cB[0] * colorT
-        totalG = cA[1] * (1 - colorT) + cB[1] * colorT
-        totalB = cA[2] * (1 - colorT) + cB[2] * colorT
-      } else {
-        // Not in tentacle range — use the closest box's own color
-        const c = scaledBoxes[closestBox].color
-        totalR = c[0]; totalG = c[1]; totalB = c[2]
-      }
-
-      const r = Math.round(totalR)
-      const g = Math.round(totalG)
-      const bl = Math.round(totalB)
-      const alpha = Math.round(Math.min(val, 1) * 0.85 * 255)
-
-      // Paint RES x RES block into local ImageData
-      for (let dy = 0; dy < RES && py + dy < renderY1; dy++) {
-        for (let dx = 0; dx < RES && px + dx < renderX1; dx++) {
-          const lx = (px + dx) - renderX0
-          const ly = (py + dy) - renderY0
-          const idx = (ly * renderW + lx) * 4
-          data[idx] = r
-          data[idx + 1] = g
-          data[idx + 2] = bl
-          data[idx + 3] = alpha
-        }
-      }
-    }
-  }
-
-  ctx.putImageData(imgData, renderX0, renderY0)
-  rafId = requestAnimationFrame(draw)
+  gl.drawArrays(gl.TRIANGLES, 0, 6)
+  requestAnimationFrame(draw)
 }
 
-export {} // ensure this is treated as a module
+export {}

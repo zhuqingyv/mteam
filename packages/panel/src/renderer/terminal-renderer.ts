@@ -58,11 +58,35 @@ const container = document.getElementById('terminal')!
 term.open(container)
 fitAddon.fit()
 
+// ── Activity tracking (byte rate → border intensity) ─────────────────────────
+const ACTIVITY_WINDOW_MS = 1000
+const ACTIVITY_MAX_BPS = 2000
+const byteLog: { ts: number; bytes: number }[] = []
+let currentActivity = 0
+;(window as any).__borderActivity = 0
+
+function updateActivity(): void {
+  const now = performance.now()
+  // Prune entries older than the sliding window
+  while (byteLog.length > 0 && now - byteLog[0].ts > ACTIVITY_WINDOW_MS) {
+    byteLog.shift()
+  }
+  const totalBytes = byteLog.reduce((sum, e) => sum + e.bytes, 0)
+  const target = Math.min(totalBytes / ACTIVITY_MAX_BPS, 1)
+  // Asymmetric easing: rise fast (~150ms), fall slow (~600ms)
+  const alpha = target > currentActivity ? 0.15 : 0.04
+  currentActivity += (target - currentActivity) * alpha
+  ;(window as any).__borderActivity = currentActivity
+  requestAnimationFrame(updateActivity)
+}
+requestAnimationFrame(updateActivity)
+
 // ── IPC wiring ────────────────────────────────────────────────────────────────
 if (window.terminalBridge) {
   // Receive PTY output
   window.terminalBridge.onPtyOutput((data: string) => {
     term.write(data)
+    byteLog.push({ ts: performance.now(), bytes: data.length })
   })
 
   // Send keyboard input to PTY
