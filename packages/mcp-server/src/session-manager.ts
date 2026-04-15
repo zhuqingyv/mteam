@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { scanOrphanLocks, releaseLock, readLock } from "./lock-manager.js";
+import { cleanupAll as cleanupAllMcps } from "./mcp-proxy.js";
+import { removeHeartbeat } from "./heartbeat.js";
 
 export interface SessionData {
   pid: number;
@@ -13,6 +15,33 @@ export interface SessionData {
 let hubDir: string;
 let sessionFilePath: string;
 let myNonces: Map<string, string> = new Map(); // memberName -> nonce
+
+// ── activate 状态追踪 ──
+const activatedMembers = new Set<string>();
+
+export function markActivated(member: string): void {
+  activatedMembers.add(member);
+}
+
+export function isActivated(member: string): boolean {
+  return activatedMembers.has(member);
+}
+
+// ── 经验保存追踪 ──
+const membersSavedMemory = new Set<string>();
+
+export function markMemorySaved(member: string): void {
+  membersSavedMemory.add(member);
+}
+
+export function hasMemorySaved(member: string): boolean {
+  return membersSavedMemory.has(member);
+}
+
+export function clearMemberTracking(member: string): void {
+  activatedMembers.delete(member);
+  membersSavedMemory.delete(member);
+}
 
 export function initSession(hub: string): { pid: number; lstart: string } {
   hubDir = hub;
@@ -64,6 +93,9 @@ export function getLockNonce(memberName: string): string | undefined {
 }
 
 function gracefulShutdown(): void {
+  // 清理所有子 MCP 进程
+  cleanupAllMcps().catch(() => {});
+
   const membersDir = path.join(hubDir, "members");
   const ppid = process.ppid;
 
@@ -78,6 +110,11 @@ function gracefulShutdown(): void {
         releaseLock(membersDir, entry.name, nonce);
       }
     }
+  }
+
+  // 清理所有已激活成员的心跳
+  for (const member of activatedMembers) {
+    removeHeartbeat(membersDir, member);
   }
 
   // 删 session 文件

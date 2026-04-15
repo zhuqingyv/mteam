@@ -21,7 +21,7 @@ function readLockFile(lockPath: string): LockData | null {
   }
 }
 
-function isProcessAlive(pid: number, sessionStart: string): boolean {
+export function isProcessAlive(pid: number, sessionStart: string): boolean {
   try {
     execSync(`kill -0 ${pid}`, { stdio: "pipe" });
     const actualStart = execSync(`ps -p ${pid} -o lstart=`, {

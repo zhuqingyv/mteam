@@ -1,0 +1,383 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--text-idle);
+  font-size: 12px;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 6px;
+  -webkit-app-region: drag;
+}
+
+.backBtn {
+  -webkit-app-region: no-drag;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.backBtn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.topName {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.topName:hover {
+  color: #6366f1;
+}
+
+.nameInput {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid #6366f1;
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
+  flex: 1;
+}
+
+/* 状态 + 进度 */
+.statusRow {
+  padding: 4px 12px 8px;
+}
+
+.statusSelect {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 6px;
+}
+
+.statusBtn {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: none;
+  color: var(--text-idle);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.statusBtn:hover {
+  color: var(--text-secondary);
+  border-color: var(--text-secondary);
+}
+
+.statusActive {
+  font-weight: 600;
+}
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progressBarBig {
+  flex: 1;
+  height: 4px;
+  background: var(--border-color);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progressFillBig {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.progressNum {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  min-width: 32px;
+  text-align: right;
+}
+
+.progressNum:hover {
+  color: #6366f1;
+}
+
+.progressInput {
+  width: 40px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid #6366f1;
+  border-radius: 3px;
+  padding: 1px 4px;
+  outline: none;
+  text-align: right;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  padding: 0 12px;
+  gap: 2px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tab {
+  background: none;
+  border: none;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tabActive {
+  color: var(--text-primary);
+  font-weight: 600;
+  border-bottom-color: #6366f1;
+}
+
+.tabContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+}
+
+/* 概览 */
+.overviewContent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sectionLabel {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-idle);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sectionText {
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  min-height: 20px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.sectionText:hover {
+  border-color: var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.textarea {
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid #6366f1;
+  border-radius: 5px;
+  padding: 6px 8px;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+/* 成员 */
+.memberContent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memberHint {
+  font-size: 10px;
+  color: var(--text-idle);
+  text-align: center;
+}
+
+.memberGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.memberCard {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.12s;
+  position: relative;
+}
+
+.memberCard:hover {
+  border-color: #6366f1;
+}
+
+.memberIn {
+  border-color: rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.04);
+}
+
+.memberName {
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+.memberCheck {
+  font-size: 10px;
+  color: var(--dot-green);
+  font-weight: 700;
+}
+
+/* 规则 */
+.rulesContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ruleSection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ruleTitle {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.ruleItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 11px;
+}
+
+.ruleDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ruleText {
+  flex: 1;
+  color: var(--text-secondary);
+}
+
+.ruleRemove {
+  background: none;
+  border: none;
+  color: var(--text-idle);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.ruleItem:hover .ruleRemove {
+  opacity: 1;
+}
+
+.ruleRemove:hover {
+  color: #ef4444;
+}
+
+.ruleAdd {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.ruleInput {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 11px;
+  outline: none;
+}
+
+.ruleInput:focus {
+  border-color: #6366f1;
+}
+
+.ruleAddBtn {
+  padding: 3px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ruleAddBtn:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+/* 底部 */
+.footer {
+  padding: 8px 16px;
+  font-size: 10px;
+  color: var(--text-idle);
+  text-align: center;
+  border-top: 1px solid var(--border-color);
+}

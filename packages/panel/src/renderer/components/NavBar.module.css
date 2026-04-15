@@ -1,0 +1,53 @@
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-header);
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.tab {
+  background: none;
+  border: none;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text-idle);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.12s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tab:hover {
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+}
+
+.active {
+  color: var(--text-primary);
+  font-weight: 600;
+  background: var(--bg-secondary);
+}
+
+.badge {
+  font-size: 9px;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
+  min-width: 14px;
+  text-align: center;
+}
+
+.stats {
+  font-size: 10px;
+  color: var(--text-idle);
+}

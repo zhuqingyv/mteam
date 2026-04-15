@@ -1,10 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 export type MemberRole = "leader" | "dev" | "qa" | "pm" | "infra" | string;
 export type MemberType = "permanent" | "temporary";
 
 export interface MemberProfile {
+  uid: string;
   name: string;
   display_name: string;
   role: MemberRole;
@@ -37,7 +39,13 @@ export function getProfile(membersDir: string, name: string): MemberProfile | nu
   const filePath = path.join(membersDir, name, "profile.json");
   try {
     const raw = fs.readFileSync(filePath, "utf-8");
-    return JSON.parse(raw) as MemberProfile;
+    const profile = JSON.parse(raw) as MemberProfile;
+    // 自动迁移：老 profile 没有 uid 则生成并回写
+    if (!profile.uid) {
+      profile.uid = randomUUID();
+      fs.writeFileSync(filePath, JSON.stringify(profile, null, 2), "utf-8");
+    }
+    return profile;
   } catch {
     return null;
   }
