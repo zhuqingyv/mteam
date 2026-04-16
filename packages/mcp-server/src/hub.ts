@@ -146,6 +146,7 @@ interface SessionState {
   pid: number;
   lstart: string;
   memberName: string; // CLAUDE_MEMBER env var at registration time (empty for leader)
+  isLeader: boolean;
   activatedMembers: Set<string>;
   memorySavedMembers: Set<string>;
   lockNonces: Map<string, string>; // memberName -> nonce
@@ -219,13 +220,16 @@ function deleteDepartureFile(member: string): void {
   try { fs.rmSync(path.join(MEMBERS_DIR, member, "departure.json"), { force: true }); } catch {}
 }
 
-function registerSession(pid: number, lstart: string, member: string = ""): string {
+function registerSession(pid: number, lstart: string, member: string = "", isLeader: boolean = false): string {
   const id = crypto.randomUUID();
+  // isLeader 显式传入优先；向后兼容：member 为空视为 leader
+  const leader = isLeader || member === "";
   const state: SessionState = {
     id,
     pid,
     lstart,
     memberName: member,
+    isLeader: leader,
     activatedMembers: new Set(),
     memorySavedMembers: new Set(),
     lockNonces: new Map(),
@@ -233,7 +237,7 @@ function registerSession(pid: number, lstart: string, member: string = ""): stri
     lastActivity: Date.now(),
   };
   sessions.set(id, state);
-  process.stderr.write(`[hub] session registered: ${id} (pid=${pid}${member ? ` member=${member}` : ""})\n`);
+  process.stderr.write(`[hub] session registered: ${id} (pid=${pid}${member ? ` member=${member}` : ""}${leader ? " [leader]" : ""})\n`);
   return id;
 }
 
@@ -2672,8 +2676,8 @@ export async function handleToolCall(
         const requirement = optStr("requirement");
         const memberEnc = encodeURIComponent(member);
 
-        // 权限校验：只有 leader 能调用（session.memberName 为空 = leader）
-        if (session.memberName !== "") {
+        // 权限校验：只有 leader 能调用
+        if (!session.isLeader) {
           return ok({ error: "只有 leader 才能发起离场请求，你不能擅自让成员离场" });
         }
 
@@ -2809,7 +2813,7 @@ export async function handleToolCall(
         const memberEnc = encodeURIComponent(member);
 
         // 权限校验：leader 不能调用
-        if (session.memberName === "") {
+        if (session.isLeader) {
           return ok({ error: "leader 由用户控制，不能自行下班" });
         }
 
@@ -3015,11 +3019,11 @@ const server = http.createServer(async (req, res) => {
 
     // POST /api/session/register
     if (method === "POST" && url === "/api/session/register") {
-      const body = await readBody(req) as { pid?: number; lstart?: string; member?: string };
+      const body = await readBody(req) as { pid?: number; lstart?: string; member?: string; isLeader?: boolean };
       if (typeof body.pid !== "number" || typeof body.lstart !== "string") {
         return jsonResponse(res, 400, { error: "missing pid or lstart" });
       }
-      const sessionId = registerSession(body.pid, body.lstart, body.member || "");
+      const sessionId = registerSession(body.pid, body.lstart, body.member || "", !!body.isLeader);
       return jsonResponse(res, 200, { session_id: sessionId });
     }
 

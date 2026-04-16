@@ -106,6 +106,7 @@ export function getOverlay(): BrowserWindow | null {
 export function updateWindowPositions(positions: Array<{
   id: number
   memberName: string
+  isLeader: boolean
   x: number
   y: number
   w: number

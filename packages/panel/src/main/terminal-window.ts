@@ -22,6 +22,7 @@ interface TerminalSession {
   win: BrowserWindow
   sessionId: string
   memberName: string
+  isLeader: boolean
   lockNonce?: string
 }
 
@@ -330,7 +331,7 @@ ${isLeader ? '你被指派为 leader。使用 teamhub MCP 的 request_member(aut
     }
 
     const lockNonce = (onReady as { _lockNonce?: string })._lockNonce
-    sessions.set(win.id, { win, sessionId, memberName, lockNonce })
+    sessions.set(win.id, { win, sessionId, memberName, isLeader, lockNonce })
 
     // 会话注册后立即广播位置，确保 overlay 拿到完整的窗口列表
     // （ready-to-show 时 session 尚未注册，那次广播不包含本窗口）
@@ -446,6 +447,7 @@ function getMemberColorByWinId(winId: number): number[] {
 export function getAllTerminalPositions(): Array<{
   id: number
   memberName: string
+  isLeader: boolean
   x: number
   y: number
   w: number
@@ -453,7 +455,7 @@ export function getAllTerminalPositions(): Array<{
   color: number[]
 }> {
   const result: Array<{
-    id: number; memberName: string
+    id: number; memberName: string; isLeader: boolean
     x: number; y: number; w: number; h: number; color: number[]
   }> = []
   // Terminal window body has `padding: 8px`, so visible content is inset by 8px
@@ -465,6 +467,7 @@ export function getAllTerminalPositions(): Array<{
     result.push({
       id: winId,
       memberName: session.memberName,
+      isLeader: session.isLeader,
       x: bounds.x + BODY_PADDING,
       y: bounds.y + BODY_PADDING,
       w: bounds.width - BODY_PADDING * 2,

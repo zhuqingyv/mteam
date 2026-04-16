@@ -16,7 +16,7 @@ if (!gl) throw new Error('WebGL2 not supported')
 // ── Data from main process ──────────────────────────────────────────────────
 
 interface BoxInfo {
-  id: number; memberName: string
+  id: number; memberName: string; isLeader: boolean
   x: number; y: number; w: number; h: number
   color: number[]
 }

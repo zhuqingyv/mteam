@@ -103,13 +103,14 @@ try {
 }
 
 const memberName = process.env.CLAUDE_MEMBER || "";
+const isLeader = !memberName; // 无 CLAUDE_MEMBER 环境变量 = leader session
 
 let sessionId: string;
 try {
   const res = await fetch(`${HUB_URL}/api/session/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pid: ppid, lstart, member: memberName }),
+    body: JSON.stringify({ pid: ppid, lstart, member: memberName, isLeader }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json() as { session_id: string };

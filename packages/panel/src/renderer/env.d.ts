@@ -121,6 +121,7 @@ interface Window {
     onWindowPositions: (cb: (positions: Array<{
       id: number
       memberName: string
+      isLeader: boolean
       x: number
       y: number
       w: number
