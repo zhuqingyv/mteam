@@ -5,7 +5,7 @@ interface MemberStatus {
   name: string
   role: string
   type: 'permanent' | 'temporary'
-  status: 'reserved' | 'working' | 'offline'
+  status: 'reserved' | 'working' | 'offline' | 'pending_departure'
   busy: boolean
   project?: string
   task?: string
@@ -49,7 +49,7 @@ interface MemberDetail {
   persona: string | null
   memory: string | null
   workLog: WorkLogEntry[]
-  status: 'reserved' | 'working' | 'offline'
+  status: 'reserved' | 'working' | 'offline' | 'pending_departure'
   busy: boolean
   project?: string
   task?: string

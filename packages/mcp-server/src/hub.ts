@@ -190,6 +190,36 @@ function deleteReservationFile(member: string): void {
   try { fs.rmSync(path.join(MEMBERS_DIR, member, "reservation.json"), { force: true }); } catch {}
 }
 
+// ──────────────────────────────────────────────
+// 离场状态持久化（departure.json）
+// ──────────────────────────────────────────────
+interface DepartureState {
+  pending: boolean;
+  requirement?: string;
+  requested_at: string;
+  previous_status?: string;  // 撤销时恢复用
+}
+
+function writeDepartureFile(member: string, state: DepartureState): void {
+  const filePath = path.join(MEMBERS_DIR, member, "departure.json");
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(state), "utf-8");
+  } catch { /* 目录可能不存在，忽略 */ }
+}
+
+function readDepartureFile(member: string): DepartureState | null {
+  const filePath = path.join(MEMBERS_DIR, member, "departure.json");
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf-8")) as DepartureState;
+  } catch {
+    return null;
+  }
+}
+
+function deleteDepartureFile(member: string): void {
+  try { fs.rmSync(path.join(MEMBERS_DIR, member, "departure.json"), { force: true }); } catch {}
+}
+
 function registerSession(pid: number, lstart: string, member: string = ""): string {
   const id = crypto.randomUUID();
   const state: SessionState = {
@@ -989,6 +1019,32 @@ export const tools = [
       required: ["member"],
     },
   },
+  // ── 离场系统 ──────────────────────────────
+  {
+    name: "request_departure",
+    description: "【Leader 专用】发起/撤销成员离场请求。pending=true 标记成员为 pending_departure 并通过 PTY 通知成员；pending=false 撤销待离场状态。→ 这是异步状态标记，成员会自行处理收尾后调 clock_out 下班。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        member: { type: "string", description: "目标成员名" },
+        pending: { type: "boolean", description: "true=发起离场请求，false=撤销（默认 true）" },
+        requirement: { type: "string", description: "离场要求文本（可选，如收尾事项）" },
+      },
+      required: ["member"],
+    },
+  },
+  {
+    name: "clock_out",
+    description: "【成员专用】确认离场并执行下班流程：释放工作锁、清理 MCP 子进程、删除心跳、关闭终端窗口、通知 leader。→ 只有被 leader 标记为 pending_departure 的成员才能调用。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        member: { type: "string", description: "成员 call_name" },
+        note: { type: "string", description: "下班备注（可选）" },
+      },
+      required: ["member"],
+    },
+  },
 ] as const;
 
 // ──────────────────────────────────────────────
@@ -1288,8 +1344,9 @@ export async function handleToolCall(
           let hb: { last_seen_ms: number; last_seen: string } | null;
           try { hb = await callPanel<typeof hb>("GET", `/api/member/${memberEnc}/heartbeat`); } catch { hb = readHeartbeat(MEMBERS_DIR, member); }
           const online = hb !== null && (Date.now() - hb.last_seen_ms) < HEARTBEAT_TIMEOUT_MS;
-          const status = lock && online ? "working" : online ? "online" : "offline";
-          return ok({ member, profile, lock, status, online, working: !!lock, last_seen: hb?.last_seen });
+          const depState = readDepartureFile(member);
+          const status = depState?.pending ? "pending_departure" : lock && online ? "working" : online ? "online" : "offline";
+          return ok({ member, profile, lock, status, online, working: !!lock, last_seen: hb?.last_seen, pending_departure: !!depState?.pending });
         }
         // All members
         let members: Array<{ uid: string; name: string; role: string }>;
@@ -1306,8 +1363,9 @@ export async function handleToolCall(
           let hb: { last_seen_ms: number; last_seen: string } | null;
           try { hb = await callPanel<typeof hb>("GET", `/api/member/${mEnc}/heartbeat`); } catch { hb = readHeartbeat(MEMBERS_DIR, m.name); }
           const online = hb !== null && (Date.now() - hb.last_seen_ms) < HEARTBEAT_TIMEOUT_MS;
-          const status = lock && online ? "working" : online ? "online" : "offline";
-          statuses.push({ uid: m.uid, member: m.name, role: m.role, status, online, working: !!lock, last_seen: hb?.last_seen, lock });
+          const depState = readDepartureFile(m.name);
+          const status = depState?.pending ? "pending_departure" : lock && online ? "working" : online ? "online" : "offline";
+          statuses.push({ uid: m.uid, member: m.name, role: m.role, status, online, working: !!lock, last_seen: hb?.last_seen, lock, pending_departure: !!depState?.pending });
         }
         return ok(statuses);
       }
@@ -2100,8 +2158,11 @@ export async function handleToolCall(
           let reservation: Reservation | null;
           try { reservation = await callPanel<Reservation | null>("GET", `/api/member/${mEnc}/reservation`); } catch { reservation = readReservationFile(m.name); }
           const hasReservation = reservation !== null && (Date.now() - reservation.created_at) < reservation.ttl_ms;
+          const departureState = readDepartureFile(m.name);
           let memberStatus: string;
-          if (lock) {
+          if (departureState?.pending) {
+            memberStatus = "pending_departure";
+          } else if (lock) {
             memberStatus = "working";
           } else if (hasReservation) {
             memberStatus = "reserved";
@@ -2605,6 +2666,256 @@ export async function handleToolCall(
         }
       }
 
+      // ── request_departure ────────────────────────
+      case "request_departure": {
+        const member = str("member");
+        const pending = bool("pending", true);
+        const requirement = optStr("requirement");
+        const memberEnc = encodeURIComponent(member);
+
+        // 权限校验：只有 leader 能调用（session.memberName 为空 = leader）
+        if (session.memberName !== "") {
+          return ok({ error: "只有 leader 才能发起离场请求，你不能擅自让成员离场" });
+        }
+
+        // 检查成员是否存在
+        let profile: MemberProfile | null;
+        try {
+          profile = await callPanel<MemberProfile | null>("GET", `/api/member/${memberEnc}`);
+        } catch {
+          profile = getProfile(MEMBERS_DIR, member);
+        }
+        if (!profile) {
+          return ok({ error: `成员 ${member} 不存在` });
+        }
+
+        // 检查成员是否 online（有心跳）
+        let hb: { last_seen_ms: number; last_seen: string } | null;
+        try {
+          hb = await callPanel<typeof hb>("GET", `/api/member/${memberEnc}/heartbeat`);
+        } catch {
+          hb = readHeartbeat(MEMBERS_DIR, member);
+        }
+        const online = hb !== null && (Date.now() - hb.last_seen_ms) < HEARTBEAT_TIMEOUT_MS;
+        if (!online) {
+          return ok({ error: `成员 ${member} 当前 offline，无法发起离场请求` });
+        }
+
+        if (pending) {
+          // 发起离场请求
+          const departure: DepartureState = {
+            pending: true,
+            requirement: requirement ?? undefined,
+            requested_at: new Date().toISOString(),
+            previous_status: "working",
+          };
+          writeDepartureFile(member, departure);
+
+          // 构建通知消息
+          let msgContent = `[离场通知] leader 要求你离场。`;
+          if (requirement) {
+            msgContent += `\n离场要求：${requirement}`;
+          }
+          msgContent += `\n\n行为指引：`;
+          msgContent += `\n- 如果你不同意，请用 send_msg 回复 leader 简短原因`;
+          msgContent += `\n- 如果你同意但需要收尾，请先用 send_msg 告知 leader 你需要收尾，完成后再调 clock_out`;
+          msgContent += `\n- 如果你直接同意，收尾后调 clock_out(member=你自己) 下班`;
+
+          // 通过 send_msg 机制通知成员
+          try {
+            await callPanel("POST", "/api/message/send", {
+              from: "leader",
+              to: member,
+              content: msgContent,
+              priority: "urgent",
+            });
+          } catch {
+            // Panel 不可用时静默
+          }
+
+          // 记录 worklog
+          try {
+            await callPanel("POST", `/api/member/${memberEnc}/worklog`, {
+              event: "request_departure",
+              timestamp: new Date().toISOString(),
+              project: "",
+              note: requirement ? `requirement: ${requirement}` : "leader requested departure",
+            });
+          } catch {
+            appendWorkLog(MEMBERS_DIR, member, {
+              event: "request_departure",
+              timestamp: new Date().toISOString(),
+              project: "",
+              note: requirement ? `requirement: ${requirement}` : "leader requested departure",
+            });
+          }
+
+          return ok({
+            success: true,
+            member,
+            status: "pending_departure",
+            hint: "这是异步状态标记。已通过 PTY 通知成员，成员会自行处理收尾后调 clock_out 下班。你无需等待，可继续其他工作。",
+          });
+        } else {
+          // 撤销离场请求
+          const departure = readDepartureFile(member);
+          if (!departure || !departure.pending) {
+            return ok({ error: `成员 ${member} 当前没有待离场请求` });
+          }
+
+          deleteDepartureFile(member);
+
+          // 通知成员撤销
+          try {
+            await callPanel("POST", "/api/message/send", {
+              from: "leader",
+              to: member,
+              content: "[离场撤销] leader 已撤回离场请求，你可以继续工作。",
+              priority: "normal",
+            });
+          } catch {
+            // Panel 不可用时静默
+          }
+
+          // 记录 worklog
+          try {
+            await callPanel("POST", `/api/member/${memberEnc}/worklog`, {
+              event: "cancel_departure",
+              timestamp: new Date().toISOString(),
+              project: "",
+              note: "leader cancelled departure request",
+            });
+          } catch {
+            appendWorkLog(MEMBERS_DIR, member, {
+              event: "cancel_departure",
+              timestamp: new Date().toISOString(),
+              project: "",
+              note: "leader cancelled departure request",
+            });
+          }
+
+          return ok({
+            success: true,
+            member,
+            status: "working",
+            hint: "已撤销离场请求，成员恢复工作状态。",
+          });
+        }
+      }
+
+      // ── clock_out ─────────────────────────────────
+      case "clock_out": {
+        const member = str("member");
+        const note = optStr("note");
+        const memberEnc = encodeURIComponent(member);
+
+        // 权限校验：leader 不能调用
+        if (session.memberName === "") {
+          return ok({ error: "leader 由用户控制，不能自行下班" });
+        }
+
+        // 检查 pending_departure 状态
+        const departure = readDepartureFile(member);
+        if (!departure || !departure.pending) {
+          // 区分是否曾被撤销
+          if (departure && !departure.pending) {
+            return ok({ error: "leader 已撤回离场请求" });
+          }
+          return ok({ error: "你未被批准离场，不能擅自下班" });
+        }
+
+        // ── 执行下班流程（参考 deactivate 逻辑）──
+
+        // 1. 释放工作锁
+        let lock: { nonce: string; project: string; task: string } | null;
+        try {
+          lock = await callPanel<typeof lock>("GET", `/api/member/${memberEnc}/lock`);
+        } catch {
+          lock = readLock(MEMBERS_DIR, member);
+        }
+        if (lock) {
+          const nonce = getLockNonce(member) ?? lock.nonce;
+          let result: { success: boolean; error?: string };
+          try {
+            result = await callPanel<typeof result>("POST", `/api/member/${memberEnc}/lock/release`, { nonce });
+          } catch {
+            result = releaseLock(MEMBERS_DIR, member, nonce);
+          }
+          if (result.success) {
+            unregisterLockNonce(member);
+          }
+        }
+
+        // 2. 清理 MCP 子进程
+        await cleanupMemberMcps(member);
+
+        // 3. 删除心跳
+        try {
+          await callPanel("DELETE", `/api/member/${memberEnc}/heartbeat`);
+        } catch {
+          removeHeartbeat(MEMBERS_DIR, member);
+        }
+
+        // 4. 清内存追踪
+        clearMemberTracking(member);
+
+        // 5. 记录 worklog
+        try {
+          await callPanel("POST", `/api/member/${memberEnc}/worklog`, {
+            event: "clock_out",
+            timestamp: new Date().toISOString(),
+            project: lock?.project ?? "",
+            task: lock?.task ?? "",
+            note: note ? `clock_out: ${note}` : "clock_out",
+          });
+        } catch {
+          appendWorkLog(MEMBERS_DIR, member, {
+            event: "clock_out",
+            timestamp: new Date().toISOString(),
+            project: lock?.project ?? "",
+            task: lock?.task ?? "",
+            note: note ? `clock_out: ${note}` : "clock_out",
+          });
+        }
+
+        // 6. 通知 leader
+        try {
+          await callPanel("POST", "/api/message/send", {
+            from: member,
+            to: "leader",
+            content: `[下班通知] ${member} 已完成收尾并下班。${note ? "备注：" + note : ""}`,
+            priority: "normal",
+          });
+        } catch {
+          // Panel 不可用时静默
+        }
+
+        // 7. 清理 departure 状态文件
+        deleteDepartureFile(member);
+
+        // 8. 关闭终端窗口（kill PTY）
+        try {
+          const sessionsData = await callPanel<{ sessions: Array<{ session_id: string; memberId: string; status: string }> }>("GET", "/api/pty/sessions");
+          if (sessionsData?.sessions) {
+            const memberSession = sessionsData.sessions.find(
+              (s) => s.memberId === member && s.status === "running"
+            );
+            if (memberSession) {
+              await callPanel("POST", "/api/pty/kill", { session_id: memberSession.session_id });
+            }
+          }
+        } catch {
+          // Panel 不可用时静默，终端窗口会因进程退出自然关闭
+        }
+
+        return ok({
+          success: true,
+          member,
+          status: "offline",
+          hint: "已完成下班流程：释放锁、清理 MCP、删除心跳、关闭终端、通知 leader。",
+        });
+      }
+
       default:
         throw new Error(`unknown tool: ${toolName}`);
     }
@@ -2676,7 +2987,8 @@ const server = http.createServer(async (req, res) => {
         const lock = readLock(MEMBERS_DIR, m.name);
         const hb = readHeartbeat(MEMBERS_DIR, m.name);
         const online = hb !== null && (Date.now() - hb.last_seen_ms) < HEARTBEAT_TIMEOUT_MS;
-        const status = lock && online ? "working" : online ? "online" : "offline";
+        const depState = readDepartureFile(m.name);
+        const status = depState?.pending ? "pending_departure" : lock && online ? "working" : online ? "online" : "offline";
         return {
           uid: m.uid,
           name: m.name,
@@ -2687,6 +2999,7 @@ const server = http.createServer(async (req, res) => {
           working: !!lock,
           last_seen: hb?.last_seen ?? null,
           lock,
+          pending_departure: !!depState?.pending,
         };
       });
       return jsonResponse(res, 200, {

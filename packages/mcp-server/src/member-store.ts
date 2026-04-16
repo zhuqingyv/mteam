@@ -16,7 +16,7 @@ export interface MemberProfile {
 }
 
 export interface WorkLogEntry {
-  event: "check_in" | "check_out";
+  event: "check_in" | "check_out" | "request_departure" | "cancel_departure" | "clock_out";
   timestamp: string;
   project: string;
   task?: string;
