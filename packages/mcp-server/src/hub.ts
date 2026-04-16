@@ -57,6 +57,7 @@ import {
   cleanupAll as cleanupAllMcps,
   getProxyStatus,
   listChildTools,
+  listChildToolDetails,
   preSpawnMcp,
   isChildRunning,
   loadStore,
@@ -65,6 +66,7 @@ import {
   mountMcp,
   unmountMcp,
   type McpConfig,
+  type ToolInfo,
 } from "./mcp-proxy.js";
 
 // ──────────────────────────────────────────────
@@ -363,7 +365,7 @@ export const tools = [
   // ── 状态管理 ──────────────────────────────
   {
     name: "check_in",
-    description: "【成员自己调用，一般不需要手动调】切换记忆工作区的项目/任务绑定。正常流程由 request_member 自动完成。→ 仅在同一成员切换到不同项目/任务时手动调用。",
+    description: "【成员自己调用】activate 已自动签入。仅在同一 session 内需要切换到不同项目/任务时才手动调用。→ 切换记忆工作区的项目/任务绑定。",
     inputSchema: {
       type: "object",
       properties: {
@@ -376,7 +378,7 @@ export const tools = [
   },
   {
     name: "check_out",
-    description: "【成员自己调用】签出并释放记忆工作区。→ deactivate 是标准下线路径（含激活状态检查），check_out 是底层操作直接释放锁和清理。优先使用 deactivate。默认要求先 save_memory，传 force=true 跳过。",
+    description: "【成员自己调用】底层释放工具。正常下线请用 deactivate，仅在 deactivate 失败时作为应急手段。→ 直接释放锁和清理，不含激活状态检查。默认要求先 save_memory，传 force=true 跳过。",
     inputSchema: {
       type: "object",
       properties: {
@@ -611,7 +613,7 @@ export const tools = [
   },
   {
     name: "handoff",
-    description: "交接：成员将任务移交给另一个成员。→ 自动释放 from 的锁并为 to 获取正式锁。交接后 to 成员的终端中会收到通知，to 需要调用 activate（无需 reservation_code，handoff 已自动转移正式锁）加载上下文后继续工作。返回值：{ success, from, to, project, task, hint? }。",
+    description: "交接：成员将任务移交给另一个成员。→ 自动释放 from 的锁并为 to 获取正式锁。交接后 to 成员的终端中会收到通知，to 需要调用 activate（无需 reservation_code，handoff 已自动转移正式锁）加载上下文后继续工作。交接完成后建议用 send_msg 通知接收方。返回值：{ success, from, to, project, task, hint? }。",
     inputSchema: {
       type: "object",
       properties: {
@@ -665,7 +667,7 @@ export const tools = [
   },
   {
     name: "deactivate",
-    description: "【成员自己调用】保存状态并释放记忆工作区。释放锁、清理 MCP 子进程、删除心跳。任务完成后 save_memory → deactivate。",
+    description: "【成员自己调用，标准下线路径】释放记忆工作区：释放锁、清理 MCP 子进程、删除心跳。与 check_out 区别：deactivate 含激活状态检查和经验保存提醒，是正常下线唯一入口；check_out 是底层操作，不要直接调用。标准流程：save_memory → deactivate。",
     inputSchema: {
       type: "object",
       properties: {
@@ -691,7 +693,7 @@ export const tools = [
   // ── 团队治理查询 ──────────────────────────
   {
     name: "get_roster",
-    description: "查看团队花名册：成员名称、职业、简介、忙闲状态。用这个决定分配谁做什么。→ 选好人后调 request_member 预约。",
+    description: "查看团队花名册：成员名称、职业、简介、忙闲状态。分配任务前首选此工具查看全员状态。→ 选好人后调 request_member 预约。",
     inputSchema: {
       type: "object",
       properties: {},
@@ -710,21 +712,21 @@ export const tools = [
   // ── MCP 代理 ──────────────────────────────
   {
     name: "proxy_tool",
-    description: "代理调用成员的自定义 MCP 工具（需要成员 UID）。team-hub 按需启动子 MCP 进程、转发调用、返回结果。→ 调用前确认 MCP 已挂载（list_member_mcps），未挂载先 mount_mcp。",
+    description: "代理调用成员的自定义 MCP 工具（需要成员 UID）。uid 从 activate 返回值的 identity.uid 获取，或从 get_roster 返回的 roster[].uid 获取。team-hub 按需启动子 MCP 进程、转发调用、返回结果。→ 调用前先 list_member_mcps 查看已挂载 MCP 的可用工具名和参数 schema，未挂载先 mount_mcp。",
     inputSchema: {
       type: "object",
       properties: {
-        uid: { type: "string", description: "成员 UID" },
-        mcp_name: { type: "string", description: "目标 MCP 名称" },
-        tool_name: { type: "string", description: "要调用的工具名" },
-        arguments: { type: "object", description: "工具参数" },
+        uid: { type: "string", description: "成员 UID（从 get_roster 或 activate 返回值获取）" },
+        mcp_name: { type: "string", description: "目标 MCP 名称（从 list_member_mcps 获取）" },
+        tool_name: { type: "string", description: "要调用的工具名（从 list_member_mcps 返回的 tools 列表获取）" },
+        arguments: { type: "object", description: "工具参数（参照 list_member_mcps 返回的各工具 inputSchema）" },
       },
       required: ["uid", "mcp_name", "tool_name"],
     },
   },
   {
     name: "list_member_mcps",
-    description: "查询成员已配置的 MCP 列表（含商店全量 + 挂载/运行状态）。→ 成员 activate 后查看自己可用的工具集，按需 mount_mcp 挂载。",
+    description: "查询成员已配置的 MCP 列表（含商店全量 + 挂载/运行状态 + 已挂载 MCP 的子工具列表）。uid 从 activate 返回值的 identity.uid 获取，或从 get_roster 返回的 roster[].uid 获取。→ 成员 activate 后查看自己可用的工具集，按需 mount_mcp 挂载。",
     inputSchema: {
       type: "object",
       properties: {
@@ -824,7 +826,7 @@ export const tools = [
   },
   {
     name: "mount_mcp",
-    description: "成员从团队商店挂载 MCP 到自己的可用列表（需要成员 UID）。支持热挂载。→ 挂载后用 proxy_tool 调用其中的工具。",
+    description: "成员从团队商店挂载 MCP 到自己的可用列表（需要成员 UID）。uid 从 activate 返回值的 identity.uid 获取，或从 get_roster 返回的 roster[].uid 获取。支持热挂载。→ 挂载后用 proxy_tool 调用其中的工具。返回值含子工具列表（名称+参数 schema）。",
     inputSchema: {
       type: "object",
       properties: {
@@ -836,7 +838,7 @@ export const tools = [
   },
   {
     name: "unmount_mcp",
-    description: "成员卸载已挂载的 MCP（需要成员 UID）。→ 自动清理该 MCP 的运行中子进程。deactivate 时会自动清理所有 MCP，一般无需手动卸载。",
+    description: "成员卸载已挂载的 MCP（需要成员 UID）。uid 从 activate 返回值的 identity.uid 获取，或从 get_roster 返回的 roster[].uid 获取。→ 自动清理该 MCP 的运行中子进程。deactivate 时会自动清理所有 MCP，一般无需手动卸载。",
     inputSchema: {
       type: "object",
       properties: {
@@ -1000,7 +1002,7 @@ export const tools = [
   // ── 跨 Agent 消息 ──────────────────────────
   {
     name: "send_msg",
-    description: "发消息给其他 agent。消息通过 PTY stdin 直接写入目标 agent 终端。→ 跨 agent 协作的主要通信方式，支持 leader 向成员下达指令、成员间互相协调。返回值：{ sent: boolean, delivery?: string }。",
+    description: "发消息给其他 agent。消息通过 PTY stdin 直接写入目标 agent 终端。from 由系统自动从当前 session 的 activated 成员推断，不需要也不能手动指定。→ 跨 agent 协作的主要通信方式，支持 leader 向成员下达指令、成员间互相协调。返回值：{ sent: boolean, delivery?: string }。",
     inputSchema: {
       type: "object",
       properties: {
@@ -1333,7 +1335,7 @@ export async function handleToolCall(
         // 清内存追踪
         clearMemberTracking(member);
 
-        return ok({ success: true, member, note: note ?? null });
+        return ok({ success: true, member, note: note ?? null, hint: "→ 已下线。如需通知 leader 任务完成可用 send_msg" });
       }
 
       // ── get_status ────────────────────────
@@ -1484,7 +1486,11 @@ export async function handleToolCall(
       // ── review_rules ──────────────────────
       case "review_rules": {
         const rules = reviewRules(SHARED_DIR);
-        return ok(rules);
+        const pending = Array.isArray(rules) ? rules : [];
+        const hint = pending.length > 0
+          ? "→ 逐条 approve_rule(rule_id) 或 reject_rule(rule_id, reason) 处理"
+          : "→ 暂无待审规则";
+        return ok({ rules, hint });
       }
 
       // ── approve_rule ──────────────────────
@@ -1493,7 +1499,7 @@ export async function handleToolCall(
         const ruleId = str("rule_id");
         checkPrivilege(caller, "approve_rule");
         const result = approveRule(SHARED_DIR, ruleId, caller);
-        return ok(result);
+        return ok({ ...result, hint: "→ 继续 review_rules 查看剩余待审规则" });
       }
 
       // ── reject_rule ───────────────────────
@@ -1503,7 +1509,7 @@ export async function handleToolCall(
         const reason = str("reason");
         checkPrivilege(caller, "reject_rule");
         const result = rejectRule(SHARED_DIR, ruleId, reason);
-        return ok(result);
+        return ok({ ...result, hint: "→ 继续 review_rules 查看剩余待审规则" });
       }
 
       // ── hire_temp ─────────────────────────
@@ -1587,7 +1593,10 @@ export async function handleToolCall(
             }
           }
         }
-        return ok(templates);
+        return ok({
+          templates,
+          ...(templates.length === 0 ? { hint: "→ 暂无模板，直接 hire_temp 创建新成员" } : {}),
+        });
       }
 
       // ── team_report ───────────────────────
@@ -1609,7 +1618,7 @@ export async function handleToolCall(
             idle.push({ uid: m.uid, name: m.name, role: m.role });
           }
         }
-        return ok({ working, idle, total: members.length });
+        return ok({ working, idle, total: members.length, hint: "→ 确认分配是否合理，可用 request_member 调整" });
       }
 
       // ── project_dashboard ─────────────────
@@ -1629,7 +1638,7 @@ export async function handleToolCall(
             result.push({ uid: m.uid, name: m.name, task: lock.task, locked_at: lock.locked_at });
           }
         }
-        return ok({ project, members: result });
+        return ok({ project, members: result, hint: "→ 如需调整成员，可 release_member 释放后重新 request_member" });
       }
 
       // ── work_history ──────────────────────
@@ -1714,6 +1723,15 @@ export async function handleToolCall(
           } catch {
             appendWorkLog(MEMBERS_DIR, to, { event: "check_in", timestamp: new Date().toISOString(), project: fromLock.project, task: fromLock.task, note: `handoff from ${from}: ${note ?? ""}` });
           }
+          // 通知接收方
+          try {
+            await callPanel("POST", "/api/message/send", {
+              from,
+              to,
+              content: `[handoff] ${from} 将任务交接给你。项目: ${fromLock.project}，任务: ${fromLock.task}${note ? "，备注: " + note : ""}。请调用 activate(member="${to}") 加载上下文后继续工作。`,
+              priority: "urgent",
+            });
+          } catch { /* 通知失败不影响交接本身 */ }
         }
 
         return ok({
@@ -1722,7 +1740,7 @@ export async function handleToolCall(
           to,
           project: fromLock.project,
           task: fromLock.task,
-          ...(acqResult.success ? { hint: "→ 交接完成。接收方需调用 activate（无需 reservation_code，handoff 已转移正式锁）加载上下文后继续工作" } : {}),
+          ...(acqResult.success ? { hint: `→ 交接完成，已通知 ${to}。接收方需调用 activate（无需 reservation_code，handoff 已转移正式锁）加载上下文后继续工作` } : {}),
         });
       }
 
@@ -1782,10 +1800,11 @@ export async function handleToolCall(
           // 同 session → 已在本 session 工作
           if (existingLock.session_pid === sessionPid) {
             return ok({
-              reserved: true,
-              note: "⚠️ 该成员已在本session中激活。请用 SendMessage 给现有实例发消息，禁止重新 spawn。",
+              reserved: false,
+              already_active: true,
+              reason: `成员 ${member} 已在本 session 工作中（项目: ${existingLock.project}），无需重复预约`,
               member_info: profile,
-              existing: true,
+              hint: `→ 直接用 send_msg(to="${member}", content="新指令") 下达任务即可`,
             });
           }
 
@@ -2139,7 +2158,10 @@ export async function handleToolCall(
             appendWorkLog(MEMBERS_DIR, member, { event: "check_out", timestamp: new Date().toISOString(), project: lock.project, task: lock.task, note: `released by ${caller}` });
           }
         }
-        return ok(result);
+        return ok({
+          ...result,
+          ...(result.success ? { hint: "→ 成员已释放，如需重新分配可 request_member" } : {}),
+        });
       }
 
       // ── get_roster ────────────────────────
@@ -2273,18 +2295,26 @@ export async function handleToolCall(
         const mounted = loadMemberMcps(MEMBERS_DIR, memberName);
         const mountedNames = new Set(mounted.map((m) => m.name));
 
-        // 合并：商店全量 + 挂载/运行状态
-        const result = store.map((item) => {
+        // 合并：商店全量 + 挂载/运行状态 + 已挂载的子工具详情
+        const result = [];
+        for (const item of store) {
           const isMounted = mountedNames.has(item.name);
           const running = isMounted && isChildRunning(memberName, item.name);
-          return {
+          let tools: ToolInfo[] = [];
+          if (isMounted && running) {
+            try {
+              tools = await listChildToolDetails(MEMBERS_DIR, memberName, item.name);
+            } catch { /* ignore */ }
+          }
+          result.push({
             name: item.name,
             description: item.description,
             command: item.command,
             mounted: isMounted,
             running,
-          };
-        });
+            tools,
+          });
+        }
 
         return ok({ member: memberName, uid, store_mcps: result });
       }
@@ -2371,7 +2401,7 @@ export async function handleToolCall(
 
         // 成员已激活 → 立刻启动子 MCP 进程
         let preSpawned = false;
-        let spawnedTools: string[] = [];
+        let spawnedTools: ToolInfo[] = [];
         if (isActivated(memberName)) {
           try {
             spawnedTools = await preSpawnMcp(MEMBERS_DIR, memberName, mcpName);

@@ -19,6 +19,12 @@ export interface McpConfig {
   description?: string;
 }
 
+export interface ToolInfo {
+  name: string;
+  description?: string;
+  inputSchema?: unknown;
+}
+
 interface ChildMcp {
   config: McpConfig;
   client: Client;
@@ -26,6 +32,7 @@ interface ChildMcp {
   process: ChildProcess | null;
   lastUsed: number;
   tools: string[]; // 缓存的工具名列表
+  toolDetails: ToolInfo[]; // 缓存的工具详细信息（名称+描述+参数schema）
 }
 
 // memberName -> mcpName -> ChildMcp
@@ -174,9 +181,15 @@ async function spawnChild(memberName: string, config: McpConfig): Promise<ChildM
 
   // 缓存工具列表
   let tools: string[] = [];
+  let toolDetails: ToolInfo[] = [];
   try {
     const toolList = await client.listTools();
     tools = toolList.tools.map((t) => t.name);
+    toolDetails = toolList.tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema,
+    }));
   } catch {
     // ignore
   }
@@ -191,6 +204,7 @@ async function spawnChild(memberName: string, config: McpConfig): Promise<ChildM
     process: proc,
     lastUsed: Date.now(),
     tools,
+    toolDetails,
   };
 
   // 记录 PID
@@ -263,6 +277,15 @@ export async function listChildTools(
   return child.tools;
 }
 
+export async function listChildToolDetails(
+  membersDir: string,
+  memberName: string,
+  mcpName: string
+): Promise<ToolInfo[]> {
+  const child = await getOrSpawnChild(memberName, mcpName, membersDir);
+  return child.toolDetails;
+}
+
 // ── 清理 ─────────────────────────────────────────────────────────────────────
 
 async function killChild(child: ChildMcp): Promise<void> {
@@ -302,9 +325,9 @@ export async function cleanupOneMcp(memberName: string, mcpName: string): Promis
   return true;
 }
 
-export async function preSpawnMcp(membersDir: string, memberName: string, mcpName: string): Promise<string[]> {
+export async function preSpawnMcp(membersDir: string, memberName: string, mcpName: string): Promise<ToolInfo[]> {
   const child = await getOrSpawnChild(memberName, mcpName, membersDir);
-  return child.tools;
+  return child.toolDetails;
 }
 
 export function isChildRunning(memberName: string, mcpName: string): boolean {
