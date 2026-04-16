@@ -12,8 +12,8 @@
 import https from 'node:https'
 import http from 'node:http'
 import { URL } from 'node:url'
-import { getApiKey, listApiKeyNames, saveApiKey, deleteApiKey } from './vault-manager'
-import { getApiInfo, isApiRegistered } from './api-registry'
+import { vaultManager } from './vault-manager'
+import { apiRegistry } from './api-registry'
 
 export interface ApiProxyRequest {
   api_name: string
@@ -43,15 +43,15 @@ export interface ApiProxyError {
 export async function proxyApiRequest(req: ApiProxyRequest): Promise<ApiProxyResponse | ApiProxyError> {
   try {
     // 1. Check if API is registered
-    if (!isApiRegistered(req.api_name)) {
+    if (!vaultManager.isRegistered() || !vaultManager.isUnlocked()) {
       return {
-        error: `API not registered: ${req.api_name}`,
-        code: 'API_NOT_REGISTERED',
+        error: 'Vault is not initialized or unlocked. Use passkey to unlock first.',
+        code: 'VAULT_LOCKED',
       }
     }
 
-    // 2. Get API key from vault
-    const apiKey = getApiKey(req.api_name)
+    // 2. Get API key from vault (requires vault to be unlocked)
+    const apiKey = vaultManager.decryptKey(req.api_name)
     if (!apiKey) {
       return {
         error: `API key not found for ${req.api_name}. Use vault API to add it first.`,
@@ -59,34 +59,38 @@ export async function proxyApiRequest(req: ApiProxyRequest): Promise<ApiProxyRes
       }
     }
 
-    // 3. Get API config
-    const config = getApiInfo(req.api_name)
-    if (!config) {
+    // 3. Get API config from registry
+    const apiDef = apiRegistry.get(req.api_name)
+    if (!apiDef) {
       return {
-        error: `API config not found for ${req.api_name}`,
-        code: 'CONFIG_NOT_FOUND',
+        error: `API not registered: ${req.api_name}`,
+        code: 'API_NOT_REGISTERED',
       }
     }
 
-    // 4. Build final URL
-    const finalUrl = new URL(req.url, config.base_url).toString()
+    // 4. Validate URL is within API's allowed domain
+    if (!apiRegistry.validateUrl(req.api_name, req.url)) {
+      return {
+        error: `URL not allowed for API '${req.api_name}'. Must start with ${apiDef.base_url}`,
+        code: 'URL_NOT_ALLOWED',
+      }
+    }
 
-    // 5. Prepare headers with auth injection
+    // 5. Build final URL
+    const finalUrl = new URL(req.url, apiDef.base_url).toString()
+
+    // 6. Prepare headers with auth injection
     const headers: Record<string, string> = {
       ...req.headers,
     }
 
-    // Inject Authorization header based on auth_type
-    if (config.auth_type === 'bearer') {
-      headers[config.auth_header] = `Bearer ${apiKey}`
-    } else if (config.auth_type === 'token') {
-      headers[config.auth_header] = `token ${apiKey}`
-    } else {
-      // Custom or header type: just pass the key as-is
-      headers[config.auth_header] = apiKey
+    // Build auth header value
+    const auth = apiRegistry.buildAuthValue(req.api_name, apiKey)
+    if (auth) {
+      headers[auth.header] = auth.value
     }
 
-    // 6. Forward request
+    // 7. Forward request
     const response = await forwardRequest(finalUrl, req.method, headers, req.body)
 
     return response
@@ -167,23 +171,26 @@ async function forwardRequest(
 /**
  * List available API keys (names only, not values)
  */
-export function listApiKeys(): string[] {
-  return listApiKeyNames()
+export function listApiKeys(): Array<{ name: string; display_hint: string; created_at: string }> {
+  return vaultManager.listKeys()
 }
 
 /**
  * Add API key to vault
  */
-export function addApiKey(apiName: string, value: string): boolean {
-  if (!isApiRegistered(apiName)) {
-    console.warn(`[api-proxy] Warning: API '${apiName}' is not registered, but key can still be stored`)
+export function addApiKey(apiName: string, value: string): { success: boolean; display_hint?: string; error?: string } {
+  if (!vaultManager.isUnlocked()) {
+    return { success: false, error: 'Vault is locked. Unlock with passkey first.' }
   }
-  return saveApiKey(apiName, value)
+  return vaultManager.addKey(apiName, value)
 }
 
 /**
  * Remove API key from vault
  */
-export function removeApiKey(apiName: string): boolean {
-  return deleteApiKey(apiName)
+export function removeApiKey(apiName: string): { success: boolean; error?: string } {
+  if (!vaultManager.isUnlocked()) {
+    return { success: false, error: 'Vault is locked. Unlock with passkey first.' }
+  }
+  return vaultManager.removeKey(apiName)
 }

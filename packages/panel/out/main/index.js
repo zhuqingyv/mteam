@@ -11,7 +11,7 @@ const node_path = require("node:path");
 const node_child_process = require("node:child_process");
 const http = require("node:http");
 const node_os = require("node:os");
-const node_crypto = require("node:crypto");
+const crypto$1 = require("node:crypto");
 const https = require("node:https");
 const node_url = require("node:url");
 function _interopNamespaceDefault(e) {
@@ -1643,188 +1643,495 @@ function setupAskUserIpc() {
     return pending?.request ?? null;
   });
 }
-const VAULT_DIR = node_path.join(node_os.homedir(), ".claude", "team-hub", "vault");
-function xorEncrypt(data, key) {
-  const dataBuffer = Buffer.from(data, "utf-8");
-  const encrypted = Buffer.alloc(dataBuffer.length);
-  for (let i = 0; i < dataBuffer.length; i++) {
-    encrypted[i] = dataBuffer[i] ^ key[i % key.length];
+const TEAM_HUB_DIR$3 = node_path.join(
+  process.env["HOME"] ?? process.env["USERPROFILE"] ?? "/tmp",
+  ".claude",
+  "team-hub"
+);
+const VAULT_PATH = node_path.join(TEAM_HUB_DIR$3, "vault.json");
+const PASSKEY_PATH = node_path.join(TEAM_HUB_DIR$3, "passkey.json");
+const MASTER_KEY_TTL_MS = 30 * 60 * 1e3;
+const MASTER_CHECK_PLAINTEXT = "team-hub-vault-ok";
+const HKDF_MASTER_INFO_PREFIX = "mcp-team-hub-vault-master";
+const HKDF_ENTRY_INFO_PREFIX = "api-";
+function deriveMasterKey(challengeB64url, masterSalt) {
+  const uid = typeof process.getuid === "function" ? String(process.getuid()) : "none";
+  const info = `${HKDF_MASTER_INFO_PREFIX}:${node_os.hostname()}:${uid}`;
+  return Buffer.from(
+    crypto$1.hkdfSync(
+      "sha256",
+      Buffer.from(challengeB64url, "base64url"),
+      masterSalt,
+      Buffer.from(info),
+      32
+    )
+  );
+}
+function deriveEntryKey(masterKey, apiName, entrySalt) {
+  return Buffer.from(
+    crypto$1.hkdfSync(
+      "sha256",
+      masterKey,
+      entrySalt,
+      Buffer.from(`${HKDF_ENTRY_INFO_PREFIX}${apiName}`),
+      32
+    )
+  );
+}
+function aesEncrypt(key, plaintext) {
+  const iv = crypto$1.randomBytes(12);
+  const cipher = crypto$1.createCipheriv("aes-256-gcm", key, iv);
+  let enc = cipher.update(plaintext, "utf-8", "hex");
+  enc += cipher.final("hex");
+  return {
+    iv: iv.toString("hex"),
+    tag: cipher.getAuthTag().toString("hex"),
+    ciphertext: enc
+  };
+}
+function aesDecrypt(key, iv, tag, ciphertext) {
+  const decipher = crypto$1.createDecipheriv(
+    "aes-256-gcm",
+    key,
+    Buffer.from(iv, "hex")
+  );
+  decipher.setAuthTag(Buffer.from(tag, "hex"));
+  let dec = decipher.update(ciphertext, "hex", "utf-8");
+  dec += decipher.final("utf-8");
+  return dec;
+}
+class VaultManager {
+  masterKey = null;
+  masterKeyExpiry = 0;
+  // ── Passkey Lifecycle ──────────────────────────────────────────────────
+  /**
+   * Check if passkey has been registered (passkey.json exists)
+   */
+  isRegistered() {
+    return node_fs.existsSync(PASSKEY_PATH);
   }
-  return encrypted;
-}
-function xorDecrypt(encrypted, key) {
-  const decrypted = Buffer.alloc(encrypted.length);
-  for (let i = 0; i < encrypted.length; i++) {
-    decrypted[i] = encrypted[i] ^ key[i % key.length];
+  /**
+   * Check if vault is unlocked (master key in memory and not expired)
+   */
+  isUnlocked() {
+    return this.masterKey !== null && Date.now() < this.masterKeyExpiry;
   }
-  return decrypted.toString("utf-8");
-}
-function getDerivedKey() {
-  const masterSecret = process.env.VAULT_MASTER_SECRET || "default-insecure-key";
-  return node_crypto.createHash("sha256").update(masterSecret).digest();
-}
-function getKeyPath(apiName) {
-  return node_path.join(VAULT_DIR, `${apiName}.enc`);
-}
-function saveApiKey(apiName, value) {
-  try {
-    node_fs.mkdirSync(VAULT_DIR, { recursive: true });
-    const key = getDerivedKey();
-    const encrypted = xorEncrypt(value, key);
-    const keyPath = getKeyPath(apiName);
-    node_fs.writeFileSync(keyPath, encrypted, "binary");
-    return true;
-  } catch (err) {
-    console.error(`[vault] Error saving key for ${apiName}:`, err);
-    return false;
+  /**
+   * Get vault status string
+   */
+  getStatus() {
+    if (!this.isRegistered()) return "unregistered";
+    if (this.isUnlocked()) return "unlocked";
+    return "locked";
   }
-}
-function getApiKey(apiName) {
-  try {
-    const keyPath = getKeyPath(apiName);
-    if (!node_fs.existsSync(keyPath)) {
-      return null;
+  /**
+   * Generate a random challenge for WebAuthn registration.
+   * Returns base64url-encoded challenge.
+   */
+  getRegistrationChallenge() {
+    const challenge = crypto$1.randomBytes(32).toString("base64url");
+    return { challenge, rp_id: "mcp-team-hub" };
+  }
+  /**
+   * Complete passkey registration.
+   * Stores the credential and initializes an empty vault.
+   *
+   * @param credentialId - base64 encoded credential ID
+   * @param publicKey - base64 encoded public key
+   * @param challengeB64url - the original challenge (base64url)
+   */
+  completeRegistration(credentialId, publicKey, challengeB64url) {
+    try {
+      node_fs.mkdirSync(TEAM_HUB_DIR$3, { recursive: true });
+      const credential = {
+        credential_id: credentialId,
+        public_key: publicKey,
+        created_at: (/* @__PURE__ */ new Date()).toISOString(),
+        rp_id: "mcp-team-hub"
+      };
+      node_fs.writeFileSync(PASSKEY_PATH, JSON.stringify(credential, null, 2), { mode: 384 });
+      const masterSalt = crypto$1.randomBytes(16);
+      const mk = deriveMasterKey(challengeB64url, masterSalt);
+      const check = aesEncrypt(mk, MASTER_CHECK_PLAINTEXT);
+      const vault = {
+        version: 1,
+        master_salt: masterSalt.toString("hex"),
+        master_check: check.ciphertext,
+        master_check_iv: check.iv,
+        master_check_tag: check.tag,
+        entries: {}
+      };
+      node_fs.writeFileSync(VAULT_PATH, JSON.stringify(vault, null, 2), { mode: 384 });
+      this.masterKey = mk;
+      this.masterKeyExpiry = Date.now() + MASTER_KEY_TTL_MS;
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: String(err) };
     }
-    const key = getDerivedKey();
-    const encrypted = node_fs.readFileSync(keyPath, "binary");
-    const decrypted = xorDecrypt(Buffer.from(encrypted, "binary"), key);
-    return decrypted;
-  } catch (err) {
-    console.error(`[vault] Error retrieving key for ${apiName}:`, err);
-    return null;
   }
-}
-function listApiKeyNames() {
-  try {
-    if (!node_fs.existsSync(VAULT_DIR)) {
+  /**
+   * Generate a random challenge for WebAuthn authentication.
+   */
+  getAuthenticationChallenge() {
+    if (!this.isRegistered()) {
+      return { error: "Passkey not registered. Register first." };
+    }
+    const cred = this.loadCredential();
+    if (!cred) return { error: "Failed to load passkey credential." };
+    const challenge = crypto$1.randomBytes(32).toString("base64url");
+    return { challenge, credential_id: cred.credential_id };
+  }
+  /**
+   * Complete authentication: derive master key from challenge, verify against vault check.
+   *
+   * @param challengeB64url - the challenge that was signed (base64url)
+   */
+  completeAuthentication(challengeB64url) {
+    try {
+      const vault = this.loadVault();
+      if (!vault) return { success: false, error: "Vault file not found." };
+      const masterSalt = Buffer.from(vault.master_salt, "hex");
+      const mk = deriveMasterKey(challengeB64url, masterSalt);
+      try {
+        const decrypted = aesDecrypt(mk, vault.master_check_iv, vault.master_check_tag, vault.master_check);
+        if (decrypted !== MASTER_CHECK_PLAINTEXT) {
+          return { success: false, error: "Master key verification failed." };
+        }
+      } catch {
+        return { success: false, error: "Invalid passkey or corrupted vault." };
+      }
+      this.masterKey = mk;
+      this.masterKeyExpiry = Date.now() + MASTER_KEY_TTL_MS;
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: String(err) };
+    }
+  }
+  /**
+   * Lock the vault: clear master key from memory.
+   */
+  lock() {
+    if (this.masterKey) {
+      this.masterKey.fill(0);
+      this.masterKey = null;
+    }
+    this.masterKeyExpiry = 0;
+  }
+  // ── Key CRUD ───────────────────────────────────────────────────────────
+  /**
+   * Add or update an API key in the vault.
+   * Vault must be unlocked.
+   */
+  addKey(apiName, secretValue) {
+    if (!this.isUnlocked()) {
+      return { success: false, error: "Vault is locked. Unlock with passkey first." };
+    }
+    try {
+      const vault = this.loadVault();
+      if (!vault) return { success: false, error: "Vault file not found." };
+      const entrySalt = crypto$1.randomBytes(16);
+      const entryKey = deriveEntryKey(this.masterKey, apiName, entrySalt);
+      const encrypted = aesEncrypt(entryKey, secretValue);
+      const displayHint = secretValue.length >= 4 ? `...${secretValue.slice(-4)}` : "****";
+      vault.entries[apiName] = {
+        salt: entrySalt.toString("hex"),
+        iv: encrypted.iv,
+        tag: encrypted.tag,
+        ciphertext: encrypted.ciphertext,
+        created_at: (/* @__PURE__ */ new Date()).toISOString(),
+        last_used: null,
+        display_hint: displayHint
+      };
+      this.saveVault(vault);
+      return { success: true, display_hint: displayHint };
+    } catch (err) {
+      return { success: false, error: String(err) };
+    }
+  }
+  /**
+   * Remove an API key from the vault.
+   * Vault must be unlocked.
+   */
+  removeKey(apiName) {
+    if (!this.isUnlocked()) {
+      return { success: false, error: "Vault is locked." };
+    }
+    try {
+      const vault = this.loadVault();
+      if (!vault) return { success: false, error: "Vault file not found." };
+      if (!(apiName in vault.entries)) {
+        return { success: false, error: `Key '${apiName}' not found in vault.` };
+      }
+      delete vault.entries[apiName];
+      this.saveVault(vault);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: String(err) };
+    }
+  }
+  /**
+   * List all key names and metadata (no secrets).
+   */
+  listKeys() {
+    try {
+      const vault = this.loadVault();
+      if (!vault) return [];
+      return Object.entries(vault.entries).map(([name, entry]) => ({
+        name,
+        display_hint: entry.display_hint,
+        created_at: entry.created_at,
+        last_used: entry.last_used
+      }));
+    } catch {
       return [];
     }
-    const files = node_fs.readdirSync(VAULT_DIR);
-    return files.filter((f) => f.endsWith(".enc")).map((f) => f.slice(0, -4));
-  } catch (err) {
-    console.error("[vault] Error listing keys:", err);
-    return [];
   }
-}
-function deleteApiKey(apiName) {
-  try {
-    const keyPath = getKeyPath(apiName);
-    if (!node_fs.existsSync(keyPath)) {
+  /**
+   * Decrypt and return an API key. Used internally by api-proxy.
+   * Vault must be unlocked. Updates last_used timestamp.
+   */
+  decryptKey(apiName) {
+    if (!this.isUnlocked()) return null;
+    try {
+      const vault = this.loadVault();
+      if (!vault) return null;
+      const entry = vault.entries[apiName];
+      if (!entry) return null;
+      const entrySalt = Buffer.from(entry.salt, "hex");
+      const entryKey = deriveEntryKey(this.masterKey, apiName, entrySalt);
+      const plaintext = aesDecrypt(entryKey, entry.iv, entry.tag, entry.ciphertext);
+      entry.last_used = (/* @__PURE__ */ new Date()).toISOString();
+      this.saveVault(vault);
+      return plaintext;
+    } catch {
+      return null;
+    }
+  }
+  /**
+   * Check if a specific key exists in the vault (does not require unlock).
+   */
+  hasKey(apiName) {
+    try {
+      const vault = this.loadVault();
+      return vault !== null && apiName in vault.entries;
+    } catch {
       return false;
     }
-    node_fs.rmSync(keyPath);
-    return true;
-  } catch (err) {
-    console.error(`[vault] Error deleting key for ${apiName}:`, err);
-    return false;
+  }
+  // ── File I/O ───────────────────────────────────────────────────────────
+  loadVault() {
+    try {
+      if (!node_fs.existsSync(VAULT_PATH)) return null;
+      const raw = node_fs.readFileSync(VAULT_PATH, "utf-8");
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  saveVault(vault) {
+    node_fs.mkdirSync(TEAM_HUB_DIR$3, { recursive: true });
+    node_fs.writeFileSync(VAULT_PATH, JSON.stringify(vault, null, 2), { mode: 384 });
+    try {
+      node_fs.chmodSync(VAULT_PATH, 384);
+    } catch {
+    }
+  }
+  loadCredential() {
+    try {
+      if (!node_fs.existsSync(PASSKEY_PATH)) return null;
+      const raw = node_fs.readFileSync(PASSKEY_PATH, "utf-8");
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
   }
 }
-const REGISTRY = {
-  openai: {
+const vaultManager = new VaultManager();
+const TEAM_HUB_DIR$2 = node_path.join(
+  process.env["HOME"] ?? process.env["USERPROFILE"] ?? "/tmp",
+  ".claude",
+  "team-hub"
+);
+const REGISTRY_PATH = node_path.join(TEAM_HUB_DIR$2, "api-registry.json");
+const PRESETS = [
+  {
     name: "openai",
     base_url: "https://api.openai.com",
     auth_type: "bearer",
     auth_header: "Authorization",
-    description: "OpenAI API (GPT, embeddings, etc.)"
+    auth_prefix: "Bearer ",
+    description: "OpenAI API (GPT, DALL-E, Whisper, Embeddings)",
+    is_preset: true
   },
-  anthropic: {
+  {
     name: "anthropic",
     base_url: "https://api.anthropic.com",
-    auth_type: "bearer",
+    auth_type: "custom",
     auth_header: "x-api-key",
-    description: "Anthropic API (Claude)"
+    description: "Anthropic API (Claude models)",
+    is_preset: true
   },
-  github: {
+  {
+    name: "google",
+    base_url: "https://generativelanguage.googleapis.com",
+    auth_type: "bearer",
+    auth_header: "Authorization",
+    auth_prefix: "Bearer ",
+    description: "Google Generative AI API (Gemini)",
+    is_preset: true
+  },
+  {
     name: "github",
     base_url: "https://api.github.com",
-    auth_type: "token",
-    auth_header: "Authorization",
-    description: "GitHub API"
-  },
-  huggingface: {
-    name: "huggingface",
-    base_url: "https://api-inference.huggingface.co",
     auth_type: "bearer",
     auth_header: "Authorization",
-    description: "Hugging Face API"
-  },
-  stripe: {
-    name: "stripe",
-    base_url: "https://api.stripe.com",
-    auth_type: "custom",
-    auth_header: "Authorization",
-    description: "Stripe API (payments)"
-  },
-  slack: {
-    name: "slack",
-    base_url: "https://slack.com/api",
-    auth_type: "bearer",
-    auth_header: "Authorization",
-    description: "Slack API"
-  },
-  sendgrid: {
-    name: "sendgrid",
-    base_url: "https://api.sendgrid.com",
-    auth_type: "bearer",
-    auth_header: "Authorization",
-    description: "SendGrid API (email)"
-  },
-  twilio: {
-    name: "twilio",
-    base_url: "https://api.twilio.com",
-    auth_type: "custom",
-    auth_header: "Authorization",
-    description: "Twilio API (SMS, calls)"
+    auth_prefix: "Bearer ",
+    description: "GitHub REST API",
+    is_preset: true
   }
-};
-function getApiConfig(apiName) {
-  return REGISTRY[apiName] ?? null;
+];
+class ApiRegistry {
+  customApis = /* @__PURE__ */ new Map();
+  loaded = false;
+  /**
+   * Get an API definition by name. Checks presets first, then custom.
+   */
+  get(name) {
+    this.ensureLoaded();
+    const preset = PRESETS.find((p) => p.name === name);
+    if (preset) return preset;
+    return this.customApis.get(name) ?? null;
+  }
+  /**
+   * List all registered APIs (presets + custom).
+   */
+  list() {
+    this.ensureLoaded();
+    return [...PRESETS, ...Array.from(this.customApis.values())];
+  }
+  /**
+   * Register a custom API definition.
+   * Cannot overwrite presets.
+   */
+  register(def) {
+    this.ensureLoaded();
+    if (PRESETS.some((p) => p.name === def.name)) {
+      return { success: false, error: `Cannot overwrite preset API '${def.name}'.` };
+    }
+    if (!def.name || !def.base_url || !def.auth_type || !def.auth_header) {
+      return { success: false, error: "Missing required fields: name, base_url, auth_type, auth_header." };
+    }
+    try {
+      new URL(def.base_url);
+    } catch {
+      return { success: false, error: `Invalid base_url: '${def.base_url}'.` };
+    }
+    this.customApis.set(def.name, { ...def, is_preset: false });
+    this.persist();
+    return { success: true };
+  }
+  /**
+   * Remove a custom API definition.
+   * Cannot remove presets.
+   */
+  unregister(name) {
+    this.ensureLoaded();
+    if (PRESETS.some((p) => p.name === name)) {
+      return { success: false, error: `Cannot remove preset API '${name}'.` };
+    }
+    if (!this.customApis.has(name)) {
+      return { success: false, error: `Custom API '${name}' not found.` };
+    }
+    this.customApis.delete(name);
+    this.persist();
+    return { success: true };
+  }
+  /**
+   * Validate that a URL is allowed for the given API (must start with base_url).
+   */
+  validateUrl(apiName, url) {
+    const def = this.get(apiName);
+    if (!def) return false;
+    try {
+      const parsed = new URL(url);
+      const base = new URL(def.base_url);
+      return parsed.origin === base.origin && parsed.pathname.startsWith(base.pathname);
+    } catch {
+      return false;
+    }
+  }
+  /**
+   * Build the auth header value for a given API and key.
+   */
+  buildAuthValue(apiName, key) {
+    const def = this.get(apiName);
+    if (!def) return null;
+    const value = def.auth_prefix ? `${def.auth_prefix}${key}` : key;
+    return { header: def.auth_header, value };
+  }
+  // ── Persistence ────────────────────────────────────────────────────────
+  ensureLoaded() {
+    if (this.loaded) return;
+    this.loaded = true;
+    try {
+      if (!node_fs.existsSync(REGISTRY_PATH)) return;
+      const raw = node_fs.readFileSync(REGISTRY_PATH, "utf-8");
+      const data = JSON.parse(raw);
+      for (const def of data) {
+        if (!PRESETS.some((p) => p.name === def.name)) {
+          this.customApis.set(def.name, { ...def, is_preset: false });
+        }
+      }
+    } catch {
+      this.customApis.clear();
+    }
+  }
+  persist() {
+    try {
+      node_fs.mkdirSync(TEAM_HUB_DIR$2, { recursive: true });
+      const data = Array.from(this.customApis.values()).map(({ is_preset: _, ...rest }) => rest);
+      node_fs.writeFileSync(REGISTRY_PATH, JSON.stringify(data, null, 2));
+    } catch (err) {
+      console.error("[api-registry] Failed to persist:", err);
+    }
+  }
 }
-function isApiRegistered(apiName) {
-  return apiName in REGISTRY;
-}
-function getApiInfo(apiName) {
-  const config = getApiConfig(apiName);
-  if (!config) return null;
-  return {
-    name: config.name,
-    base_url: config.base_url,
-    auth_type: config.auth_type,
-    auth_header: config.auth_header
-  };
-}
+const apiRegistry = new ApiRegistry();
 async function proxyApiRequest(req) {
   try {
-    if (!isApiRegistered(req.api_name)) {
+    if (!vaultManager.isRegistered() || !vaultManager.isUnlocked()) {
       return {
-        error: `API not registered: ${req.api_name}`,
-        code: "API_NOT_REGISTERED"
+        error: "Vault is not initialized or unlocked. Use passkey to unlock first.",
+        code: "VAULT_LOCKED"
       };
     }
-    const apiKey = getApiKey(req.api_name);
+    const apiKey = vaultManager.decryptKey(req.api_name);
     if (!apiKey) {
       return {
         error: `API key not found for ${req.api_name}. Use vault API to add it first.`,
         code: "KEY_NOT_FOUND"
       };
     }
-    const config = getApiInfo(req.api_name);
-    if (!config) {
+    const apiDef = apiRegistry.get(req.api_name);
+    if (!apiDef) {
       return {
-        error: `API config not found for ${req.api_name}`,
-        code: "CONFIG_NOT_FOUND"
+        error: `API not registered: ${req.api_name}`,
+        code: "API_NOT_REGISTERED"
       };
     }
-    const finalUrl = new node_url.URL(req.url, config.base_url).toString();
+    if (!apiRegistry.validateUrl(req.api_name, req.url)) {
+      return {
+        error: `URL not allowed for API '${req.api_name}'. Must start with ${apiDef.base_url}`,
+        code: "URL_NOT_ALLOWED"
+      };
+    }
+    const finalUrl = new node_url.URL(req.url, apiDef.base_url).toString();
     const headers = {
       ...req.headers
     };
-    if (config.auth_type === "bearer") {
-      headers[config.auth_header] = `Bearer ${apiKey}`;
-    } else if (config.auth_type === "token") {
-      headers[config.auth_header] = `token ${apiKey}`;
-    } else {
-      headers[config.auth_header] = apiKey;
+    const auth = apiRegistry.buildAuthValue(req.api_name, apiKey);
+    if (auth) {
+      headers[auth.header] = auth.value;
     }
     const response = await forwardRequest(finalUrl, req.method, headers, req.body);
     return response;
@@ -1882,16 +2189,19 @@ async function forwardRequest(url, method, headers, body) {
   });
 }
 function listApiKeys() {
-  return listApiKeyNames();
+  return vaultManager.listKeys();
 }
 function addApiKey(apiName, value) {
-  if (!isApiRegistered(apiName)) {
-    console.warn(`[api-proxy] Warning: API '${apiName}' is not registered, but key can still be stored`);
+  if (!vaultManager.isUnlocked()) {
+    return { success: false, error: "Vault is locked. Unlock with passkey first." };
   }
-  return saveApiKey(apiName, value);
+  return vaultManager.addKey(apiName, value);
 }
 function removeApiKey(apiName) {
-  return deleteApiKey(apiName);
+  if (!vaultManager.isUnlocked()) {
+    return { success: false, error: "Vault is locked. Unlock with passkey first." };
+  }
+  return vaultManager.removeKey(apiName);
 }
 const TEAM_HUB_DIR$1 = node_path.join(node_os.homedir(), ".claude", "team-hub");
 const MEMBERS_DIR$1 = node_path.join(TEAM_HUB_DIR$1, "members");
@@ -2130,7 +2440,7 @@ function startPanelApi() {
           return jsonResponse(res, 409, { ok: false, error: `member ${body.name} already exists` });
         }
         const profile = {
-          uid: body.uid ?? node_crypto.randomUUID(),
+          uid: body.uid ?? crypto$1.randomUUID(),
           name: body.name,
           role: body.role,
           type: body.type ?? "temporary",
@@ -2509,7 +2819,7 @@ function startPanelApi() {
           return jsonResponse(res, 409, { ok: false, error: `member ${body.name} already exists` });
         }
         const profile = {
-          uid: body.uid ?? node_crypto.randomUUID(),
+          uid: body.uid ?? crypto$1.randomUUID(),
           name: body.name,
           role: body.role,
           type: body.type ?? "temporary",
