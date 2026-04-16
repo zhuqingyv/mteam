@@ -50,3 +50,61 @@ electron.contextBridge.exposeInMainWorld("teamHub", {
     };
   }
 });
+electron.contextBridge.exposeInMainWorld("api", {
+  scanAgentClis: (force) => {
+    return electron.ipcRenderer.invoke("scan-agent-clis", force);
+  },
+  selectDirectory: () => {
+    return electron.ipcRenderer.invoke("select-directory");
+  },
+  launchMember: (opts) => {
+    return electron.ipcRenderer.invoke("launch-member", opts);
+  },
+  trustWorkspace: (workspacePath) => {
+    return electron.ipcRenderer.invoke("trust-workspace", workspacePath);
+  }
+});
+electron.contextBridge.exposeInMainWorld("ptyBridge", {
+  // Session lifecycle
+  spawn: (opts) => {
+    return electron.ipcRenderer.invoke("spawn-pty-session", opts);
+  },
+  write: (sessionId, data) => {
+    return electron.ipcRenderer.invoke("write-to-pty", sessionId, data);
+  },
+  resize: (sessionId, cols, rows) => {
+    return electron.ipcRenderer.invoke("resize-pty", sessionId, cols, rows);
+  },
+  kill: (sessionId) => {
+    return electron.ipcRenderer.invoke("kill-pty-session", sessionId);
+  },
+  // Query
+  list: () => {
+    return electron.ipcRenderer.invoke("get-pty-sessions");
+  },
+  get: (sessionId) => {
+    return electron.ipcRenderer.invoke("get-pty-session", sessionId);
+  },
+  getBuffer: (sessionId) => {
+    return electron.ipcRenderer.invoke("get-pty-buffer", sessionId);
+  },
+  // Window binding — binds this window to receive pty-output/pty-exit for this session
+  attach: (sessionId) => {
+    return electron.ipcRenderer.invoke("attach-pty-window", sessionId);
+  },
+  // Events from main process
+  onOutput: (callback) => {
+    const handler = (_event, sessionId, data) => callback(sessionId, data);
+    electron.ipcRenderer.on("pty-output", handler);
+    return () => {
+      electron.ipcRenderer.removeListener("pty-output", handler);
+    };
+  },
+  onExit: (callback) => {
+    const handler = (_event, sessionId, exitCode) => callback(sessionId, exitCode);
+    electron.ipcRenderer.on("pty-exit", handler);
+    return () => {
+      electron.ipcRenderer.removeListener("pty-exit", handler);
+    };
+  }
+});

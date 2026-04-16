@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Liquid Border Demo</title>
+<style>
+  * { margin: 0; padding: 0; }
+  body { background: #0a0a0a; overflow: hidden; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+resize();
+addEventListener('resize', resize);
+
+const boxes = [
+  { x: 80,  y: 60,  w: 220, h: 160, color: [30, 140, 255], label: '老锤' },
+  { x: 420, y: 40,  w: 220, h: 160, color: [255, 60, 90],  label: '小快' },
+  { x: 780, y: 80,  w: 220, h: 160, color: [0, 200, 130],   label: '阿构' },
+  { x: 200, y: 340, w: 220, h: 160, color: [255, 180, 30],  label: '刺猬' },
+  { x: 560, y: 360, w: 220, h: 160, color: [180, 80, 255],  label: '阿点' },
+];
+
+let dragging = null, dragOff = { x: 0, y: 0 };
+canvas.addEventListener('mousedown', e => {
+  for (let i = boxes.length - 1; i >= 0; i--) {
+    const b = boxes[i];
+    if (e.clientX >= b.x && e.clientX <= b.x + b.w && e.clientY >= b.y && e.clientY <= b.y + b.h) {
+      dragging = i; dragOff.x = e.clientX - b.x; dragOff.y = e.clientY - b.y; return;
+    }
+  }
+});
+canvas.addEventListener('mousemove', e => {
+  if (dragging !== null) { boxes[dragging].x = e.clientX - dragOff.x; boxes[dragging].y = e.clientY - dragOff.y; }
+});
+canvas.addEventListener('mouseup', () => { dragging = null; });
+
+const RES = 3;
+const BW = 6; // border width
+const CORNER_RADIUS = 20; // rounded corner radius
+
+// ── SDF primitives ──
+
+// Rounded rectangle SDF (negative inside, positive outside)
+function roundedBoxSDF(px, py, b) {
+  const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+  const dx = Math.abs(px - cx) - b.w / 2 + CORNER_RADIUS;
+  const dy = Math.abs(py - cy) - b.h / 2 + CORNER_RADIUS;
+  return Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) + Math.min(Math.max(dx, dy), 0) - CORNER_RADIUS;
+}
+
+// Smooth minimum — the key to liquid fusion
+function smin(a, b, k) {
+  const h = Math.max(k - Math.abs(a - b), 0) / k;
+  return Math.min(a, b) - h * h * h * k / 6;
+}
+
+// Distance from point to a cubic Bezier curve segment (sampled)
+// Returns { dist, t } where t is the closest parameter along the curve
+const BEZIER_SAMPLES = 12;
+function distToCubicBezier(px, py, p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y) {
+  let minDist = Infinity;
+  let bestT = 0;
+  for (let i = 0; i <= BEZIER_SAMPLES; i++) {
+    const t = i / BEZIER_SAMPLES;
+    const it = 1 - t;
+    const it2 = it * it;
+    const it3 = it2 * it;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    const bx = it3 * p0x + 3 * it2 * t * p1x + 3 * it * t2 * p2x + t3 * p3x;
+    const by = it3 * p0y + 3 * it2 * t * p1y + 3 * it * t2 * p2y + t3 * p3y;
+    const d = Math.hypot(px - bx, py - by);
+    if (d < minDist) {
+      minDist = d;
+      bestT = t;
+    }
+  }
+  return { dist: minDist, t: bestT };
+}
+
+// Tentacle capsule SDF along a Bezier path
+// Width varies: thick at roots (matching border), thin in the middle
+function tentacleSDF(px, py, p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, reach) {
+  const { dist, t } = distToCubicBezier(px, py, p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y);
+  // Width profile: thick at ends (t=0 and t=1), thin in the middle
+  const rootWidth = BW * 1.2;
+  const midWidth = BW * 0.35;
+  // Smooth blend: thick->thin->thick
+  const edgeFactor = 4 * (t - 0.5) * (t - 0.5); // 1 at t=0,1 ; 0 at t=0.5
+  const width = midWidth + (rootWidth - midWidth) * edgeFactor;
+  const sdfDist = dist - width * Math.min(reach * 1.5, 1);
+  return { dist: sdfDist, t };
+}
+
+// Find the exit point on the box edge along a direction
+function findEdgeExit(cx, cy, nx, ny, box, maxDist) {
+  for (let s = 0; s < maxDist; s += 2) {
+    if (roundedBoxSDF(cx + nx * s, cy + ny * s, box) > 0) {
+      return s;
+    }
+  }
+  return maxDist * 0.5;
+}
+
+// ── Messages ──
+const activeMessages = [];
+const MSG_DURATION = 1.6;
+let msgTimer = 0, nextMsgAt = 1.0;
+function scheduleNext() { nextMsgAt = 0.8 + Math.random() * 1.2; }
+function randBox() { return Math.floor(Math.random() * boxes.length); }
+function randBoxExcluding(excludeSet) {
+  let b;
+  let attempts = 0;
+  do { b = randBox(); attempts++; } while (excludeSet.has(b) && attempts < 20);
+  return excludeSet.has(b) ? -1 : b;
+}
+function spawnMessage(time) {
+  const roll = Math.random();
+  if (roll < 0.35) {
+    // One-to-many: 1 from, 2-3 targets
+    const from = randBox();
+    const exclude = new Set([from]);
+    const targetCount = Math.random() < 0.4 ? 3 : 2;
+    for (let i = 0; i < targetCount; i++) {
+      const to = randBoxExcluding(exclude);
+      if (to < 0) break;
+      exclude.add(to);
+      activeMessages.push({ from, to, startTime: time, duration: MSG_DURATION });
+    }
+  } else if (roll < 0.55) {
+    // Many-to-one: 2-3 senders, 1 target
+    const to = randBox();
+    const exclude = new Set([to]);
+    const senderCount = Math.random() < 0.4 ? 3 : 2;
+    for (let i = 0; i < senderCount; i++) {
+      const from = randBoxExcluding(exclude);
+      if (from < 0) break;
+      exclude.add(from);
+      activeMessages.push({ from, to, startTime: time, duration: MSG_DURATION });
+    }
+  } else {
+    // Normal one-to-one
+    const from = randBox();
+    const to = randBoxExcluding(new Set([from]));
+    if (to >= 0) {
+      activeMessages.push({ from, to, startTime: time, duration: MSG_DURATION });
+    }
+  }
+}
+
+// ── Main loop ──
+let lastT = 0;
+function draw(ts) {
+  const time = ts / 1000;
+  const dt = lastT ? time - lastT : 0.016;
+  lastT = time;
+
+  // Messages
+  msgTimer += dt;
+  if (msgTimer >= nextMsgAt) { spawnMessage(time); msgTimer = 0; scheduleNext(); }
+  for (let i = activeMessages.length - 1; i >= 0; i--)
+    if (time - activeMessages[i].startTime > activeMessages[i].duration) activeMessages.splice(i, 1);
+
+  const pairReach = Array.from({ length: boxes.length }, () => new Float32Array(boxes.length));
+  for (const msg of activeMessages) {
+    const mt = (time - msg.startTime) / msg.duration;
+    const reach = Math.pow(Math.sin(mt * Math.PI), 0.65);
+    pairReach[msg.from][msg.to] = Math.max(pairReach[msg.from][msg.to], reach);
+    pairReach[msg.to][msg.from] = Math.max(pairReach[msg.to][msg.from], reach);
+  }
+
+  // ── Pre-compute active tentacle pairs and their Bezier control points ──
+  const tentacles = [];
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      if (pairReach[i][j] < 0.02) continue;
+      const a = boxes[i], b = boxes[j];
+      const acx = a.x + a.w / 2, acy = a.y + a.h / 2;
+      const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+      const dx = bcx - acx, dy = bcy - acy;
+      const len = Math.hypot(dx, dy);
+      if (len < 1) continue;
+      const nx = dx / len, ny = dy / len;
+
+      // Find edge exit points
+      const aExit = findEdgeExit(acx, acy, nx, ny, a, len * 0.5);
+      const bExit = findEdgeExit(bcx, bcy, -nx, -ny, b, len * 0.5);
+
+      // Start / end points on box edges
+      const p0x = acx + nx * aExit;
+      const p0y = acy + ny * aExit;
+      const p3x = bcx - nx * bExit;
+      const p3y = bcy - ny * bExit;
+
+      // Gap length
+      const gapLen = Math.hypot(p3x - p0x, p3y - p0y);
+      if (gapLen < 5) continue;
+
+      // Perpendicular direction
+      const perpX = -ny, perpY = nx;
+
+      // Bezier control points with animated perpendicular offset for organic S-curve
+      const wobbleAmt = gapLen * 0.25;
+      const offset1 = Math.sin(time * 1.7 + i * 2.3 + j * 1.1) * wobbleAmt
+                     + Math.sin(time * 2.9 + j * 3.1) * wobbleAmt * 0.4;
+      const offset2 = Math.sin(time * 2.1 + j * 1.7 + i * 2.9) * wobbleAmt
+                     + Math.cos(time * 1.3 + i * 2.7) * wobbleAmt * 0.4;
+
+      const p1x = p0x + (p3x - p0x) * 0.33 + perpX * offset1;
+      const p1y = p0y + (p3y - p0y) * 0.33 + perpY * offset1;
+      const p2x = p0x + (p3x - p0x) * 0.67 + perpX * offset2;
+      const p2y = p0y + (p3y - p0y) * 0.67 + perpY * offset2;
+
+      tentacles.push({
+        ai: i, bi: j, reach: pairReach[i][j],
+        p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y,
+        // Bounding box for quick reject
+        minX: Math.min(p0x, p1x, p2x, p3x) - BW * 3,
+        maxX: Math.max(p0x, p1x, p2x, p3x) + BW * 3,
+        minY: Math.min(p0y, p1y, p2y, p3y) - BW * 3,
+        maxY: Math.max(p0y, p1y, p2y, p3y) + BW * 3,
+      });
+    }
+  }
+
+  // ── Pixel rendering with ImageData ──
+  const imgData = ctx.createImageData(W, H);
+  const data = imgData.data;
+
+  // Background
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = 10; data[i+1] = 10; data[i+2] = 10; data[i+3] = 255;
+  }
+
+  for (let py = 0; py < H; py += RES) {
+    for (let px = 0; px < W; px += RES) {
+
+      // Step 1: Compute raw rounded-box SDF for each box
+      const boxDists = new Float32Array(boxes.length);
+      for (let i = 0; i < boxes.length; i++) {
+        boxDists[i] = roundedBoxSDF(px, py, boxes[i]);
+      }
+
+      // Step 2: Per-box fused SDF = smin(box, each of its tentacles)
+      // This creates the "growing out of the border" bulge at roots
+      const fusedDists = new Float32Array(boxes.length);
+      for (let i = 0; i < boxes.length; i++) {
+        fusedDists[i] = boxDists[i];
+      }
+
+      // Track closest tentacle info for color gradient
+      let closestTentT = -1;      // Bezier t of the closest tentacle
+      let closestTentAi = -1;     // box index A of the closest tentacle
+      let closestTentBi = -1;     // box index B of the closest tentacle
+      let closestTentDist = Infinity;
+
+      for (const tent of tentacles) {
+        // Quick reject bounding box
+        if (px < tent.minX || px > tent.maxX || py < tent.minY || py > tent.maxY) continue;
+
+        const { dist: tSDF, t: bezierT } = tentacleSDF(px, py,
+          tent.p0x, tent.p0y, tent.p1x, tent.p1y,
+          tent.p2x, tent.p2y, tent.p3x, tent.p3y, tent.reach);
+
+        // Track the closest tentacle for color interpolation
+        if (tSDF < closestTentDist) {
+          closestTentDist = tSDF;
+          closestTentT = bezierT;
+          closestTentAi = tent.ai;
+          closestTentBi = tent.bi;
+        }
+
+        // Fuse tentacle into both endpoint boxes (root fusion k=18)
+        fusedDists[tent.ai] = smin(fusedDists[tent.ai], tSDF, 18);
+        fusedDists[tent.bi] = smin(fusedDists[tent.bi], tSDF, 18);
+      }
+
+      // Step 3: Global SDF = smin across all connected fused-box fields
+      // For non-connected boxes, their fusedDists[i] == boxDists[i] (far away),
+      // so they only contribute near their own border — no unwanted merging.
+      // For connected pairs, smin merges them with k=14 for liquid midpoint join.
+      let globalSDF = Infinity;
+      // Track which box is "closest" for color assignment
+      let closestBox = -1;
+      let secondBox = -1;
+      let closestDist = Infinity;
+      let secondDist = Infinity;
+
+      for (let i = 0; i < boxes.length; i++) {
+        const d = fusedDists[i];
+        if (d < closestDist) {
+          secondDist = closestDist;
+          secondBox = closestBox;
+          closestDist = d;
+          closestBox = i;
+        } else if (d < secondDist) {
+          secondDist = d;
+          secondBox = i;
+        }
+      }
+
+      // If the two closest boxes have an active tentacle, smin-fuse them
+      // Otherwise just take the plain minimum
+      let hasTentacleLink = false;
+      if (closestBox >= 0 && secondBox >= 0) {
+        for (const tent of tentacles) {
+          if ((tent.ai === closestBox && tent.bi === secondBox) ||
+              (tent.ai === secondBox && tent.bi === closestBox)) {
+            hasTentacleLink = true;
+            break;
+          }
+        }
+      }
+
+      if (hasTentacleLink) {
+        globalSDF = smin(closestDist, secondDist, 14);
+      } else {
+        globalSDF = closestDist;
+      }
+
+      // Step 4: Render border from globalSDF with wobble
+      // Wobble uses the closest box's center for angle reference
+      if (closestBox < 0) continue;
+      const cb = boxes[closestBox];
+      const cx = cb.x + cb.w / 2, cy = cb.y + cb.h / 2;
+      const angle = Math.atan2(py - cy, px - cx);
+      const wobble = Math.sin(angle * 5 + time * 1.5) * 1.0
+                   + Math.sin(angle * 8 + time * 2.3) * 0.6
+                   + Math.sin(angle * 13 + time * 1.1) * 0.4;
+      const halfW = BW / 2 + wobble;
+
+      const d = Math.abs(globalSDF) - halfW;
+      let val;
+      if (d > 2) { val = 0; }
+      else if (d < -2) { val = 1; }
+      else { val = 1 - (d + 2) / 4; }
+
+      if (val < 0.01) continue;
+
+      // Step 5: Color — use Bezier t parameter for gradient along tentacle path
+      let totalR, totalG, totalB;
+      if (closestTentDist < BW * 2 && closestTentAi >= 0 && closestTentBi >= 0) {
+        // Pixel is near a tentacle — use Bezier t for color gradient
+        // t=0 → pure A color, t=0.5 → blended, t=1 → pure B color
+        let colorT = closestTentT;
+        colorT = colorT * colorT * (3 - 2 * colorT); // smoothstep
+
+        const cA = boxes[closestTentAi].color;
+        const cB = boxes[closestTentBi].color;
+        totalR = cA[0] * (1 - colorT) + cB[0] * colorT;
+        totalG = cA[1] * (1 - colorT) + cB[1] * colorT;
+        totalB = cA[2] * (1 - colorT) + cB[2] * colorT;
+      } else {
+        // Not in tentacle range — use the closest box's own color
+        const c = boxes[closestBox].color;
+        totalR = c[0]; totalG = c[1]; totalB = c[2];
+      }
+
+      const r = Math.round(totalR);
+      const g = Math.round(totalG);
+      const bl = Math.round(totalB);
+      const alpha = Math.min(val, 1) * 0.75;
+
+      // Paint RES x RES block
+      for (let dy = 0; dy < RES && py + dy < H; dy++) {
+        for (let dx = 0; dx < RES && px + dx < W; dx++) {
+          const idx = ((py + dy) * W + (px + dx)) * 4;
+          const bg = 10;
+          data[idx]     = Math.round(r * alpha + bg * (1 - alpha));
+          data[idx + 1] = Math.round(g * alpha + bg * (1 - alpha));
+          data[idx + 2] = Math.round(bl * alpha + bg * (1 - alpha));
+        }
+      }
+    }
+  }
+
+  // Draw box interiors into ImageData (dark fill with rounded corners)
+  for (const b of boxes) {
+    for (let py = Math.max(0, Math.floor(b.y)); py < b.y + b.h && py < H; py++) {
+      for (let px = Math.max(0, Math.floor(b.x)); px < b.x + b.w && px < W; px++) {
+        if (roundedBoxSDF(px, py, b) < -1) {
+          const idx = (py * W + px) * 4;
+          data[idx] = 13; data[idx+1] = 13; data[idx+2] = 13;
+        }
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+
+  // Draw box content with regular canvas (text, fake terminal)
+  for (const b of boxes) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(b.x, b.y, b.w, b.h, CORNER_RADIUS);
+    ctx.clip();
+
+    const [r, g, bl] = b.color;
+    ctx.fillStyle = `rgba(${r},${g},${bl},0.15)`;
+    ctx.fillRect(b.x, b.y, b.w, 26);
+    ctx.fillStyle = `rgba(${r},${g},${bl},0.9)`;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText(b.label, b.x + 10, b.y + 18);
+    ctx.fillStyle = '#222';
+    for (let k = 0; k < 4; k++) {
+      const lw = 40 + Math.sin(k * 2.7 + time * 0.8) * 40;
+      ctx.fillRect(b.x + 10, b.y + 36 + k * 22, lw, 8);
+    }
+
+    ctx.restore();
+  }
+
+  // HUD
+  ctx.fillStyle = '#333';
+  ctx.font = '12px monospace';
+  const pairs = activeMessages.map(m => `${boxes[m.from].label}→${boxes[m.to].label}`);
+  ctx.fillText(`拖动窗口  |  ${pairs.length ? pairs.join('  ') : '待机中'}`, 16, H - 12);
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

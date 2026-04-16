@@ -283,7 +283,9 @@ ${isLeader ? '你被指派为 leader。使用 teamhub MCP 的 request_member(aut
         env: {
           BUN_DISABLE_KITTY_PROBE: '1',
           KITTY_WINDOW_ID: '',
-          CLAUDE_MEMBER: memberName,
+          ...(isLeader
+            ? { CLAUDE_MEMBER: '', IS_LEADER: '1' }
+            : { CLAUDE_MEMBER: memberName }),
           TEAM_HUB_NO_LAUNCH: '1',
           ...env
         }
@@ -354,7 +356,7 @@ ${isLeader ? '你被指派为 leader。使用 teamhub MCP 的 request_member(aut
 
   win.once('ready-to-show', () => {
     win.setTitle(memberName)
-    win.show()
+    if (process.env.E2E_HEADLESS !== '1') win.show()
     broadcastPositions()
   })
 

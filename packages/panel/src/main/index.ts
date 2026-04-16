@@ -29,6 +29,7 @@ import {
 import { setupMessageRouter, teardownMessageRouter } from './message-router'
 import { startPanelApi, stopPanelApi, setMessageRouter } from './panel-api'
 import { createOverlay } from './overlay-window'
+import { setupAskUserIpc } from './ask-user-window'
 
 // ── 常量 ──────────────────────────────────────────────────────────────────────
 const TEAM_HUB_DIR = resolve(homedir(), '.claude/team-hub')
@@ -323,7 +324,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
+    if (process.env.E2E_HEADLESS !== '1') mainWindow?.show()
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -344,13 +345,15 @@ function pushStatus(): void {
   const status = scanTeamStatus()
   mainWindow.webContents.send('status-update', status)
 
-  // 自关逻辑
-  if (status.sessions.length === 0) {
+  // 自关逻辑：Claude 进程和 PTY 终端都没有时才触发
+  const ptyActive = getPtySessions().some(s => s.status === 'running')
+  if (status.sessions.length === 0 && !ptyActive) {
     if (!autoQuitTimer) {
       autoQuitTimer = setTimeout(() => {
         // 15s 后再扫一次
         const check = scanTeamStatus()
-        if (check.sessions.length === 0) {
+        const ptyStillActive = getPtySessions().some(s => s.status === 'running')
+        if (check.sessions.length === 0 && !ptyStillActive) {
           app.quit()
         } else {
           autoQuitTimer = null
@@ -358,7 +361,7 @@ function pushStatus(): void {
       }, 15000)
     }
   } else {
-    // 有新 session，取消自关
+    // 有活跃 session 或 PTY，取消自关
     if (autoQuitTimer) {
       clearTimeout(autoQuitTimer)
       autoQuitTimer = null
@@ -1045,6 +1048,7 @@ if (!gotLock) {
 
     setupIpc()
     setupTerminalIpc()
+    setupAskUserIpc()
     startPanelApi()
     createWindow()
     createOverlay()

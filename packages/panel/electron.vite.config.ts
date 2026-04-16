@@ -13,7 +13,8 @@ export default defineConfig({
         input: {
           index: resolve('src/preload/index.ts'),
           'terminal-preload': resolve('src/preload/terminal-preload.ts'),
-          'overlay-preload': resolve('src/preload/overlay-preload.ts')
+          'overlay-preload': resolve('src/preload/overlay-preload.ts'),
+          'ask-user-preload': resolve('src/preload/ask-user-preload.ts')
         },
         output: {
           entryFileNames: '[name].js'
@@ -37,7 +38,8 @@ export default defineConfig({
         input: {
           index: resolve('src/renderer/index.html'),
           terminal: resolve('src/renderer/terminal.html'),
-          overlay: resolve('src/renderer/overlay.html')
+          overlay: resolve('src/renderer/overlay.html'),
+          'ask-user': resolve('src/renderer/ask-user.html')
         }
       }
     }

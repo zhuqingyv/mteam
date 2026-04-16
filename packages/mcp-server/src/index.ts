@@ -103,7 +103,8 @@ try {
 }
 
 const memberName = process.env.CLAUDE_MEMBER || "";
-const isLeader = !memberName; // 无 CLAUDE_MEMBER 环境变量 = leader session
+// IS_LEADER 显式标记优先；向后兼容：无 CLAUDE_MEMBER 视为 leader
+const isLeader = process.env.IS_LEADER === "1" || !memberName;
 
 let sessionId: string;
 try {
@@ -124,6 +125,10 @@ try {
 // ── MCP Server ──
 const MCP_INSTRUCTIONS = [
   "# Team Hub — 团队记忆持久化系统",
+  "",
+  "## 你是谁",
+  "- 如果你有 reservation_code（来自 spawn 提示词），你是成员，第一步调 activate",
+  "- 如果你没有 reservation_code，你是 leader，直接使用 leader 工具",
   "",
   "## team-hub 是什么",
   "team-hub 不创建 agent（创建 agent 用你自己的 Agent tool）。",
@@ -163,6 +168,13 @@ const MCP_INSTRUCTIONS = [
   "- leader：request_member, force_release, release_member, hire_temp, evaluate_temp, approve/reject_rule, install/uninstall MCP, request_departure",
   "- 成员：activate, save_memory, read_memory, deactivate, submit_experience, checkpoint, check_in/out, mount/unmount_mcp, proxy_tool, clock_out",
   "- 所有人：get_roster, get_status, team_report, search_experience, read_shared, send_msg, check_inbox",
+  "",
+  "## 错误恢复",
+  "- activate 失败 → 检查 get_status 确认状态，通知 leader 重新 request_member",
+  "- save_memory 失败 → 重试一次，仍失败则 deactivate(force=true) 避免死锁",
+  "- deactivate 失败 → check_out(force=true) 兜底释放锁",
+  "- 权限不足 → 用 send_msg 联系 leader 请求操作",
+  "- 预约过期 → 通知 leader 重新 request_member",
   "",
   "## 重要",
   "- activate / save_memory / deactivate 是成员自己调的，leader 不要调",

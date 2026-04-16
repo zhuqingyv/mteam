@@ -68,23 +68,23 @@ export function rejectRule(
   sharedDir: string,
   ruleId: string,
   reason: string
-): { success: boolean; error?: string } {
+): { success: boolean; error?: string; proposer?: string; rule?: string } {
   const pending = readPendingRules(sharedDir);
   const idx = pending.findIndex((r) => r.id === ruleId);
   if (idx === -1) {
     return { success: false, error: `rule ${ruleId} not found in pending` };
   }
 
-  pending.splice(idx, 1);
+  const [rejected] = pending.splice(idx, 1);
   writePendingRules(sharedDir, pending);
 
   // 记录拒绝历史
   const rejectedPath = path.join(sharedDir, "rejected_rules.jsonl");
   fs.appendFileSync(
     rejectedPath,
-    JSON.stringify({ ruleId, reason, rejected_at: new Date().toISOString() }) + "\n",
+    JSON.stringify({ ruleId, reason, proposer: rejected.member, rule: rejected.rule, rejected_at: new Date().toISOString() }) + "\n",
     "utf-8"
   );
 
-  return { success: true };
+  return { success: true, proposer: rejected.member, rule: rejected.rule };
 }

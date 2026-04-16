@@ -60,7 +60,7 @@ function createOverlayForDisplay(display: Electron.Display): OverlayEntry {
   }
 
   win.once('ready-to-show', () => {
-    win.show()
+    if (process.env.E2E_HEADLESS !== '1') win.show()
     // Update origin to actual window position (macOS may adjust Y for menu bar)
     const actual = win.getBounds()
     const stored = overlays.get(display.id)
@@ -162,7 +162,7 @@ export function updateWindowPositions(positions: Array<{
       process.stderr.write(`[overlay] display ${displayId} bounds updated: requested=${db.x},${db.y} actual=${actualBounds.x},${actualBounds.y} ${actualBounds.width}x${actualBounds.height}\n`)
     }
 
-    if (!entry.win.isVisible()) {
+    if (!entry.win.isVisible() && process.env.E2E_HEADLESS !== '1') {
       entry.win.show()
       // show() can also adjust position on macOS — sync actual origin
       const actualBounds = entry.win.getBounds()

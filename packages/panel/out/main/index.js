@@ -5,6 +5,32 @@ const os = require("os");
 const fs = require("fs");
 const child_process = require("child_process");
 const chokidar = require("chokidar");
+const pty = require("node-pty");
+const node_fs = require("node:fs");
+const node_path = require("node:path");
+const node_child_process = require("node:child_process");
+const http = require("node:http");
+const node_os = require("node:os");
+const node_crypto = require("node:crypto");
+const https = require("node:https");
+const node_url = require("node:url");
+function _interopNamespaceDefault(e) {
+  const n = Object.create(null, { [Symbol.toStringTag]: { value: "Module" } });
+  if (e) {
+    for (const k in e) {
+      if (k !== "default") {
+        const d = Object.getOwnPropertyDescriptor(e, k);
+        Object.defineProperty(n, k, d.get ? d : {
+          enumerable: true,
+          get: () => e[k]
+        });
+      }
+    }
+  }
+  n.default = e;
+  return Object.freeze(n);
+}
+const pty__namespace = /* @__PURE__ */ _interopNamespaceDefault(pty);
 const AGENT_CLI_NAMES = ["claude", "chatgpt", "gemini", "aider", "cursor"];
 const CACHE_TTL_MS = 24 * 60 * 60 * 1e3;
 const CACHE_PATH = path.join(os.homedir(), ".claude", "team-hub", "agent_clis.json");
@@ -104,12 +130,2696 @@ async function scanAgentClis(force) {
   writeCache(result);
   return result;
 }
+const RING_SIZE = 10 * 1024;
+class RingBuffer {
+  buf = [];
+  totalBytes = 0;
+  push(chunk) {
+    this.buf.push(chunk);
+    this.totalBytes += chunk.length;
+    while (this.totalBytes > RING_SIZE && this.buf.length > 0) {
+      const dropped = this.buf.shift();
+      this.totalBytes -= dropped.length;
+    }
+  }
+  snapshot() {
+    return this.buf.join("");
+  }
+}
+const sessions$1 = /* @__PURE__ */ new Map();
+function spawnPtySession(opts) {
+  const id = crypto.randomUUID();
+  const cols = opts.cols ?? 200;
+  const rows = opts.rows ?? 50;
+  const effectiveCwd = opts.cwd ?? process.env["HOME"] ?? "/";
+  let ptyProcess;
+  try {
+    ptyProcess = pty__namespace.spawn(opts.bin, opts.args ?? [], {
+      name: "xterm-256color",
+      cols,
+      rows,
+      cwd: effectiveCwd,
+      env: {
+        ...process.env,
+        // Force iTerm2 IIP path so CLI uses a protocol xterm.js can render
+        TERM_PROGRAM: "iTerm.app",
+        COLORTERM: "truecolor",
+        TERM: "xterm-256color",
+        ...opts.env
+      }
+    });
+  } catch (err) {
+    return { ok: false, reason: String(err) };
+  }
+  const ring = new RingBuffer();
+  const meta = {
+    id,
+    agentId: opts.agentId,
+    memberId: opts.memberId,
+    cliName: opts.cliName,
+    bin: opts.bin,
+    status: "running",
+    cols,
+    rows,
+    startedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    cwd: effectiveCwd
+  };
+  let cliReadyResolve = null;
+  const cliReadyPromise = new Promise((resolve) => {
+    cliReadyResolve = resolve;
+  });
+  const record = {
+    meta,
+    pty: ptyProcess,
+    ring,
+    window: null,
+    dataListeners: [],
+    exitListeners: [],
+    cliReady: false,
+    cliReadyResolve,
+    cliReadyPromise
+  };
+  sessions$1.set(id, record);
+  const CLI_READY_PATTERNS = [/bypass permissions/i, /shift\+tab/i];
+  ptyProcess.onData((data) => {
+    ring.push(data);
+    if (!record.cliReady) {
+      for (const pat of CLI_READY_PATTERNS) {
+        if (pat.test(data)) {
+          record.cliReady = true;
+          record.cliReadyResolve?.();
+          record.cliReadyResolve = null;
+          break;
+        }
+      }
+    }
+    if (record.window && !record.window.isDestroyed()) {
+      record.window.webContents.send("pty-output", data);
+    }
+    for (const cb of record.dataListeners) {
+      try {
+        cb(data);
+      } catch {
+      }
+    }
+  });
+  ptyProcess.onExit(({ exitCode }) => {
+    if (record.meta.status === "running") {
+      record.meta.status = "exited";
+    }
+    record.meta.exitCode = exitCode;
+    if (record.window && !record.window.isDestroyed()) {
+      record.window.webContents.send("pty-exit", id, exitCode);
+    }
+    for (const cb of record.exitListeners) {
+      try {
+        cb(exitCode);
+      } catch {
+      }
+    }
+  });
+  return { ok: true, sessionId: id };
+}
+function attachWindow(sessionId, win) {
+  const rec = sessions$1.get(sessionId);
+  if (!rec) return { ok: false, reason: "session not found" };
+  rec.window = win;
+  return { ok: true, buffer: rec.ring.snapshot() };
+}
+function writeToPty(sessionId, data) {
+  const rec = sessions$1.get(sessionId);
+  if (!rec || rec.meta.status !== "running") return false;
+  rec.pty.write(data);
+  return true;
+}
+function resizePty(sessionId, cols, rows) {
+  const rec = sessions$1.get(sessionId);
+  if (!rec || rec.meta.status !== "running") return false;
+  rec.pty.resize(cols, rows);
+  rec.meta.cols = cols;
+  rec.meta.rows = rows;
+  return true;
+}
+function killPtySession(sessionId) {
+  const rec = sessions$1.get(sessionId);
+  if (!rec) return false;
+  if (rec.meta.status === "running") {
+    rec.pty.kill();
+    rec.meta.status = "killed";
+  }
+  return true;
+}
+function getPtySessions() {
+  return Array.from(sessions$1.values()).map((r) => ({ ...r.meta }));
+}
+function getPtySession(sessionId) {
+  return sessions$1.get(sessionId)?.meta ?? null;
+}
+function getPtyBuffer(sessionId) {
+  return sessions$1.get(sessionId)?.ring.snapshot() ?? null;
+}
+function onSessionExit(sessionId, callback) {
+  const rec = sessions$1.get(sessionId);
+  if (!rec) return null;
+  if (rec.meta.status === "exited" || rec.meta.status === "killed") {
+    callback(rec.meta.exitCode ?? -1);
+    return () => {
+    };
+  }
+  rec.exitListeners.push(callback);
+  return () => {
+    const idx = rec.exitListeners.indexOf(callback);
+    if (idx !== -1) rec.exitListeners.splice(idx, 1);
+  };
+}
+function onSessionData(sessionId, callback) {
+  const rec = sessions$1.get(sessionId);
+  if (!rec) return null;
+  rec.dataListeners.push(callback);
+  return () => {
+    const idx = rec.dataListeners.indexOf(callback);
+    if (idx !== -1) rec.dataListeners.splice(idx, 1);
+  };
+}
+function getSessionByMemberId(memberId) {
+  for (const rec of sessions$1.values()) {
+    if (rec.meta.memberId === memberId && rec.meta.status === "running") {
+      return { ...rec.meta };
+    }
+  }
+  return null;
+}
+async function waitForCliReady(memberId, timeoutMs = 3e4) {
+  const deadline = Date.now() + timeoutMs;
+  let rec;
+  while (Date.now() < deadline) {
+    for (const r of sessions$1.values()) {
+      if (r.meta.memberId === memberId && r.meta.status === "running") {
+        rec = r;
+        break;
+      }
+    }
+    if (rec) break;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  if (!rec) return false;
+  if (rec.cliReady) return true;
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) return false;
+  return Promise.race([
+    rec.cliReadyPromise.then(() => true),
+    new Promise((resolve) => setTimeout(() => resolve(false), remaining))
+  ]);
+}
+function killAllPtySessions() {
+  for (const [, rec] of sessions$1) {
+    if (rec.meta.status === "running") {
+      try {
+        rec.pty.kill();
+      } catch {
+      }
+      rec.meta.status = "killed";
+    }
+  }
+}
+const queues = /* @__PURE__ */ new Map();
+function getQueue(memberId) {
+  let q = queues.get(memberId);
+  if (!q) {
+    q = [];
+    queues.set(memberId, q);
+  }
+  return q;
+}
+function enqueue(msg) {
+  const id = crypto.randomUUID();
+  const full = {
+    ...msg,
+    id,
+    timestamp: Date.now(),
+    status: "pending"
+  };
+  const q = getQueue(msg.to);
+  if (msg.priority === "urgent") {
+    const insertIdx = q.findIndex((m) => m.priority === "normal");
+    if (insertIdx === -1) {
+      q.push(full);
+    } else {
+      q.splice(insertIdx, 0, full);
+    }
+  } else {
+    q.push(full);
+  }
+  return id;
+}
+function dequeue(memberId) {
+  const q = getQueue(memberId);
+  if (q.length === 0) return null;
+  const first = q[0];
+  const sameFrom = [first];
+  let i = 1;
+  while (i < q.length && q[i].from === first.from) {
+    sameFrom.push(q[i]);
+    i++;
+  }
+  q.splice(0, sameFrom.length);
+  if (sameFrom.length === 1) {
+    first.status = "delivered";
+    return first;
+  }
+  const merged = {
+    id: first.id,
+    from: first.from,
+    to: first.to,
+    content: sameFrom.map((m) => m.content).join("\n"),
+    priority: sameFrom.some((m) => m.priority === "urgent") ? "urgent" : "normal",
+    timestamp: first.timestamp,
+    status: "delivered"
+  };
+  return merged;
+}
+function peekAll(memberId) {
+  return [...getQueue(memberId)];
+}
+function consumeAll(memberId) {
+  const q = getQueue(memberId);
+  const messages = [...q];
+  queues.set(memberId, []);
+  return messages;
+}
+function clearQueue(memberId) {
+  queues.set(memberId, []);
+}
+function expireSweep(ttlMs) {
+  const now = Date.now();
+  for (const [memberId, q] of queues) {
+    const remaining = q.filter((m) => {
+      if (now - m.timestamp > ttlMs) {
+        m.status = "expired";
+        return false;
+      }
+      return true;
+    });
+    queues.set(memberId, remaining);
+  }
+}
+const READY_DELAY_MS = 5e3;
+const TIMEOUT_MS = 3e4;
+function createReadyDetector(opts) {
+  const { sessionId, onReady } = opts;
+  let destroyed = false;
+  let fired = false;
+  let started = false;
+  let delayTimer = null;
+  let timeoutTimer = null;
+  function fire() {
+    if (fired || destroyed) return;
+    fired = true;
+    cleanup();
+    process.stderr.write(`[ready-det] READY fired for sessionId=${sessionId}
+`);
+    onReady();
+  }
+  function cleanup() {
+    if (delayTimer !== null) {
+      clearTimeout(delayTimer);
+      delayTimer = null;
+    }
+    if (timeoutTimer !== null) {
+      clearTimeout(timeoutTimer);
+      timeoutTimer = null;
+    }
+    if (unsubscribe) {
+      unsubscribe();
+      unsubscribe = null;
+    }
+  }
+  function onData(_data) {
+    if (started || fired || destroyed) return;
+    started = true;
+    process.stderr.write(`[ready-det] first output detected, waiting ${READY_DELAY_MS}ms for sessionId=${sessionId}
+`);
+    delayTimer = setTimeout(() => {
+      delayTimer = null;
+      fire();
+    }, READY_DELAY_MS);
+  }
+  let unsubscribe = onSessionData(sessionId, onData);
+  timeoutTimer = setTimeout(() => {
+    timeoutTimer = null;
+    process.stderr.write(
+      `[ready-det] timeout (${TIMEOUT_MS}ms) reached for sessionId=${sessionId}, forcing ready
+`
+    );
+    fire();
+  }, TIMEOUT_MS);
+  process.stderr.write(
+    `[ready-det] created for sessionId=${sessionId}, subscribed=${unsubscribe !== null}
+`
+  );
+  return {
+    destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      cleanup();
+      process.stderr.write(`[ready-det] destroyed for sessionId=${sessionId}
+`);
+    }
+  };
+}
+const overlays = /* @__PURE__ */ new Map();
+function createOverlayForDisplay(display) {
+  const b = display.bounds;
+  const win = new electron.BrowserWindow({
+    x: b.x,
+    y: b.y,
+    width: b.width,
+    height: b.height,
+    show: false,
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    focusable: false,
+    webPreferences: {
+      preload: path.join(__dirname, "../preload/overlay-preload.js"),
+      sandbox: false,
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+  win.setIgnoreMouseEvents(true);
+  win.setAlwaysOnTop(true, "floating");
+  win.setVisibleOnAllWorkspaces(true);
+  if (process.env.ELECTRON_RENDERER_URL) {
+    win.loadURL(`${process.env.ELECTRON_RENDERER_URL}/overlay.html`);
+  } else {
+    win.loadFile(path.join(__dirname, "../renderer/overlay.html"));
+  }
+  const entry = {
+    win,
+    displayId: display.id,
+    originX: b.x,
+    originY: b.y,
+    width: b.width,
+    height: b.height
+  };
+  win.once("ready-to-show", () => {
+    if (process.env.E2E_HEADLESS !== "1") win.show();
+    const actual = win.getBounds();
+    const stored = overlays.get(display.id);
+    if (stored) {
+      stored.originX = actual.x;
+      stored.originY = actual.y;
+      process.stderr.write(`[overlay] actual origin for display ${display.id}: ${actual.x},${actual.y} (requested ${b.x},${b.y})
+`);
+    }
+  });
+  win.on("closed", () => {
+    overlays.delete(display.id);
+  });
+  process.stderr.write(`[overlay] created for display ${display.id}: ${b.x},${b.y} ${b.width}x${b.height} scale=${display.scaleFactor}
+`);
+  return entry;
+}
+function createOverlay() {
+  const primary = electron.screen.getPrimaryDisplay();
+  const entry = createOverlayForDisplay(primary);
+  overlays.set(primary.id, entry);
+  return entry.win;
+}
+function updateWindowPositions(positions) {
+  if (positions.length === 0) {
+    for (const entry of overlays.values()) {
+      if (!entry.win.isDestroyed() && entry.win.isVisible()) entry.win.hide();
+    }
+    return;
+  }
+  const byDisplay = /* @__PURE__ */ new Map();
+  for (const p of positions) {
+    const centerX = p.x + p.w / 2;
+    const centerY = p.y + p.h / 2;
+    const display = electron.screen.getDisplayNearestPoint({ x: centerX, y: centerY });
+    let group = byDisplay.get(display.id);
+    if (!group) {
+      group = { display, positions: [] };
+      byDisplay.set(display.id, group);
+    }
+    group.positions.push(p);
+  }
+  const activeDisplayIds = /* @__PURE__ */ new Set();
+  for (const [displayId, group] of byDisplay) {
+    activeDisplayIds.add(displayId);
+    let entry = overlays.get(displayId);
+    if (!entry || entry.win.isDestroyed()) {
+      entry = createOverlayForDisplay(group.display);
+      overlays.set(displayId, entry);
+    }
+    const db = group.display.bounds;
+    if (entry.width !== db.width || entry.height !== db.height) {
+      entry.win.setBounds({ x: db.x, y: db.y, width: db.width, height: db.height });
+      const actualBounds = entry.win.getBounds();
+      entry.originX = actualBounds.x;
+      entry.originY = actualBounds.y;
+      entry.width = actualBounds.width;
+      entry.height = actualBounds.height;
+      process.stderr.write(`[overlay] display ${displayId} bounds updated: requested=${db.x},${db.y} actual=${actualBounds.x},${actualBounds.y} ${actualBounds.width}x${actualBounds.height}
+`);
+    }
+    if (!entry.win.isVisible() && process.env.E2E_HEADLESS !== "1") {
+      entry.win.show();
+      const actualBounds = entry.win.getBounds();
+      entry.originX = actualBounds.x;
+      entry.originY = actualBounds.y;
+    }
+    const adjusted = positions.map((p) => ({
+      ...p,
+      x: p.x - entry.originX,
+      y: p.y - entry.originY
+    }));
+    entry.win.webContents.send("window-positions", adjusted);
+  }
+  for (const [displayId, entry] of overlays) {
+    if (!activeDisplayIds.has(displayId) && !entry.win.isDestroyed()) {
+      if (entry.win.isVisible()) entry.win.hide();
+    }
+  }
+}
+function updateMessages(messages) {
+  const now = performance.now() / 1e3;
+  const converted = messages.map((msg) => ({
+    from: msg.from,
+    to: msg.to,
+    elapsed: now - msg.startTime,
+    duration: msg.duration
+  }));
+  for (const entry of overlays.values()) {
+    if (!entry.win.isDestroyed()) {
+      entry.win.webContents.send("message-events", converted);
+    }
+  }
+}
+const readyDetectors = /* @__PURE__ */ new Map();
+const readyMembers = /* @__PURE__ */ new Set();
+const MESSAGE_TTL_MS = 10 * 60 * 1e3;
+let sweepTimer = null;
+const activeMessages = [];
+const MESSAGE_ANIMATION_DURATION = 3;
+let activeMessageTimer = null;
+function tickActiveMessages() {
+  const now = performance.now() / 1e3;
+  for (let i = activeMessages.length - 1; i >= 0; i--) {
+    if (now - activeMessages[i].startTime > activeMessages[i].duration) {
+      activeMessages.splice(i, 1);
+    }
+  }
+  if (activeMessages.length === 0 && activeMessageTimer) {
+    clearInterval(activeMessageTimer);
+    activeMessageTimer = null;
+    updateMessages([]);
+    return;
+  }
+  updateMessages(activeMessages);
+}
+function addActiveMessage(from, to) {
+  activeMessages.push({
+    from,
+    to,
+    startTime: performance.now() / 1e3,
+    duration: MESSAGE_ANIMATION_DURATION
+  });
+  if (!activeMessageTimer) {
+    activeMessageTimer = setInterval(tickActiveMessages, 100);
+  }
+  tickActiveMessages();
+}
+function getMemberRole(memberName) {
+  const profilePath = path.join(os.homedir(), ".claude/team-hub/members", memberName, "profile.json");
+  if (!fs.existsSync(profilePath)) return memberName;
+  try {
+    const profile = JSON.parse(fs.readFileSync(profilePath, "utf-8"));
+    return profile.role ?? memberName;
+  } catch {
+    return memberName;
+  }
+}
+function resolveCallName(name) {
+  const directPath = path.join(os.homedir(), ".claude/team-hub/members", name, "profile.json");
+  if (fs.existsSync(directPath)) return name;
+  return null;
+}
+function formatEnvelope(msg) {
+  const role = getMemberRole(msg.from);
+  const oneLine = msg.content.replace(/\n/g, " ");
+  return `[team-hub] 来自 ${msg.from}(${role}): ${oneLine}`;
+}
+function flushQueue(memberId) {
+  process.stderr.write(`[msg-router] flushQueue called for ${memberId}
+`);
+  const session = getSessionByMemberId(memberId);
+  if (!session) {
+    process.stderr.write(`[msg-router] flushQueue: no session for ${memberId}, abort
+`);
+    return;
+  }
+  const msg = dequeue(memberId);
+  if (!msg) {
+    process.stderr.write(`[msg-router] flushQueue: queue empty for ${memberId}
+`);
+    return;
+  }
+  const envelope = formatEnvelope(msg);
+  process.stderr.write(`[msg-router] flushQueue: writing to PTY ${session.id}, msg from ${msg.from}, len=${envelope.length}
+`);
+  writeToPty(session.id, envelope);
+  setTimeout(() => {
+    writeToPty(session.id, "\r");
+  }, 150);
+}
+function setupMessageRouter() {
+  if (!sweepTimer) {
+    sweepTimer = setInterval(() => {
+      expireSweep(MESSAGE_TTL_MS);
+    }, 6e4);
+  }
+  function sendMessage(from, to, content, priority) {
+    const p = priority === "urgent" ? "urgent" : "normal";
+    const resolvedTo = resolveCallName(to);
+    if (resolvedTo === null) {
+      process.stderr.write(`[msg-router] sendMessage: target '${to}' not found, reject
+`);
+      return { id: "", delivered: false, error: `目标成员 '${to}' 不存在` };
+    }
+    const id = enqueue({ from, to: resolvedTo, content, priority: p });
+    process.stderr.write(`[msg-router] sendMessage: from=${from}, to=${to}(resolved=${resolvedTo}), content=${content.slice(0, 50)}
+`);
+    addActiveMessage(from, resolvedTo);
+    let delivered = false;
+    if (readyMembers.has(resolvedTo)) {
+      const session = getSessionByMemberId(resolvedTo);
+      if (session) {
+        flushQueue(resolvedTo);
+        delivered = true;
+      }
+    }
+    return { id, delivered };
+  }
+  function getInbox(memberId) {
+    return peekAll(memberId);
+  }
+  function consumeInbox(memberId) {
+    return consumeAll(memberId);
+  }
+  function clearInbox(memberId) {
+    clearQueue(memberId);
+  }
+  return { sendMessage, getInbox, consumeInbox, clearInbox };
+}
+function onMemberReady(memberId) {
+  const session = getSessionByMemberId(memberId);
+  if (!session) {
+    process.stderr.write(`[msg-router] onMemberReady: no session for ${memberId}, skip
+`);
+    return;
+  }
+  process.stderr.write(`[msg-router] onMemberReady: ${memberId} ready, sessionId=${session.id}
+`);
+  const existing = readyDetectors.get(memberId);
+  if (existing) {
+    if (existing.sessionId === session.id) return;
+    existing.destroy();
+    readyDetectors.delete(memberId);
+  }
+  const detector = createReadyDetector({
+    sessionId: session.id,
+    onReady: () => {
+      process.stderr.write(`[msg-router] onReady fired for ${memberId}, marking ready + flushing
+`);
+      readyMembers.add(memberId);
+      const pending = peekAll(memberId);
+      for (let i = 0; i < pending.length; i++) {
+        flushQueue(memberId);
+      }
+    }
+  });
+  readyDetectors.set(memberId, { sessionId: session.id, destroy: detector.destroy });
+}
+function teardownMessageRouter() {
+  if (sweepTimer) {
+    clearInterval(sweepTimer);
+    sweepTimer = null;
+  }
+  if (activeMessageTimer) {
+    clearInterval(activeMessageTimer);
+    activeMessageTimer = null;
+  }
+  activeMessages.length = 0;
+  for (const [, entry] of readyDetectors) {
+    entry.destroy();
+  }
+  readyDetectors.clear();
+  readyMembers.clear();
+}
+function safeReadFile$1(filePath) {
+  try {
+    return node_fs.readFileSync(filePath, "utf-8");
+  } catch {
+    return "";
+  }
+}
+function safeReadJson(filePath) {
+  try {
+    const raw = node_fs.readFileSync(filePath, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+function ensureDir(dir) {
+  node_fs.mkdirSync(dir, { recursive: true });
+}
+function memberDir(membersDir, name) {
+  return node_path.join(membersDir, name);
+}
+function isProcessAlive(pid, sessionStart) {
+  try {
+    node_child_process.execSync(`kill -0 ${pid}`, { stdio: "pipe" });
+    const actualStart = node_child_process.execSync(`ps -p ${pid} -o lstart=`, {
+      encoding: "utf-8"
+    }).trim();
+    return actualStart === sessionStart;
+  } catch (err) {
+    const stderr = err.stderr?.toString() ?? "";
+    if (stderr.includes("Operation not permitted") || stderr.includes("not permitted")) {
+      return true;
+    }
+    return false;
+  }
+}
+function listMembers(membersDir) {
+  if (!node_fs.existsSync(membersDir)) return [];
+  const entries = node_fs.readdirSync(membersDir, { withFileTypes: true });
+  const result = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const profile = getMember(membersDir, entry.name);
+    if (profile) result.push(profile);
+  }
+  return result;
+}
+function getMember(membersDir, name) {
+  const filePath = node_path.join(memberDir(membersDir, name), "profile.json");
+  const profile = safeReadJson(filePath);
+  if (!profile) return null;
+  if (!profile.uid) {
+    profile.uid = crypto.randomUUID();
+    try {
+      node_fs.writeFileSync(filePath, JSON.stringify(profile, null, 2), "utf-8");
+    } catch {
+    }
+  }
+  return profile;
+}
+function createMember(membersDir, profile) {
+  const dir = memberDir(membersDir, profile.name);
+  ensureDir(dir);
+  const filePath = node_path.join(dir, "profile.json");
+  node_fs.writeFileSync(filePath, JSON.stringify(profile, null, 2), "utf-8");
+}
+function deleteMember(membersDir, name) {
+  const dir = memberDir(membersDir, name);
+  if (!node_fs.existsSync(dir)) return false;
+  node_fs.rmSync(dir, { recursive: true, force: true });
+  return true;
+}
+function readLock(membersDir, name) {
+  return safeReadJson(node_path.join(memberDir(membersDir, name), "lock.json"));
+}
+function acquireLock(membersDir, name, sessionPid, sessionStart, project, task) {
+  const dir = memberDir(membersDir, name);
+  ensureDir(dir);
+  const lockPath = node_path.join(dir, "lock.json");
+  const nonce = crypto.randomUUID();
+  const tmpPath = node_path.join(dir, `lock.tmp.${nonce}`);
+  const lockData = {
+    nonce,
+    session_pid: sessionPid,
+    session_start: sessionStart,
+    project,
+    task,
+    locked_at: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  try {
+    node_fs.writeFileSync(tmpPath, JSON.stringify(lockData, null, 2), "utf-8");
+    try {
+      node_fs.linkSync(tmpPath, lockPath);
+      node_fs.unlinkSync(tmpPath);
+      return { success: true, nonce };
+    } catch (err) {
+      const e = err;
+      if (e.code === "EEXIST") {
+        return { success: false, error: "lock already held" };
+      }
+      throw err;
+    }
+  } finally {
+    try {
+      node_fs.unlinkSync(tmpPath);
+    } catch {
+    }
+  }
+}
+function releaseLock(membersDir, name, expectedNonce) {
+  const lockPath = node_path.join(memberDir(membersDir, name), "lock.json");
+  const lock = safeReadJson(lockPath);
+  if (!lock) return { success: false, error: "no lock found" };
+  if (lock.nonce !== expectedNonce) return { success: false, error: "nonce mismatch, not the lock owner" };
+  const ts = Date.now();
+  const removingPath = `${lockPath}.removing.${ts}`;
+  try {
+    node_fs.renameSync(lockPath, removingPath);
+    node_fs.unlinkSync(removingPath);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+function forceReleaseLock(membersDir, name) {
+  const lockPath = node_path.join(memberDir(membersDir, name), "lock.json");
+  if (!node_fs.existsSync(lockPath)) return { success: false, error: "no lock found" };
+  const ts = Date.now();
+  const removingPath = `${lockPath}.removing.${ts}`;
+  try {
+    node_fs.renameSync(lockPath, removingPath);
+    node_fs.unlinkSync(removingPath);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+function updateLock(membersDir, name, expectedNonce, project, task) {
+  const dir = memberDir(membersDir, name);
+  const lockPath = node_path.join(dir, "lock.json");
+  const existing = safeReadJson(lockPath);
+  if (!existing) return { success: false, error: "no lock found" };
+  if (existing.nonce !== expectedNonce) return { success: false, error: "nonce mismatch" };
+  const updated = { ...existing, project, task, locked_at: (/* @__PURE__ */ new Date()).toISOString() };
+  const tmpPath = node_path.join(dir, `lock.tmp.${expectedNonce}`);
+  try {
+    node_fs.writeFileSync(tmpPath, JSON.stringify(updated, null, 2), "utf-8");
+    node_fs.renameSync(tmpPath, lockPath);
+    return { success: true };
+  } catch (err) {
+    try {
+      node_fs.unlinkSync(tmpPath);
+    } catch {
+    }
+    return { success: false, error: err.message };
+  }
+}
+function takeoverLock(membersDir, name, sessionPid, sessionStart, project, task) {
+  const dir = memberDir(membersDir, name);
+  ensureDir(dir);
+  const lockPath = node_path.join(dir, "lock.json");
+  const existing = safeReadJson(lockPath);
+  if (!existing) {
+    return acquireLock(membersDir, name, sessionPid, sessionStart, project, task);
+  }
+  if (isProcessAlive(existing.session_pid, existing.session_start)) {
+    return { success: false, error: "lock holder is still alive" };
+  }
+  const nonce = crypto.randomUUID();
+  const tmpPath = node_path.join(dir, `lock.tmp.${nonce}`);
+  const lockData = {
+    nonce,
+    session_pid: sessionPid,
+    session_start: sessionStart,
+    project,
+    task,
+    locked_at: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  try {
+    node_fs.writeFileSync(tmpPath, JSON.stringify(lockData, null, 2), "utf-8");
+    node_fs.renameSync(tmpPath, lockPath);
+    const verify = safeReadJson(lockPath);
+    if (verify?.nonce !== nonce) {
+      return { success: false, error: "nonce mismatch after takeover, race condition" };
+    }
+    return { success: true, nonce };
+  } catch (err) {
+    try {
+      node_fs.unlinkSync(tmpPath);
+    } catch {
+    }
+    return { success: false, error: err.message };
+  }
+}
+function scanOrphanLocks(membersDir) {
+  const cleaned = [];
+  if (!node_fs.existsSync(membersDir)) return cleaned;
+  const entries = node_fs.readdirSync(membersDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const lockPath = node_path.join(membersDir, entry.name, "lock.json");
+    const lock = safeReadJson(lockPath);
+    if (!lock) continue;
+    if (!isProcessAlive(lock.session_pid, lock.session_start)) {
+      const ts = Date.now();
+      const removingPath = `${lockPath}.removing.${ts}`;
+      try {
+        node_fs.renameSync(lockPath, removingPath);
+        node_fs.unlinkSync(removingPath);
+        cleaned.push(entry.name);
+      } catch {
+      }
+    }
+  }
+  return cleaned;
+}
+const HEARTBEAT_TIMEOUT_MS = 3 * 60 * 1e3;
+function touchHeartbeat(membersDir, name, sessionPid, lastTool) {
+  const dir = memberDir(membersDir, name);
+  if (!node_fs.existsSync(dir)) return;
+  const hbPath = node_path.join(dir, "heartbeat.json");
+  const tmpPath = node_path.join(dir, `heartbeat.tmp.${sessionPid}`);
+  const now = Date.now();
+  const data = {
+    last_seen: new Date(now).toISOString(),
+    last_seen_ms: now,
+    session_pid: sessionPid,
+    last_tool: lastTool
+  };
+  try {
+    node_fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+    node_fs.renameSync(tmpPath, hbPath);
+  } catch {
+    try {
+      node_fs.unlinkSync(tmpPath);
+    } catch {
+    }
+  }
+}
+function readHeartbeat(membersDir, name) {
+  return safeReadJson(node_path.join(memberDir(membersDir, name), "heartbeat.json"));
+}
+function removeHeartbeat(membersDir, name) {
+  try {
+    node_fs.unlinkSync(node_path.join(memberDir(membersDir, name), "heartbeat.json"));
+  } catch {
+  }
+}
+function isHeartbeatStale(membersDir, name, timeoutMs = HEARTBEAT_TIMEOUT_MS) {
+  const hb = readHeartbeat(membersDir, name);
+  if (!hb) return false;
+  return Date.now() - hb.last_seen_ms > timeoutMs;
+}
+function scanStaleHeartbeats(membersDir, timeoutMs = HEARTBEAT_TIMEOUT_MS) {
+  const stale = [];
+  if (!node_fs.existsSync(membersDir)) return stale;
+  const entries = node_fs.readdirSync(membersDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (isHeartbeatStale(membersDir, entry.name, timeoutMs)) {
+      stale.push(entry.name);
+    }
+  }
+  return stale;
+}
+function readReservation(membersDir, name) {
+  return safeReadJson(node_path.join(memberDir(membersDir, name), "reservation.json"));
+}
+function writeReservation(membersDir, name, reservation) {
+  const dir = memberDir(membersDir, name);
+  ensureDir(dir);
+  node_fs.writeFileSync(node_path.join(dir, "reservation.json"), JSON.stringify(reservation, null, 2), "utf-8");
+}
+function deleteReservation(membersDir, name) {
+  try {
+    node_fs.rmSync(node_path.join(memberDir(membersDir, name), "reservation.json"), { force: true });
+  } catch {
+  }
+}
+function memoryFilePath(membersDir, member, scope, project) {
+  if (scope === "generic") {
+    return node_path.join(memberDir(membersDir, member), "memory_generic.md");
+  }
+  if (!project) throw new Error("project required for scope=project");
+  return node_path.join(memberDir(membersDir, member), `memory_proj_${project}.md`);
+}
+function readMemory(membersDir, member, scope, project) {
+  if (!scope) {
+    const generic = safeReadFile$1(memoryFilePath(membersDir, member, "generic"));
+    const parts = [generic];
+    const dir = memberDir(membersDir, member);
+    if (node_fs.existsSync(dir)) {
+      const files = node_fs.readdirSync(dir).filter((f) => f.startsWith("memory_proj_"));
+      for (const f of files) {
+        parts.push(safeReadFile$1(node_path.join(dir, f)));
+      }
+    }
+    return parts.filter(Boolean).join("\n\n---\n\n");
+  }
+  return safeReadFile$1(memoryFilePath(membersDir, member, scope, project));
+}
+function saveMemory(membersDir, member, scope, content, project) {
+  const filePath = memoryFilePath(membersDir, member, scope, project);
+  ensureDir(node_path.dirname(filePath));
+  node_fs.appendFileSync(filePath, content + "\n", "utf-8");
+}
+function readPersona(membersDir, name) {
+  const filePath = node_path.join(memberDir(membersDir, name), "persona.md");
+  return safeReadFile$1(filePath);
+}
+function appendWorkLog(membersDir, name, entry) {
+  const dir = memberDir(membersDir, name);
+  ensureDir(dir);
+  const logPath = node_path.join(dir, "work_log.jsonl");
+  node_fs.appendFileSync(logPath, JSON.stringify(entry) + "\n", "utf-8");
+}
+function readWorkLog(membersDir, name, limit) {
+  const logPath = node_path.join(memberDir(membersDir, name), "work_log.jsonl");
+  if (!node_fs.existsSync(logPath)) return [];
+  const lines = node_fs.readFileSync(logPath, "utf-8").split("\n").filter((l) => l.trim());
+  const result = [];
+  for (const line of lines) {
+    try {
+      result.push(JSON.parse(line));
+    } catch {
+    }
+  }
+  if (limit && limit > 0) {
+    return result.slice(-limit);
+  }
+  return result;
+}
+const sessions = /* @__PURE__ */ new Map();
+const MEMBERS_DIR$2 = path.join(os.homedir(), ".claude", "team-hub", "members");
+const CASCADE_OFFSET = 30;
+const resizeTimers = /* @__PURE__ */ new Map();
+function readSavedWindowSize(memberName) {
+  const sizePath = path.join(MEMBERS_DIR$2, memberName, "window-size.json");
+  try {
+    if (fs.existsSync(sizePath)) {
+      const data = JSON.parse(fs.readFileSync(sizePath, "utf-8"));
+      if (typeof data.width === "number" && typeof data.height === "number") {
+        return { width: data.width, height: data.height };
+      }
+    }
+  } catch {
+  }
+  return null;
+}
+function saveWindowSize(memberName, width, height) {
+  const sizePath = path.join(MEMBERS_DIR$2, memberName, "window-size.json");
+  try {
+    fs.writeFileSync(sizePath, JSON.stringify({ width, height }), "utf-8");
+  } catch {
+  }
+}
+function debouncedSaveWindowSize(winId, memberName, width, height) {
+  const existing = resizeTimers.get(winId);
+  if (existing) clearTimeout(existing);
+  resizeTimers.set(winId, setTimeout(() => {
+    resizeTimers.delete(winId);
+    saveWindowSize(memberName, width, height);
+  }, 300));
+}
+function calcCascadePosition(winWidth, winHeight) {
+  const allWindows = electron.BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed());
+  if (allWindows.length === 0) return void 0;
+  const anchor = allWindows.find((w) => {
+    const [w2] = w.getSize();
+    return w2 < 400;
+  }) ?? electron.BrowserWindow.getFocusedWindow() ?? allWindows[0];
+  if (!anchor || anchor.isDestroyed()) return void 0;
+  const [anchorX, anchorY] = anchor.getPosition();
+  const [anchorW] = anchor.getSize();
+  const step = sessions.size;
+  const baseX = anchorX + anchorW + 10;
+  const baseY = anchorY;
+  let x = baseX + step * CASCADE_OFFSET;
+  let y = baseY + step * CASCADE_OFFSET;
+  const display = electron.screen.getDisplayNearestPoint({ x: anchorX, y: anchorY });
+  const { x: sx, y: sy, width: sw, height: sh } = display.workArea;
+  if (x + winWidth > sx + sw) x = sx + step * CASCADE_OFFSET % Math.max(sw - winWidth, 1);
+  if (y + winHeight > sy + sh) y = sy + step * CASCADE_OFFSET % Math.max(sh - winHeight, 1);
+  if (x < sx) x = sx;
+  if (y < sy) y = sy;
+  return { x, y };
+}
+function checkWorkspaceTrust(workspacePath) {
+  const claudeJsonPath = path.join(os.homedir(), ".claude.json");
+  if (!fs.existsSync(claudeJsonPath)) return false;
+  try {
+    const config = JSON.parse(fs.readFileSync(claudeJsonPath, "utf-8"));
+    return config?.projects?.[workspacePath]?.hasTrustDialogAccepted === true;
+  } catch {
+    return false;
+  }
+}
+function writeWorkspaceTrust(workspacePath) {
+  const claudeJsonPath = path.join(os.homedir(), ".claude.json");
+  try {
+    let config = {};
+    if (fs.existsSync(claudeJsonPath)) {
+      config = JSON.parse(fs.readFileSync(claudeJsonPath, "utf-8"));
+    }
+    if (!config.projects || typeof config.projects !== "object") {
+      config.projects = {};
+    }
+    const projects = config.projects;
+    if (!projects[workspacePath]) {
+      projects[workspacePath] = {};
+    }
+    projects[workspacePath].hasTrustDialogAccepted = true;
+    fs.writeFileSync(claudeJsonPath, JSON.stringify(config, null, 2), "utf-8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+function openTerminalWindow(opts) {
+  const { memberName, cliBin, cliName, isLeader = false, env, workspacePath } = opts;
+  if (workspacePath) {
+    if (!checkWorkspaceTrust(workspacePath)) {
+      return { ok: false, reason: "trust_required", workspacePath };
+    }
+  }
+  for (const [winId, session] of sessions) {
+    if (session.memberName === memberName && !session.win.isDestroyed()) {
+      session.win.focus();
+      return { ok: true, winId };
+    }
+  }
+  const savedSize = readSavedWindowSize(memberName);
+  const winWidth = savedSize?.width ?? 900;
+  const winHeight = savedSize?.height ?? 600;
+  const pos = calcCascadePosition(winWidth, winHeight);
+  const win = new electron.BrowserWindow({
+    width: winWidth,
+    height: winHeight,
+    ...pos ? { x: pos.x, y: pos.y } : {},
+    minWidth: 600,
+    minHeight: 400,
+    title: memberName,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    hasShadow: false,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, "../preload/terminal-preload.js"),
+      sandbox: false,
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+  if (process.env["ELECTRON_RENDERER_URL"]) {
+    win.loadURL(`${process.env["ELECTRON_RENDERER_URL"]}/terminal.html`);
+  } else {
+    win.loadFile(path.join(__dirname, "../renderer/terminal.html"));
+  }
+  const onReady = (_event, cols, rows) => {
+    if (electron.BrowserWindow.fromWebContents(_event.sender)?.id !== win.id) return;
+    let sessionId = getSessionByMemberId(memberName)?.id ?? null;
+    if (!sessionId) {
+      const memberDir2 = path.join(os.homedir(), ".claude/team-hub/members", memberName);
+      const personaPath = path.join(memberDir2, "persona.md");
+      let personaContent;
+      if (fs.existsSync(personaPath)) {
+        personaContent = fs.readFileSync(personaPath, "utf-8");
+      } else {
+        const profilePath = path.join(memberDir2, "profile.json");
+        if (fs.existsSync(profilePath)) {
+          try {
+            const profile = JSON.parse(fs.readFileSync(profilePath, "utf-8"));
+            const name = profile.name || memberName;
+            const role = profile.role ? `，角色：${profile.role}` : "";
+            const desc = profile.description ? `
+${profile.description}` : "";
+            personaContent = `你是 ${name}${role}${desc}`;
+          } catch {
+            personaContent = `你是团队成员 ${memberName}`;
+          }
+        } else {
+          personaContent = `你是团队成员 ${memberName}`;
+        }
+      }
+      const memory = readMemory(MEMBERS_DIR$2, memberName);
+      const memorySection = memory ? `
+
+【记忆】
+${memory}` : "";
+      const systemPrompt = `【身份】
+${personaContent}
+
+${isLeader ? "你被指派为 leader。使用 teamhub MCP 的 request_member(auto_spawn=true) 为成员创建独立终端窗口，不要使用内置 Agent 工具。" : "你是团队成员，专注于自己的角色和任务。"}
+
+定期调用 check_inbox 查看是否有新消息。
+
+这是独立交互式终端会话，与你对话的是用户本人。直接以上述身份与用户协作。${memorySection}`;
+      const mcpServerEntry = path.join(__dirname, "../../../mcp-server/src/index.ts");
+      let bunBin = "bun";
+      try {
+        bunBin = child_process.execSync("which bun", { encoding: "utf-8", timeout: 3e3 }).trim() || bunBin;
+      } catch {
+      }
+      const mcpConfig = JSON.stringify({
+        mcpServers: {
+          "teamhub": {
+            command: bunBin,
+            args: ["run", mcpServerEntry],
+            env: { TEAM_HUB_NO_LAUNCH: "1" }
+          }
+        }
+      });
+      const result = spawnPtySession({
+        agentId: memberName,
+        memberId: memberName,
+        cliName,
+        bin: cliBin,
+        args: [
+          "--dangerously-skip-permissions",
+          "--mcp-config",
+          mcpConfig,
+          "--strict-mcp-config",
+          "--append-system-prompt",
+          systemPrompt
+        ],
+        cols: cols || 120,
+        rows: rows || 36,
+        cwd: workspacePath,
+        env: {
+          BUN_DISABLE_KITTY_PROBE: "1",
+          KITTY_WINDOW_ID: "",
+          ...isLeader ? { CLAUDE_MEMBER: "", IS_LEADER: "1" } : { CLAUDE_MEMBER: memberName },
+          TEAM_HUB_NO_LAUNCH: "1",
+          ...env
+        }
+      });
+      if (!result.ok) {
+        if (!win.isDestroyed()) {
+          win.webContents.send("pty-output", `\x1B[31m启动失败: ${result.reason}\x1B[0m\r
+`);
+        }
+        return;
+      }
+      sessionId = result.sessionId;
+      const pid = process.pid;
+      const lstart = (/* @__PURE__ */ new Date()).toISOString();
+      const lockResult = acquireLock(
+        MEMBERS_DIR$2,
+        memberName,
+        pid,
+        lstart,
+        opts.project ?? "default",
+        opts.task ?? "interactive"
+      );
+      if (lockResult.success && lockResult.nonce) {
+        onReady._lockNonce = lockResult.nonce;
+      }
+      deleteReservation(MEMBERS_DIR$2, memberName);
+      touchHeartbeat(MEMBERS_DIR$2, memberName, pid, "terminal_spawn");
+      appendWorkLog(MEMBERS_DIR$2, memberName, {
+        event: "check_in",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        project: opts.project ?? "default",
+        task: opts.task ?? "interactive"
+      });
+    }
+    const attachResult = attachWindow(sessionId, win);
+    if (attachResult.ok && attachResult.buffer) {
+      if (!win.isDestroyed()) {
+        win.webContents.send("pty-output", attachResult.buffer);
+      }
+    }
+    const lockNonce = onReady._lockNonce;
+    sessions.set(win.id, { win, sessionId, memberName, isLeader, lockNonce });
+    broadcastPositions();
+    onMemberReady(memberName);
+    onSessionExit(sessionId, () => {
+      if (!win.isDestroyed()) {
+        win.close();
+      }
+    });
+    electron.ipcMain.removeListener("terminal-ready", onReady);
+  };
+  electron.ipcMain.on("terminal-ready", onReady);
+  win.once("ready-to-show", () => {
+    win.setTitle(memberName);
+    if (process.env.E2E_HEADLESS !== "1") win.show();
+    broadcastPositions();
+  });
+  win.on("move", broadcastPositions);
+  win.on("resize", broadcastPositions);
+  win.on("resize", () => {
+    const [w, h] = win.getSize();
+    debouncedSaveWindowSize(win.id, memberName, w, h);
+  });
+  win.on("closed", () => {
+    const pendingTimer = resizeTimers.get(win.id);
+    if (pendingTimer) {
+      clearTimeout(pendingTimer);
+      resizeTimers.delete(win.id);
+    }
+    electron.ipcMain.removeListener("terminal-ready", onReady);
+    const session = sessions.get(win.id);
+    if (session) {
+      killPtySession(session.sessionId);
+      if (session.lockNonce) {
+        releaseLock(MEMBERS_DIR$2, session.memberName, session.lockNonce);
+      }
+      removeHeartbeat(MEMBERS_DIR$2, session.memberName);
+      appendWorkLog(MEMBERS_DIR$2, session.memberName, {
+        event: "check_out",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        project: "default",
+        task: "interactive"
+      });
+      sessions.delete(win.id);
+    }
+    broadcastPositions();
+  });
+  return { ok: true, winId: win.id };
+}
+const PALETTE_HEX = [
+  "#6366f1",
+  "#8b5cf6",
+  "#a855f7",
+  "#d946ef",
+  "#ec4899",
+  "#f43f5e",
+  "#ef4444",
+  "#f97316",
+  "#eab308",
+  "#84cc16",
+  "#22c55e",
+  "#14b8a6",
+  "#06b6d4",
+  "#0ea5e9",
+  "#3b82f6",
+  "#2563eb"
+];
+const PALETTE_RGB = PALETTE_HEX.map((hex) => [
+  parseInt(hex.slice(1, 3), 16),
+  parseInt(hex.slice(3, 5), 16),
+  parseInt(hex.slice(5, 7), 16)
+]);
+const DEFAULT_COLOR = [80, 140, 255];
+function uidToColorRgb(uid) {
+  let hash = 0;
+  for (let i = 0; i < uid.length; i++) {
+    hash = (hash << 5) - hash + uid.charCodeAt(i) | 0;
+  }
+  return PALETTE_RGB[Math.abs(hash) % PALETTE_RGB.length];
+}
+function getMemberColor(memberName) {
+  const profilePath = path.join(MEMBERS_DIR$2, memberName, "profile.json");
+  try {
+    if (fs.existsSync(profilePath)) {
+      const profile = JSON.parse(fs.readFileSync(profilePath, "utf-8"));
+      if (profile.uid) return uidToColorRgb(profile.uid);
+    }
+  } catch {
+  }
+  return DEFAULT_COLOR;
+}
+function getAllTerminalPositions() {
+  const result = [];
+  const BODY_PADDING = 8;
+  for (const [winId, session] of sessions) {
+    if (session.win.isDestroyed()) continue;
+    const bounds = session.win.getBounds();
+    result.push({
+      id: winId,
+      memberName: session.memberName,
+      isLeader: session.isLeader,
+      x: bounds.x + BODY_PADDING,
+      y: bounds.y + BODY_PADDING,
+      w: bounds.width - BODY_PADDING * 2,
+      h: bounds.height - BODY_PADDING * 2,
+      color: getMemberColor(session.memberName)
+    });
+  }
+  return result;
+}
+function broadcastPositions() {
+  updateWindowPositions(getAllTerminalPositions());
+}
+function setupTerminalIpc() {
+  electron.ipcMain.on("close-terminal-window", (event) => {
+    const win = electron.BrowserWindow.fromWebContents(event.sender);
+    if (win) win.close();
+  });
+  electron.ipcMain.handle("get-member-color", (event) => {
+    const win = electron.BrowserWindow.fromWebContents(event.sender);
+    if (!win) return DEFAULT_COLOR;
+    const name = win.getTitle();
+    if (!name) return DEFAULT_COLOR;
+    return getMemberColor(name);
+  });
+  electron.ipcMain.handle("get-member-name", (event) => {
+    const win = electron.BrowserWindow.fromWebContents(event.sender);
+    if (!win) return "成员";
+    const session = sessions.get(win.id);
+    return session?.memberName || "成员";
+  });
+  electron.ipcMain.handle("trust-workspace", (_event, workspacePath) => {
+    if (!workspacePath || typeof workspacePath !== "string") {
+      return { ok: false, reason: "workspacePath is required" };
+    }
+    const success = writeWorkspaceTrust(workspacePath);
+    return success ? { ok: true } : { ok: false, reason: "failed to write ~/.claude.json" };
+  });
+  electron.ipcMain.on("terminal-input", (event, data) => {
+    const winId = electron.BrowserWindow.fromWebContents(event.sender)?.id;
+    if (winId == null) return;
+    const session = sessions.get(winId);
+    if (!session) return;
+    writeToPty(session.sessionId, data);
+  });
+  electron.ipcMain.on("terminal-resize", (event, cols, rows) => {
+    const winId = electron.BrowserWindow.fromWebContents(event.sender)?.id;
+    if (winId == null) return;
+    const session = sessions.get(winId);
+    if (!session) return;
+    resizePty(session.sessionId, cols, rows);
+  });
+}
+const MAX_VISIBLE = 3;
+const STACK_OFFSET_X = 10;
+const STACK_OFFSET_Y = 20;
+const DEFAULT_TIMEOUT_MS = 12e4;
+const visibleStack = [];
+const waitingQueue = [];
+let requestCounter = 0;
+function createAskUserRequest(params) {
+  const id = `ask_${Date.now()}_${++requestCounter}`;
+  const request = {
+    id,
+    member_name: params.member_name,
+    type: params.type,
+    title: params.title,
+    question: params.question,
+    options: params.options,
+    timeout_ms: params.timeout_ms ?? DEFAULT_TIMEOUT_MS,
+    created_at: Date.now()
+  };
+  return new Promise((resolve) => {
+    const pending = { request, win: null, timer: null, resolve };
+    if (visibleStack.length < MAX_VISIBLE) {
+      showRequest(pending);
+    } else {
+      waitingQueue.push(pending);
+    }
+  });
+}
+function calcWindowPosition(stackIndex, winWidth, winHeight) {
+  const focused = electron.BrowserWindow.getFocusedWindow();
+  const allWindows = electron.BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed());
+  const anchor = focused ?? allWindows[0];
+  if (!anchor || anchor.isDestroyed()) return void 0;
+  const [anchorX, anchorY] = anchor.getPosition();
+  const [anchorW, anchorH] = anchor.getSize();
+  let x = anchorX + Math.round((anchorW - winWidth) / 2) + stackIndex * STACK_OFFSET_X;
+  let y = anchorY + Math.round((anchorH - winHeight) / 2) + stackIndex * STACK_OFFSET_Y;
+  const display = electron.screen.getDisplayNearestPoint({ x: anchorX, y: anchorY });
+  const { x: sx, y: sy, width: sw, height: sh } = display.workArea;
+  if (x + winWidth > sx + sw) x = sx + sw - winWidth;
+  if (y + winHeight > sy + sh) y = sy + sh - winHeight;
+  if (x < sx) x = sx;
+  if (y < sy) y = sy;
+  return { x, y };
+}
+function showRequest(pending) {
+  visibleStack.push(pending);
+  const stackIndex = visibleStack.length - 1;
+  const winWidth = 420;
+  const winHeight = 360;
+  const pos = calcWindowPosition(stackIndex, winWidth, winHeight);
+  const win = new electron.BrowserWindow({
+    width: winWidth,
+    height: winHeight,
+    ...pos ? { x: pos.x, y: pos.y } : {},
+    minWidth: 360,
+    minHeight: 280,
+    resizable: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    hasShadow: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, "../preload/ask-user-preload.js"),
+      sandbox: false,
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+  pending.win = win;
+  if (process.env["ELECTRON_RENDERER_URL"]) {
+    win.loadURL(`${process.env["ELECTRON_RENDERER_URL"]}/ask-user.html`);
+  } else {
+    win.loadFile(path.join(__dirname, "../renderer/ask-user.html"));
+  }
+  win.once("ready-to-show", () => {
+    if (process.env.E2E_HEADLESS !== "1") win.show();
+    win.webContents.send("show-ask-user", pending.request);
+  });
+  pending.timer = setTimeout(() => {
+    resolveRequest(pending, { answered: false, reason: "timeout" });
+  }, pending.request.timeout_ms);
+  win.on("closed", () => {
+    if (visibleStack.includes(pending) || waitingQueue.includes(pending)) {
+      resolveRequest(pending, { answered: false, reason: "cancelled" });
+    }
+  });
+}
+function resolveRequest(pending, response) {
+  if (pending.timer) {
+    clearTimeout(pending.timer);
+    pending.timer = null;
+  }
+  const visIdx = visibleStack.indexOf(pending);
+  if (visIdx !== -1) {
+    visibleStack.splice(visIdx, 1);
+  }
+  const qIdx = waitingQueue.indexOf(pending);
+  if (qIdx !== -1) {
+    waitingQueue.splice(qIdx, 1);
+  }
+  if (pending.win && !pending.win.isDestroyed()) {
+    pending.win.close();
+  }
+  pending.resolve(response);
+  while (visibleStack.length < MAX_VISIBLE && waitingQueue.length > 0) {
+    const next = waitingQueue.shift();
+    showRequest(next);
+  }
+}
+function setupAskUserIpc() {
+  electron.ipcMain.on("ask-user-response", (_event, requestId, response) => {
+    const pending = visibleStack.find((p) => p.request.id === requestId);
+    if (!pending) return;
+    resolveRequest(pending, {
+      answered: true,
+      choice: response.choice,
+      input: response.input
+    });
+  });
+  electron.ipcMain.on("ask-user-cancel", (_event, requestId) => {
+    const pending = visibleStack.find((p) => p.request.id === requestId);
+    if (!pending) return;
+    resolveRequest(pending, { answered: false, reason: "cancelled" });
+  });
+  electron.ipcMain.handle("ask-user-get-request", (event) => {
+    const win = electron.BrowserWindow.fromWebContents(event.sender);
+    if (!win) return null;
+    const pending = visibleStack.find((p) => p.win?.id === win.id);
+    return pending?.request ?? null;
+  });
+}
+const VAULT_DIR = node_path.join(node_os.homedir(), ".claude", "team-hub", "vault");
+function xorEncrypt(data, key) {
+  const dataBuffer = Buffer.from(data, "utf-8");
+  const encrypted = Buffer.alloc(dataBuffer.length);
+  for (let i = 0; i < dataBuffer.length; i++) {
+    encrypted[i] = dataBuffer[i] ^ key[i % key.length];
+  }
+  return encrypted;
+}
+function xorDecrypt(encrypted, key) {
+  const decrypted = Buffer.alloc(encrypted.length);
+  for (let i = 0; i < encrypted.length; i++) {
+    decrypted[i] = encrypted[i] ^ key[i % key.length];
+  }
+  return decrypted.toString("utf-8");
+}
+function getDerivedKey() {
+  const masterSecret = process.env.VAULT_MASTER_SECRET || "default-insecure-key";
+  return node_crypto.createHash("sha256").update(masterSecret).digest();
+}
+function getKeyPath(apiName) {
+  return node_path.join(VAULT_DIR, `${apiName}.enc`);
+}
+function saveApiKey(apiName, value) {
+  try {
+    node_fs.mkdirSync(VAULT_DIR, { recursive: true });
+    const key = getDerivedKey();
+    const encrypted = xorEncrypt(value, key);
+    const keyPath = getKeyPath(apiName);
+    node_fs.writeFileSync(keyPath, encrypted, "binary");
+    return true;
+  } catch (err) {
+    console.error(`[vault] Error saving key for ${apiName}:`, err);
+    return false;
+  }
+}
+function getApiKey(apiName) {
+  try {
+    const keyPath = getKeyPath(apiName);
+    if (!node_fs.existsSync(keyPath)) {
+      return null;
+    }
+    const key = getDerivedKey();
+    const encrypted = node_fs.readFileSync(keyPath, "binary");
+    const decrypted = xorDecrypt(Buffer.from(encrypted, "binary"), key);
+    return decrypted;
+  } catch (err) {
+    console.error(`[vault] Error retrieving key for ${apiName}:`, err);
+    return null;
+  }
+}
+function listApiKeyNames() {
+  try {
+    if (!node_fs.existsSync(VAULT_DIR)) {
+      return [];
+    }
+    const files = node_fs.readdirSync(VAULT_DIR);
+    return files.filter((f) => f.endsWith(".enc")).map((f) => f.slice(0, -4));
+  } catch (err) {
+    console.error("[vault] Error listing keys:", err);
+    return [];
+  }
+}
+function deleteApiKey(apiName) {
+  try {
+    const keyPath = getKeyPath(apiName);
+    if (!node_fs.existsSync(keyPath)) {
+      return false;
+    }
+    node_fs.rmSync(keyPath);
+    return true;
+  } catch (err) {
+    console.error(`[vault] Error deleting key for ${apiName}:`, err);
+    return false;
+  }
+}
+const REGISTRY = {
+  openai: {
+    name: "openai",
+    base_url: "https://api.openai.com",
+    auth_type: "bearer",
+    auth_header: "Authorization",
+    description: "OpenAI API (GPT, embeddings, etc.)"
+  },
+  anthropic: {
+    name: "anthropic",
+    base_url: "https://api.anthropic.com",
+    auth_type: "bearer",
+    auth_header: "x-api-key",
+    description: "Anthropic API (Claude)"
+  },
+  github: {
+    name: "github",
+    base_url: "https://api.github.com",
+    auth_type: "token",
+    auth_header: "Authorization",
+    description: "GitHub API"
+  },
+  huggingface: {
+    name: "huggingface",
+    base_url: "https://api-inference.huggingface.co",
+    auth_type: "bearer",
+    auth_header: "Authorization",
+    description: "Hugging Face API"
+  },
+  stripe: {
+    name: "stripe",
+    base_url: "https://api.stripe.com",
+    auth_type: "custom",
+    auth_header: "Authorization",
+    description: "Stripe API (payments)"
+  },
+  slack: {
+    name: "slack",
+    base_url: "https://slack.com/api",
+    auth_type: "bearer",
+    auth_header: "Authorization",
+    description: "Slack API"
+  },
+  sendgrid: {
+    name: "sendgrid",
+    base_url: "https://api.sendgrid.com",
+    auth_type: "bearer",
+    auth_header: "Authorization",
+    description: "SendGrid API (email)"
+  },
+  twilio: {
+    name: "twilio",
+    base_url: "https://api.twilio.com",
+    auth_type: "custom",
+    auth_header: "Authorization",
+    description: "Twilio API (SMS, calls)"
+  }
+};
+function getApiConfig(apiName) {
+  return REGISTRY[apiName] ?? null;
+}
+function isApiRegistered(apiName) {
+  return apiName in REGISTRY;
+}
+function getApiInfo(apiName) {
+  const config = getApiConfig(apiName);
+  if (!config) return null;
+  return {
+    name: config.name,
+    base_url: config.base_url,
+    auth_type: config.auth_type,
+    auth_header: config.auth_header
+  };
+}
+async function proxyApiRequest(req) {
+  try {
+    if (!isApiRegistered(req.api_name)) {
+      return {
+        error: `API not registered: ${req.api_name}`,
+        code: "API_NOT_REGISTERED"
+      };
+    }
+    const apiKey = getApiKey(req.api_name);
+    if (!apiKey) {
+      return {
+        error: `API key not found for ${req.api_name}. Use vault API to add it first.`,
+        code: "KEY_NOT_FOUND"
+      };
+    }
+    const config = getApiInfo(req.api_name);
+    if (!config) {
+      return {
+        error: `API config not found for ${req.api_name}`,
+        code: "CONFIG_NOT_FOUND"
+      };
+    }
+    const finalUrl = new node_url.URL(req.url, config.base_url).toString();
+    const headers = {
+      ...req.headers
+    };
+    if (config.auth_type === "bearer") {
+      headers[config.auth_header] = `Bearer ${apiKey}`;
+    } else if (config.auth_type === "token") {
+      headers[config.auth_header] = `token ${apiKey}`;
+    } else {
+      headers[config.auth_header] = apiKey;
+    }
+    const response = await forwardRequest(finalUrl, req.method, headers, req.body);
+    return response;
+  } catch (err) {
+    return {
+      error: `API proxy failed: ${err instanceof Error ? err.message : String(err)}`,
+      code: "PROXY_ERROR",
+      details: err
+    };
+  }
+}
+async function forwardRequest(url, method, headers, body) {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new node_url.URL(url);
+    const isHttps = parsedUrl.protocol === "https:";
+    const client = isHttps ? https : http;
+    const options = {
+      method: method.toUpperCase(),
+      headers: {
+        ...headers,
+        "Content-Length": body ? Buffer.byteLength(body) : 0
+      },
+      timeout: 3e4
+      // 30 second timeout
+    };
+    const req = client.request(parsedUrl, options, (res) => {
+      const chunks = [];
+      res.on("data", (chunk) => {
+        chunks.push(chunk);
+      });
+      res.on("end", () => {
+        const responseBody = Buffer.concat(chunks).toString("utf-8");
+        const responseHeaders = {};
+        if (res.headers["content-type"]) responseHeaders["content-type"] = res.headers["content-type"];
+        if (res.headers["content-length"]) responseHeaders["content-length"] = res.headers["content-length"];
+        if (res.headers["x-ratelimit-remaining"]) responseHeaders["x-ratelimit-remaining"] = res.headers["x-ratelimit-remaining"];
+        if (res.headers["x-ratelimit-reset"]) responseHeaders["x-ratelimit-reset"] = res.headers["x-ratelimit-reset"];
+        resolve({
+          status: res.statusCode || 500,
+          headers: responseHeaders,
+          body: responseBody
+        });
+      });
+      res.on("error", reject);
+    });
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("Request timeout"));
+    });
+    req.on("error", reject);
+    if (body) {
+      req.write(body);
+    }
+    req.end();
+  });
+}
+function listApiKeys() {
+  return listApiKeyNames();
+}
+function addApiKey(apiName, value) {
+  if (!isApiRegistered(apiName)) {
+    console.warn(`[api-proxy] Warning: API '${apiName}' is not registered, but key can still be stored`);
+  }
+  return saveApiKey(apiName, value);
+}
+function removeApiKey(apiName) {
+  return deleteApiKey(apiName);
+}
+const TEAM_HUB_DIR$1 = node_path.join(node_os.homedir(), ".claude", "team-hub");
+const MEMBERS_DIR$1 = node_path.join(TEAM_HUB_DIR$1, "members");
+const SHARED_DIR$1 = node_path.join(TEAM_HUB_DIR$1, "shared");
+const PANEL_PORT_FILE = node_path.join(TEAM_HUB_DIR$1, "panel.port");
+const PANEL_HOST = "127.0.0.1";
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      try {
+        const raw = Buffer.concat(chunks).toString("utf-8");
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch (e) {
+        reject(e);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+function jsonResponse(res, status, data) {
+  const body = JSON.stringify(data);
+  res.writeHead(status, {
+    "Content-Type": "application/json",
+    "Content-Length": Buffer.byteLength(body)
+  });
+  res.end(body);
+}
+let _messageRouter = null;
+function setMessageRouter(router) {
+  _messageRouter = router;
+}
+function readJsonFile(filePath) {
+  try {
+    return JSON.parse(node_fs.readFileSync(filePath, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+function safeReadFile(filePath) {
+  try {
+    return node_fs.readFileSync(filePath, "utf-8");
+  } catch {
+    return "";
+  }
+}
+function getMemberStatus(name) {
+  const profile = getMember(MEMBERS_DIR$1, name);
+  if (!profile) return null;
+  const lock = readLock(MEMBERS_DIR$1, name);
+  const heartbeat = readHeartbeat(MEMBERS_DIR$1, name);
+  const reservation = readReservation(MEMBERS_DIR$1, name);
+  const validReservation = reservation && Date.now() - reservation.created_at <= reservation.ttl_ms ? reservation : null;
+  if (reservation && !validReservation) {
+    deleteReservation(MEMBERS_DIR$1, name);
+  }
+  let status;
+  if (lock) {
+    status = "working";
+  } else {
+    const ptySession = getPtySessions().find((s) => s.memberId === name && s.status === "running");
+    if (ptySession) {
+      status = "working";
+    } else if (validReservation) {
+      status = "reserved";
+    } else {
+      status = "offline";
+    }
+  }
+  return { profile, lock, heartbeat, reservation: validReservation, status };
+}
+function matchRoute(method, pattern, reqMethod, url) {
+  if (method !== reqMethod) return null;
+  const patternParts = pattern.split("/");
+  const urlParts = url.split("?")[0].split("/");
+  if (patternParts.length !== urlParts.length) return null;
+  const params = {};
+  for (let i = 0; i < patternParts.length; i++) {
+    if (patternParts[i].startsWith(":")) {
+      params[patternParts[i].slice(1)] = decodeURIComponent(urlParts[i]);
+    } else if (patternParts[i] !== urlParts[i]) {
+      return null;
+    }
+  }
+  return params;
+}
+function parseQuery(url) {
+  const idx = url.indexOf("?");
+  if (idx === -1) return {};
+  const qs = {};
+  for (const pair of url.slice(idx + 1).split("&")) {
+    const [k, v] = pair.split("=");
+    if (k) qs[decodeURIComponent(k)] = decodeURIComponent(v ?? "");
+  }
+  return qs;
+}
+let panelServer = null;
+function startPanelApi() {
+  if (panelServer) return;
+  panelServer = http.createServer(async (req, res) => {
+    const url = req.url ?? "/";
+    const method = req.method ?? "GET";
+    try {
+      if (method === "GET" && url === "/api/agent-clis") {
+        const result = await scanAgentClis();
+        return jsonResponse(res, 200, result);
+      }
+      if (method === "POST" && url === "/api/pty/spawn") {
+        const body = await readBody(req);
+        if (!body.member || !body.cli_name) {
+          return jsonResponse(res, 400, { error: "member and cli_name are required" });
+        }
+        let bin = body.cli_bin;
+        if (!bin) {
+          const scan = await scanAgentClis();
+          const found = scan.found.find((c) => c.name === body.cli_name);
+          if (!found) {
+            return jsonResponse(res, 404, { error: `CLI '${body.cli_name}' not found` });
+          }
+          bin = found.bin;
+        }
+        const displayName = body.member;
+        if (body.workspace_path) {
+          const claudeJsonPath = node_path.join(node_os.homedir(), ".claude.json");
+          try {
+            let config = {};
+            if (node_fs.existsSync(claudeJsonPath)) {
+              config = JSON.parse(node_fs.readFileSync(claudeJsonPath, "utf-8"));
+            }
+            if (!config.projects || typeof config.projects !== "object") {
+              config.projects = {};
+            }
+            const projects = config.projects;
+            if (!projects[body.workspace_path]) {
+              projects[body.workspace_path] = {};
+            }
+            if (!projects[body.workspace_path].hasTrustDialogAccepted) {
+              projects[body.workspace_path].hasTrustDialogAccepted = true;
+              node_fs.writeFileSync(claudeJsonPath, JSON.stringify(config, null, 2), "utf-8");
+            }
+          } catch {
+          }
+        }
+        const result = openTerminalWindow({
+          memberName: body.member,
+          cliBin: bin,
+          cliName: body.cli_name,
+          isLeader: body.is_leader ?? false,
+          workspacePath: body.workspace_path
+        });
+        if (!result.ok) {
+          const status = result.reason === "trust_required" ? 403 : 500;
+          return jsonResponse(res, status, {
+            error: result.reason,
+            workspace_path: result.workspacePath
+          });
+        }
+        return jsonResponse(res, 200, { ok: true, winId: result.winId });
+      }
+      if (method === "GET" && url === "/api/pty/sessions") {
+        return jsonResponse(res, 200, { sessions: getPtySessions() });
+      }
+      if (method === "POST" && url === "/api/pty/write") {
+        const body = await readBody(req);
+        if (!body.member || !body.content) {
+          return jsonResponse(res, 400, { error: "member and content are required" });
+        }
+        const shouldWait = body.wait !== false;
+        let session = getSessionByMemberId(body.member);
+        if (!session && shouldWait) {
+          const ready = await waitForCliReady(body.member, 3e4);
+          if (ready) {
+            session = getSessionByMemberId(body.member);
+          }
+        }
+        if (!session) {
+          return jsonResponse(res, 404, { error: `成员 ${body.member} 没有活跃终端（等待超时）` });
+        }
+        writeToPty(session.id, body.content + "\r");
+        return jsonResponse(res, 200, { ok: true });
+      }
+      if (method === "POST" && url === "/api/pty/kill") {
+        const body = await readBody(req);
+        if (!body.session_id) {
+          return jsonResponse(res, 400, { error: "session_id is required" });
+        }
+        const killed = killPtySession(body.session_id);
+        return jsonResponse(res, 200, { ok: killed });
+      }
+      if (method === "POST" && url === "/api/message/send") {
+        const body = await readBody(req);
+        if (!body.from || !body.to || !body.content) {
+          return jsonResponse(res, 400, { error: "from, to, and content are required" });
+        }
+        if (!_messageRouter) {
+          return jsonResponse(res, 503, { error: "message router not ready" });
+        }
+        const result = _messageRouter.sendMessage(body.from, body.to, body.content, body.priority);
+        if (result.error) {
+          return jsonResponse(res, 400, { ok: false, error: result.error });
+        }
+        return jsonResponse(res, 200, { ok: true, id: result.id, delivered: result.delivered });
+      }
+      const inboxMatch = url.match(/^\/api\/message\/inbox\/([^/]+)$/);
+      if (inboxMatch && (method === "GET" || method === "DELETE")) {
+        const member = decodeURIComponent(inboxMatch[1]);
+        if (!_messageRouter) {
+          return jsonResponse(res, 503, { error: "message router not ready" });
+        }
+        const messages = method === "DELETE" ? _messageRouter.consumeInbox(member) : _messageRouter.getInbox(member);
+        return jsonResponse(res, 200, { member, messages });
+      }
+      let params;
+      if (method === "GET" && url.split("?")[0] === "/api/member/list") {
+        const profiles = listMembers(MEMBERS_DIR$1);
+        const members = profiles.map((p) => {
+          const s = getMemberStatus(p.name);
+          return s ? {
+            ...s.profile,
+            lock: s.lock,
+            heartbeat: s.heartbeat,
+            reservation: s.reservation,
+            status: s.status
+          } : { ...p, status: "offline" };
+        });
+        return jsonResponse(res, 200, { ok: true, data: members });
+      }
+      if (method === "POST" && url === "/api/member/create") {
+        const body = await readBody(req);
+        if (!body.name || !body.role) {
+          return jsonResponse(res, 400, { ok: false, error: "name, role are required" });
+        }
+        const existing = getMember(MEMBERS_DIR$1, body.name);
+        if (existing) {
+          return jsonResponse(res, 409, { ok: false, error: `member ${body.name} already exists` });
+        }
+        const profile = {
+          uid: body.uid ?? node_crypto.randomUUID(),
+          name: body.name,
+          role: body.role,
+          type: body.type ?? "temporary",
+          joined_at: body.joined_at ?? (/* @__PURE__ */ new Date()).toISOString(),
+          skills: body.skills,
+          description: body.description
+        };
+        createMember(MEMBERS_DIR$1, profile);
+        return jsonResponse(res, 201, { ok: true, data: profile });
+      }
+      params = matchRoute("GET", "/api/member/:name", method, url);
+      if (params && params.name !== "list") {
+        const s = getMemberStatus(params.name);
+        if (!s) return jsonResponse(res, 404, { ok: false, error: "member not found" });
+        const persona = readPersona(MEMBERS_DIR$1, params.name) || null;
+        const memory = readMemory(MEMBERS_DIR$1, params.name) || null;
+        const workLog = readWorkLog(MEMBERS_DIR$1, params.name, 50);
+        return jsonResponse(res, 200, {
+          ok: true,
+          data: {
+            ...s.profile,
+            lock: s.lock,
+            heartbeat: s.heartbeat,
+            reservation: s.reservation,
+            status: s.status,
+            persona,
+            memory,
+            workLog
+          }
+        });
+      }
+      params = matchRoute("DELETE", "/api/member/:name", method, url);
+      if (params) {
+        const deleted = deleteMember(MEMBERS_DIR$1, params.name);
+        if (!deleted) return jsonResponse(res, 404, { ok: false, error: "member not found" });
+        return jsonResponse(res, 200, { ok: true });
+      }
+      params = matchRoute("PATCH", "/api/member/:name/profile", method, url);
+      if (params) {
+        const existing = getMember(MEMBERS_DIR$1, params.name);
+        if (!existing) return jsonResponse(res, 404, { ok: false, error: "member not found" });
+        const body = await readBody(req);
+        const updated = { ...existing, ...body, name: existing.name, uid: existing.uid };
+        createMember(MEMBERS_DIR$1, updated);
+        return jsonResponse(res, 200, { ok: true, data: updated });
+      }
+      params = matchRoute("GET", "/api/member/:name/status", method, url);
+      if (params) {
+        const s = getMemberStatus(params.name);
+        if (!s) return jsonResponse(res, 404, { ok: false, error: "member not found" });
+        return jsonResponse(res, 200, { ok: true, data: { name: params.name, status: s.status } });
+      }
+      params = matchRoute("POST", "/api/member/:name/lock/acquire", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.session_pid || !body.session_start || !body.project || !body.task) {
+          return jsonResponse(res, 400, { ok: false, error: "session_pid, session_start, project, task required" });
+        }
+        const result = acquireLock(MEMBERS_DIR$1, params.name, body.session_pid, body.session_start, body.project, body.task);
+        const status = result.success ? 200 : 409;
+        return jsonResponse(res, status, { ok: result.success, nonce: result.nonce, error: result.error });
+      }
+      params = matchRoute("POST", "/api/member/:name/lock/release", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.nonce) return jsonResponse(res, 400, { ok: false, error: "nonce required" });
+        const result = releaseLock(MEMBERS_DIR$1, params.name, body.nonce);
+        return jsonResponse(res, result.success ? 200 : 409, { ok: result.success, error: result.error });
+      }
+      params = matchRoute("POST", "/api/member/:name/lock/update", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.nonce || !body.project || !body.task) {
+          return jsonResponse(res, 400, { ok: false, error: "nonce, project, task required" });
+        }
+        const result = updateLock(MEMBERS_DIR$1, params.name, body.nonce, body.project, body.task);
+        return jsonResponse(res, result.success ? 200 : 409, { ok: result.success, error: result.error });
+      }
+      params = matchRoute("POST", "/api/member/:name/lock/takeover", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.session_pid || !body.session_start || !body.project || !body.task) {
+          return jsonResponse(res, 400, { ok: false, error: "session_pid, session_start, project, task required" });
+        }
+        const result = takeoverLock(MEMBERS_DIR$1, params.name, body.session_pid, body.session_start, body.project, body.task);
+        const status = result.success ? 200 : 409;
+        return jsonResponse(res, status, { ok: result.success, nonce: result.nonce, error: result.error });
+      }
+      params = matchRoute("POST", "/api/member/:name/lock/force-release", method, url);
+      if (params) {
+        const result = forceReleaseLock(MEMBERS_DIR$1, params.name);
+        return jsonResponse(res, result.success ? 200 : 404, { ok: result.success, error: result.error });
+      }
+      params = matchRoute("GET", "/api/member/:name/lock", method, url);
+      if (params) {
+        const lock = readLock(MEMBERS_DIR$1, params.name);
+        return jsonResponse(res, 200, { ok: true, data: lock });
+      }
+      params = matchRoute("POST", "/api/member/:name/heartbeat", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.session_pid || !body.last_tool) {
+          return jsonResponse(res, 400, { ok: false, error: "session_pid, last_tool required" });
+        }
+        touchHeartbeat(MEMBERS_DIR$1, params.name, body.session_pid, body.last_tool);
+        return jsonResponse(res, 200, { ok: true });
+      }
+      params = matchRoute("GET", "/api/member/:name/heartbeat", method, url);
+      if (params) {
+        const hb = readHeartbeat(MEMBERS_DIR$1, params.name);
+        return jsonResponse(res, 200, { ok: true, data: hb });
+      }
+      params = matchRoute("DELETE", "/api/member/:name/heartbeat", method, url);
+      if (params) {
+        removeHeartbeat(MEMBERS_DIR$1, params.name);
+        return jsonResponse(res, 200, { ok: true });
+      }
+      if (method === "GET" && url.split("?")[0] === "/api/heartbeat/stale") {
+        const stale = scanStaleHeartbeats(MEMBERS_DIR$1);
+        return jsonResponse(res, 200, { ok: true, data: stale });
+      }
+      params = matchRoute("POST", "/api/member/:name/reservation", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.code || !body.caller || !body.project || !body.task) {
+          return jsonResponse(res, 400, { ok: false, error: "code, caller, project, task required" });
+        }
+        const reservation = {
+          code: body.code,
+          member: body.member ?? params.name,
+          caller: body.caller,
+          project: body.project,
+          task: body.task,
+          session_id: body.session_id ?? "",
+          created_at: body.created_at ?? Date.now(),
+          ttl_ms: body.ttl_ms ?? 21e4
+        };
+        writeReservation(MEMBERS_DIR$1, params.name, reservation);
+        return jsonResponse(res, 200, { ok: true, data: reservation });
+      }
+      params = matchRoute("GET", "/api/member/:name/reservation", method, url);
+      if (params) {
+        const reservation = readReservation(MEMBERS_DIR$1, params.name);
+        if (reservation && Date.now() - reservation.created_at > reservation.ttl_ms) {
+          deleteReservation(MEMBERS_DIR$1, params.name);
+          return jsonResponse(res, 200, { ok: true, data: null });
+        }
+        return jsonResponse(res, 200, { ok: true, data: reservation });
+      }
+      params = matchRoute("DELETE", "/api/member/:name/reservation", method, url);
+      if (params) {
+        deleteReservation(MEMBERS_DIR$1, params.name);
+        return jsonResponse(res, 200, { ok: true });
+      }
+      params = matchRoute("POST", "/api/member/:name/memory/save", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.content) {
+          return jsonResponse(res, 400, { ok: false, error: "content required" });
+        }
+        const scope = body.scope === "project" ? "project" : "generic";
+        saveMemory(MEMBERS_DIR$1, params.name, scope, body.content, body.project);
+        return jsonResponse(res, 200, { ok: true });
+      }
+      params = matchRoute("GET", "/api/member/:name/memory", method, url);
+      if (params) {
+        const query = parseQuery(url);
+        const memScope = query.scope === "project" ? "project" : query.scope === "generic" ? "generic" : void 0;
+        const content = readMemory(MEMBERS_DIR$1, params.name, memScope, query.project);
+        return jsonResponse(res, 200, { ok: true, data: content || null });
+      }
+      params = matchRoute("GET", "/api/member/:name/persona", method, url);
+      if (params) {
+        const content = readPersona(MEMBERS_DIR$1, params.name);
+        return jsonResponse(res, 200, { ok: true, data: content || null });
+      }
+      params = matchRoute("POST", "/api/member/:name/worklog", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.event || !body.timestamp || !body.project) {
+          return jsonResponse(res, 400, { ok: false, error: "event, timestamp, project required" });
+        }
+        appendWorkLog(MEMBERS_DIR$1, params.name, body);
+        return jsonResponse(res, 200, { ok: true });
+      }
+      params = matchRoute("GET", "/api/member/:name/worklog", method, url);
+      if (params) {
+        const query = parseQuery(url);
+        const limit = query.limit ? parseInt(query.limit, 10) : void 0;
+        const entries = readWorkLog(MEMBERS_DIR$1, params.name, limit);
+        return jsonResponse(res, 200, { ok: true, data: entries });
+      }
+      params = matchRoute("POST", "/api/member/:name/evaluate", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.content) {
+          return jsonResponse(res, 400, { ok: false, error: "content required" });
+        }
+        node_fs.mkdirSync(node_path.join(MEMBERS_DIR$1, params.name), { recursive: true });
+        node_fs.appendFileSync(node_path.join(MEMBERS_DIR$1, params.name, "evaluations.md"), body.content + "\n", "utf-8");
+        return jsonResponse(res, 200, { ok: true });
+      }
+      if (method === "POST" && url === "/api/shared/experience") {
+        const body = await readBody(req);
+        if (!body.member || !body.content) {
+          return jsonResponse(res, 400, { ok: false, error: "member, content required" });
+        }
+        node_fs.mkdirSync(SHARED_DIR$1, { recursive: true });
+        const scope = body.scope ?? "generic";
+        if (scope === "team") {
+          const pendingPath = node_path.join(SHARED_DIR$1, "pending_rules.json");
+          let pending = [];
+          try {
+            pending = JSON.parse(node_fs.readFileSync(pendingPath, "utf-8"));
+          } catch {
+          }
+          pending.push({
+            id: `rule_${Date.now()}`,
+            member: body.member,
+            rule: body.content,
+            reason: "",
+            proposed_at: (/* @__PURE__ */ new Date()).toISOString()
+          });
+          node_fs.writeFileSync(pendingPath, JSON.stringify(pending, null, 2), "utf-8");
+          return jsonResponse(res, 200, { ok: true, data: { saved: true, similar_lines: [] } });
+        }
+        const expFile = scope === "project" && body.project ? node_path.join(SHARED_DIR$1, `experience_proj_${body.project}.md`) : node_path.join(SHARED_DIR$1, "experience_generic.md");
+        node_fs.mkdirSync(SHARED_DIR$1, { recursive: true });
+        const header = `
+## [${body.member}] ${(/* @__PURE__ */ new Date()).toISOString()}
+`;
+        node_fs.appendFileSync(expFile, header + body.content + "\n", "utf-8");
+        return jsonResponse(res, 200, { ok: true, data: { saved: true } });
+      }
+      if (method === "GET" && url.split("?")[0] === "/api/shared/experience") {
+        const query = parseQuery(url);
+        const scope = query.scope;
+        const project = query.project;
+        let content = "";
+        if (!scope || scope === "generic") {
+          content = safeReadFile(node_path.join(SHARED_DIR$1, "experience_generic.md"));
+          if (project) {
+            const projExp = safeReadFile(node_path.join(SHARED_DIR$1, `experience_proj_${project}.md`));
+            if (projExp) content = [content, projExp].filter(Boolean).join("\n\n---\n\n");
+          }
+        } else if (scope === "project" && project) {
+          content = safeReadFile(node_path.join(SHARED_DIR$1, `experience_proj_${project}.md`));
+        }
+        return jsonResponse(res, 200, { ok: true, data: content || null });
+      }
+      if (method === "GET" && url.split("?")[0] === "/api/shared/experience/search") {
+        const query = parseQuery(url);
+        if (!query.keyword) {
+          return jsonResponse(res, 400, { ok: false, error: "keyword required" });
+        }
+        const files = [];
+        if (node_fs.existsSync(SHARED_DIR$1)) {
+          const allFiles = node_fs.readdirSync(SHARED_DIR$1).filter((f) => f.startsWith("experience_"));
+          files.push(...allFiles.map((f) => node_path.join(SHARED_DIR$1, f)));
+        }
+        const lowerKw = query.keyword.toLowerCase();
+        const hits = [];
+        const seen = /* @__PURE__ */ new Set();
+        for (const filePath of files) {
+          const content = safeReadFile(filePath);
+          if (!content) continue;
+          const source = filePath.split("/").pop();
+          for (const line of content.split("\n")) {
+            if (line.toLowerCase().includes(lowerKw)) {
+              const trimmed = line.trim();
+              if (trimmed && !seen.has(trimmed)) {
+                seen.add(trimmed);
+                hits.push({ line: trimmed, source });
+              }
+            }
+          }
+        }
+        return jsonResponse(res, 200, { ok: true, data: hits });
+      }
+      if (method === "GET" && url === "/api/shared/rules") {
+        const content = safeReadFile(node_path.join(SHARED_DIR$1, "rules.md"));
+        return jsonResponse(res, 200, { ok: true, data: content || null });
+      }
+      if (method === "POST" && url === "/api/shared/rules/propose") {
+        const body = await readBody(req);
+        if (!body.member || !body.rule) {
+          return jsonResponse(res, 400, { ok: false, error: "member, rule required" });
+        }
+        node_fs.mkdirSync(SHARED_DIR$1, { recursive: true });
+        const pendingPath = node_path.join(SHARED_DIR$1, "pending_rules.json");
+        let pending = [];
+        try {
+          pending = JSON.parse(node_fs.readFileSync(pendingPath, "utf-8"));
+        } catch {
+        }
+        const newRule = {
+          id: `rule_${Date.now()}`,
+          member: body.member,
+          rule: body.rule,
+          reason: body.reason ?? "",
+          proposed_at: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        pending.push(newRule);
+        node_fs.writeFileSync(pendingPath, JSON.stringify(pending, null, 2), "utf-8");
+        return jsonResponse(res, 200, { ok: true, data: newRule });
+      }
+      if (method === "GET" && url === "/api/shared/rules/pending") {
+        const pendingPath = node_path.join(SHARED_DIR$1, "pending_rules.json");
+        let pending = [];
+        try {
+          pending = JSON.parse(node_fs.readFileSync(pendingPath, "utf-8"));
+        } catch {
+        }
+        return jsonResponse(res, 200, { ok: true, data: pending });
+      }
+      if (method === "POST" && url === "/api/shared/rules/approve") {
+        const body = await readBody(req);
+        if (!body.id) return jsonResponse(res, 400, { ok: false, error: "id required" });
+        node_fs.mkdirSync(SHARED_DIR$1, { recursive: true });
+        const pendingPath = node_path.join(SHARED_DIR$1, "pending_rules.json");
+        let pending = [];
+        try {
+          pending = JSON.parse(node_fs.readFileSync(pendingPath, "utf-8"));
+        } catch {
+        }
+        const idx = pending.findIndex((r) => r.id === body.id);
+        if (idx === -1) return jsonResponse(res, 404, { ok: false, error: "rule not found" });
+        const [approved] = pending.splice(idx, 1);
+        node_fs.writeFileSync(pendingPath, JSON.stringify(pending, null, 2), "utf-8");
+        const rulesPath = node_path.join(SHARED_DIR$1, "rules.md");
+        node_fs.appendFileSync(rulesPath, `
+- ${approved.rule} (by ${approved.member})
+`, "utf-8");
+        return jsonResponse(res, 200, { ok: true, data: approved });
+      }
+      if (method === "POST" && url === "/api/shared/rules/reject") {
+        const body = await readBody(req);
+        if (!body.id) return jsonResponse(res, 400, { ok: false, error: "id required" });
+        const pendingPath = node_path.join(SHARED_DIR$1, "pending_rules.json");
+        let pending = [];
+        try {
+          pending = JSON.parse(node_fs.readFileSync(pendingPath, "utf-8"));
+        } catch {
+        }
+        const idx = pending.findIndex((r) => r.id === body.id);
+        if (idx === -1) return jsonResponse(res, 404, { ok: false, error: "rule not found" });
+        const [rejected] = pending.splice(idx, 1);
+        node_fs.writeFileSync(pendingPath, JSON.stringify(pending, null, 2), "utf-8");
+        return jsonResponse(res, 200, { ok: true, data: rejected });
+      }
+      if (method === "GET" && url === "/api/shared/governance") {
+        const content = readJsonFile(node_path.join(SHARED_DIR$1, "governance.json"));
+        return jsonResponse(res, 200, { ok: true, data: content });
+      }
+      if (method === "GET" && url.split("?")[0] === "/api/members") {
+        const profiles = listMembers(MEMBERS_DIR$1);
+        const members = profiles.map((p) => {
+          const s = getMemberStatus(p.name);
+          return s ? {
+            ...s.profile,
+            lock: s.lock,
+            heartbeat: s.heartbeat,
+            reservation: s.reservation,
+            status: s.status
+          } : { ...p, status: "offline" };
+        });
+        return jsonResponse(res, 200, { ok: true, data: members });
+      }
+      if (method === "POST" && url === "/api/members") {
+        const body = await readBody(req);
+        if (!body.name || !body.role) {
+          return jsonResponse(res, 400, { ok: false, error: "name, role are required" });
+        }
+        const existing = getMember(MEMBERS_DIR$1, body.name);
+        if (existing) {
+          return jsonResponse(res, 409, { ok: false, error: `member ${body.name} already exists` });
+        }
+        const profile = {
+          uid: body.uid ?? node_crypto.randomUUID(),
+          name: body.name,
+          role: body.role,
+          type: body.type ?? "temporary",
+          joined_at: body.joined_at ?? (/* @__PURE__ */ new Date()).toISOString(),
+          skills: body.skills,
+          description: body.description
+        };
+        createMember(MEMBERS_DIR$1, profile);
+        return jsonResponse(res, 201, { ok: true, data: profile });
+      }
+      if (method === "POST" && url === "/api/members/scan-orphan-locks") {
+        const cleaned = scanOrphanLocks(MEMBERS_DIR$1);
+        return jsonResponse(res, 200, { ok: true, data: cleaned });
+      }
+      if (method === "POST" && url.split("?")[0] === "/api/members/scan-stale-heartbeats") {
+        const query = parseQuery(url);
+        const timeoutMs = query.timeout_ms ? parseInt(query.timeout_ms, 10) : void 0;
+        const stale = scanStaleHeartbeats(MEMBERS_DIR$1, timeoutMs);
+        return jsonResponse(res, 200, { ok: true, data: stale });
+      }
+      params = matchRoute("GET", "/api/members/:name", method, url);
+      if (params) {
+        const s = getMemberStatus(params.name);
+        if (!s) return jsonResponse(res, 404, { ok: false, error: "member not found" });
+        return jsonResponse(res, 200, {
+          ok: true,
+          data: {
+            ...s.profile,
+            lock: s.lock,
+            heartbeat: s.heartbeat,
+            reservation: s.reservation,
+            status: s.status
+          }
+        });
+      }
+      params = matchRoute("DELETE", "/api/members/:name", method, url);
+      if (params) {
+        const deleted = deleteMember(MEMBERS_DIR$1, params.name);
+        if (!deleted) return jsonResponse(res, 404, { ok: false, error: "member not found" });
+        return jsonResponse(res, 200, { ok: true });
+      }
+      params = matchRoute("GET", "/api/members/:name/lock", method, url);
+      if (params) {
+        const lock = readLock(MEMBERS_DIR$1, params.name);
+        return jsonResponse(res, 200, { ok: true, data: lock });
+      }
+      params = matchRoute("POST", "/api/members/:name/lock/acquire", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.session_pid || !body.session_start || !body.project || !body.task) {
+          return jsonResponse(res, 400, { ok: false, error: "session_pid, session_start, project, task required" });
+        }
+        const result = acquireLock(MEMBERS_DIR$1, params.name, body.session_pid, body.session_start, body.project, body.task);
+        return jsonResponse(res, result.success ? 200 : 409, { ok: result.success, nonce: result.nonce, error: result.error });
+      }
+      params = matchRoute("POST", "/api/members/:name/lock/release", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.nonce) return jsonResponse(res, 400, { ok: false, error: "nonce required" });
+        const result = releaseLock(MEMBERS_DIR$1, params.name, body.nonce);
+        return jsonResponse(res, result.success ? 200 : 409, { ok: result.success, error: result.error });
+      }
+      params = matchRoute("POST", "/api/members/:name/lock/force-release", method, url);
+      if (params) {
+        const result = forceReleaseLock(MEMBERS_DIR$1, params.name);
+        return jsonResponse(res, result.success ? 200 : 404, { ok: result.success, error: result.error });
+      }
+      params = matchRoute("POST", "/api/members/:name/lock/update", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.nonce || !body.project || !body.task) {
+          return jsonResponse(res, 400, { ok: false, error: "nonce, project, task required" });
+        }
+        const result = updateLock(MEMBERS_DIR$1, params.name, body.nonce, body.project, body.task);
+        return jsonResponse(res, result.success ? 200 : 409, { ok: result.success, error: result.error });
+      }
+      params = matchRoute("POST", "/api/members/:name/lock/takeover", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.session_pid || !body.session_start || !body.project || !body.task) {
+          return jsonResponse(res, 400, { ok: false, error: "session_pid, session_start, project, task required" });
+        }
+        const result = takeoverLock(MEMBERS_DIR$1, params.name, body.session_pid, body.session_start, body.project, body.task);
+        return jsonResponse(res, result.success ? 200 : 409, { ok: result.success, nonce: result.nonce, error: result.error });
+      }
+      params = matchRoute("POST", "/api/members/:name/heartbeat", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.session_pid || !body.last_tool) {
+          return jsonResponse(res, 400, { ok: false, error: "session_pid, last_tool required" });
+        }
+        touchHeartbeat(MEMBERS_DIR$1, params.name, body.session_pid, body.last_tool);
+        return jsonResponse(res, 200, { ok: true });
+      }
+      params = matchRoute("GET", "/api/members/:name/heartbeat", method, url);
+      if (params) {
+        const hb = readHeartbeat(MEMBERS_DIR$1, params.name);
+        return jsonResponse(res, 200, { ok: true, data: hb });
+      }
+      params = matchRoute("DELETE", "/api/members/:name/heartbeat", method, url);
+      if (params) {
+        removeHeartbeat(MEMBERS_DIR$1, params.name);
+        return jsonResponse(res, 200, { ok: true });
+      }
+      params = matchRoute("GET", "/api/members/:name/reservation", method, url);
+      if (params) {
+        const reservation = readReservation(MEMBERS_DIR$1, params.name);
+        if (reservation && Date.now() - reservation.created_at > reservation.ttl_ms) {
+          deleteReservation(MEMBERS_DIR$1, params.name);
+          return jsonResponse(res, 200, { ok: true, data: null });
+        }
+        return jsonResponse(res, 200, { ok: true, data: reservation });
+      }
+      params = matchRoute("POST", "/api/members/:name/reservation", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.code || !body.caller || !body.project || !body.task) {
+          return jsonResponse(res, 400, { ok: false, error: "code, caller, project, task required" });
+        }
+        const reservation = {
+          code: body.code,
+          member: body.member ?? params.name,
+          session_id: body.session_id ?? "",
+          caller: body.caller,
+          project: body.project,
+          task: body.task,
+          created_at: body.created_at ?? Date.now(),
+          ttl_ms: body.ttl_ms ?? 21e4
+        };
+        writeReservation(MEMBERS_DIR$1, params.name, reservation);
+        return jsonResponse(res, 200, { ok: true, data: reservation });
+      }
+      params = matchRoute("DELETE", "/api/members/:name/reservation", method, url);
+      if (params) {
+        deleteReservation(MEMBERS_DIR$1, params.name);
+        return jsonResponse(res, 200, { ok: true });
+      }
+      params = matchRoute("GET", "/api/members/:name/memory", method, url);
+      if (params) {
+        const query = parseQuery(url);
+        const memScope = query.scope === "project" ? "project" : query.scope === "generic" ? "generic" : void 0;
+        const content = readMemory(MEMBERS_DIR$1, params.name, memScope, query.project);
+        return jsonResponse(res, 200, { ok: true, data: content || null });
+      }
+      params = matchRoute("POST", "/api/members/:name/memory", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.content) {
+          return jsonResponse(res, 400, { ok: false, error: "content required" });
+        }
+        const scope = body.scope === "project" ? "project" : "generic";
+        saveMemory(MEMBERS_DIR$1, params.name, scope, body.content, body.project);
+        return jsonResponse(res, 200, { ok: true });
+      }
+      params = matchRoute("GET", "/api/members/:name/persona", method, url);
+      if (params) {
+        const content = readPersona(MEMBERS_DIR$1, params.name);
+        return jsonResponse(res, 200, { ok: true, data: content || null });
+      }
+      params = matchRoute("GET", "/api/members/:name/worklog", method, url);
+      if (params) {
+        const query = parseQuery(url);
+        const limit = query.limit ? parseInt(query.limit, 10) : void 0;
+        const entries = readWorkLog(MEMBERS_DIR$1, params.name, limit);
+        return jsonResponse(res, 200, { ok: true, data: entries });
+      }
+      params = matchRoute("POST", "/api/members/:name/worklog", method, url);
+      if (params) {
+        const body = await readBody(req);
+        if (!body.event || !body.timestamp || !body.project) {
+          return jsonResponse(res, 400, { ok: false, error: "event, timestamp, project required" });
+        }
+        appendWorkLog(MEMBERS_DIR$1, params.name, body);
+        return jsonResponse(res, 200, { ok: true });
+      }
+      if (method === "POST" && url === "/api/vault/proxy") {
+        const body = await readBody(req);
+        if (!body.session_id) {
+          return jsonResponse(res, 400, { error: "session_id is required" });
+        }
+        const session = getSessionByMemberId(body.session_id);
+        if (!session) {
+          return jsonResponse(res, 401, { error: "invalid session_id" });
+        }
+        if (!body.api_name || !body.url || !body.method) {
+          return jsonResponse(res, 400, { error: "api_name, url, method are required" });
+        }
+        const proxyResult = await proxyApiRequest({
+          api_name: body.api_name,
+          url: body.url,
+          method: body.method,
+          headers: body.headers,
+          body: body.body
+        });
+        if ("error" in proxyResult) {
+          return jsonResponse(res, 400, proxyResult);
+        }
+        const responseBody = JSON.stringify({
+          status: proxyResult.status,
+          headers: proxyResult.headers,
+          body: proxyResult.body
+        });
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(responseBody)
+        });
+        res.end(responseBody);
+      }
+      if (method === "GET" && url === "/api/vault/list") {
+        const query = parseQuery(url);
+        const sessionId = query.session_id;
+        if (!sessionId) {
+          return jsonResponse(res, 400, { error: "session_id query param is required" });
+        }
+        const session = getSessionByMemberId(sessionId);
+        if (!session) {
+          return jsonResponse(res, 401, { error: "invalid session_id" });
+        }
+        const keys = listApiKeys();
+        return jsonResponse(res, 200, { keys });
+      }
+      if (method === "POST" && url === "/api/vault/add") {
+        const body = await readBody(req);
+        if (!body.session_id) {
+          return jsonResponse(res, 400, { error: "session_id is required" });
+        }
+        const session = getSessionByMemberId(body.session_id);
+        if (!session) {
+          return jsonResponse(res, 401, { error: "invalid session_id" });
+        }
+        if (!body.api_name || !body.value) {
+          return jsonResponse(res, 400, { error: "api_name and value are required" });
+        }
+        const success = addApiKey(body.api_name, body.value);
+        if (!success) {
+          return jsonResponse(res, 500, { error: "failed to add key" });
+        }
+        return jsonResponse(res, 200, { success: true, message: `Key for ${body.api_name} added` });
+      }
+      if (method === "DELETE" && url.split("?")[0] === "/api/vault/remove") {
+        const body = await readBody(req);
+        if (!body.session_id) {
+          return jsonResponse(res, 400, { error: "session_id is required" });
+        }
+        const session = getSessionByMemberId(body.session_id);
+        if (!session) {
+          return jsonResponse(res, 401, { error: "invalid session_id" });
+        }
+        if (!body.api_name) {
+          return jsonResponse(res, 400, { error: "api_name is required" });
+        }
+        const success = removeApiKey(body.api_name);
+        if (!success) {
+          return jsonResponse(res, 500, { error: "failed to remove key" });
+        }
+        return jsonResponse(res, 200, { success: true, message: `Key for ${body.api_name} removed` });
+      }
+      if (method === "POST" && url === "/api/ask-user") {
+        const body = await readBody(req);
+        if (!body.member_name || !body.type || !body.title || !body.question) {
+          return jsonResponse(res, 400, { error: "member_name, type, title, question are required" });
+        }
+        const validTypes = ["confirm", "single_choice", "multi_choice", "input"];
+        if (!validTypes.includes(body.type)) {
+          return jsonResponse(res, 400, { error: `type must be one of: ${validTypes.join(", ")}` });
+        }
+        if ((body.type === "single_choice" || body.type === "multi_choice") && (!body.options || body.options.length === 0)) {
+          return jsonResponse(res, 400, { error: "options are required for single_choice/multi_choice types" });
+        }
+        const response = await createAskUserRequest({
+          member_name: body.member_name,
+          type: body.type,
+          title: body.title,
+          question: body.question,
+          options: body.options,
+          timeout_ms: body.timeout_ms
+        });
+        return jsonResponse(res, 200, response);
+      }
+      return jsonResponse(res, 404, { error: "not found" });
+    } catch (err) {
+      return jsonResponse(res, 500, { error: String(err) });
+    }
+  });
+  panelServer.listen(0, PANEL_HOST, () => {
+    const addr = panelServer.address();
+    const port = typeof addr === "object" && addr ? addr.port : 0;
+    try {
+      node_fs.writeFileSync(PANEL_PORT_FILE, String(port), "utf-8");
+    } catch {
+    }
+    process.stderr.write(`[panel-api] started on ${PANEL_HOST}:${port}
+`);
+  });
+}
+function stopPanelApi() {
+  if (panelServer) {
+    panelServer.close();
+    panelServer = null;
+  }
+  try {
+    node_fs.rmSync(PANEL_PORT_FILE, { force: true });
+  } catch {
+  }
+}
 const TEAM_HUB_DIR = path.resolve(os.homedir(), ".claude/team-hub");
 const SESSIONS_DIR = path.join(TEAM_HUB_DIR, "sessions");
 const MEMBERS_DIR = path.join(TEAM_HUB_DIR, "members");
 const SHARED_DIR = path.join(TEAM_HUB_DIR, "shared");
 const PROJECTS_DIR = path.join(SHARED_DIR, "projects");
-const HEARTBEAT_TIMEOUT_MS = 3 * 60 * 1e3;
 function readJson(filePath) {
   try {
     const content = fs.readFileSync(filePath, "utf-8");
@@ -138,7 +2848,7 @@ function getPidLstart(pid) {
 function scanClaudeProcesses() {
   try {
     const output = child_process.execSync("ps -eo pid,lstart,command", { encoding: "utf-8", timeout: 3e3 });
-    const sessions = [];
+    const sessions2 = [];
     for (const line of output.split("\n")) {
       if (!/\bclaude\b/.test(line) || /Helper|agent|electron|node /i.test(line)) continue;
       const match = line.trim().match(/^(\d+)\s+(.+?\d{4})\s+(.+)$/);
@@ -147,9 +2857,9 @@ function scanClaudeProcesses() {
       const lstart = match[2].trim();
       const cmd = match[3].trim();
       if (!cmd.includes("claude")) continue;
-      sessions.push({ pid, lstart, cwd: "", started_at: "" });
+      sessions2.push({ pid, lstart, cwd: "", started_at: "" });
     }
-    return sessions;
+    return sessions2;
   } catch {
     return [];
   }
@@ -167,32 +2877,33 @@ function scanTeamStatus() {
       const p = path.join(MEMBERS_DIR, d);
       return fs.statSync(p).isDirectory();
     });
-    for (const memberDir of memberDirs) {
-      const profilePath = path.join(MEMBERS_DIR, memberDir, "profile.json");
-      const lockPath = path.join(MEMBERS_DIR, memberDir, "lock.json");
-      const heartbeatPath = path.join(MEMBERS_DIR, memberDir, "heartbeat.json");
+    for (const memberDir2 of memberDirs) {
+      const profilePath = path.join(MEMBERS_DIR, memberDir2, "profile.json");
+      const lockPath = path.join(MEMBERS_DIR, memberDir2, "lock.json");
+      const heartbeatPath = path.join(MEMBERS_DIR, memberDir2, "heartbeat.json");
       const profile = readJson(profilePath);
       if (!profile) continue;
       const lock = readJson(lockPath);
       const heartbeat = readJson(heartbeatPath);
-      const reservationPath = path.join(MEMBERS_DIR, memberDir, "reservation.json");
-      const reservation = readJson(reservationPath);
-      const hasReservation = reservation !== null;
-      const heartbeatAlive = heartbeat !== null && Date.now() - heartbeat.last_seen_ms < HEARTBEAT_TIMEOUT_MS;
+      const reservationPath = path.join(MEMBERS_DIR, memberDir2, "reservation.json");
+      let reservation = readJson(reservationPath);
+      const hasReservation = reservation !== null && Date.now() - reservation.created_at <= reservation.ttl_ms;
       let status;
       if (lock) {
         status = "working";
-      } else if (hasReservation) {
-        status = "reserved";
-      } else if (heartbeatAlive) {
-        status = "online";
       } else {
-        status = "offline";
+        const ptySession = getPtySessions().find((s) => s.memberId === memberDir2 && s.status === "running");
+        if (ptySession) {
+          status = "working";
+        } else if (hasReservation) {
+          status = "reserved";
+        } else {
+          status = "offline";
+        }
       }
       members.push({
-        uid: profile.uid ?? memberDir,
+        uid: profile.uid ?? memberDir2,
         name: profile.name,
-        displayName: profile.display_name,
         role: profile.role,
         type: profile.type,
         status,
@@ -231,10 +2942,6 @@ function inspectSessions() {
       if (isPidAlive(session.pid)) continue;
       const lstart = getPidLstart(session.pid);
       if (lstart && lstart === session.lstart) continue;
-      try {
-        fs.rmSync(sessionPath);
-      } catch {
-      }
     }
   }
   if (!fs.existsSync(MEMBERS_DIR)) return;
@@ -246,44 +2953,17 @@ function inspectSessions() {
   } catch {
     return;
   }
-  for (const memberDir of memberDirs) {
-    const lockPath = path.join(MEMBERS_DIR, memberDir, "lock.json");
-    const heartbeatPath = path.join(MEMBERS_DIR, memberDir, "heartbeat.json");
+  for (const memberDir2 of memberDirs) {
+    const lockPath = path.join(MEMBERS_DIR, memberDir2, "lock.json");
+    path.join(MEMBERS_DIR, memberDir2, "heartbeat.json");
     const lock = readJson(lockPath);
     if (!lock) continue;
-    const heartbeat = readJson(heartbeatPath);
-    if (heartbeat && Date.now() - heartbeat.last_seen_ms > HEARTBEAT_TIMEOUT_MS) {
-      try {
-        fs.rmSync(lockPath);
-      } catch {
-      }
-      try {
-        fs.rmSync(heartbeatPath);
-      } catch {
-      }
-      continue;
-    }
     if (!isPidAlive(lock.session_pid)) {
-      try {
-        fs.rmSync(lockPath);
-      } catch {
-      }
-      try {
-        fs.rmSync(heartbeatPath);
-      } catch {
-      }
       continue;
     }
     const lstart = getPidLstart(lock.session_pid);
     if (lstart && lstart !== lock.session_start) {
-      try {
-        fs.rmSync(lockPath);
-      } catch {
-      }
-      try {
-        fs.rmSync(heartbeatPath);
-      } catch {
-      }
+      continue;
     }
   }
 }
@@ -310,7 +2990,7 @@ function createWindow() {
     }
   });
   mainWindow.on("ready-to-show", () => {
-    mainWindow?.show();
+    if (process.env.E2E_HEADLESS !== "1") mainWindow?.show();
   });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     electron.shell.openExternal(url);
@@ -326,11 +3006,13 @@ function pushStatus() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   const status = scanTeamStatus();
   mainWindow.webContents.send("status-update", status);
-  if (status.sessions.length === 0) {
+  const ptyActive = getPtySessions().some((s) => s.status === "running");
+  if (status.sessions.length === 0 && !ptyActive) {
     if (!autoQuitTimer) {
       autoQuitTimer = setTimeout(() => {
         const check = scanTeamStatus();
-        if (check.sessions.length === 0) {
+        const ptyStillActive = getPtySessions().some((s) => s.status === "running");
+        if (check.sessions.length === 0 && !ptyStillActive) {
           electron.app.quit();
         } else {
           autoQuitTimer = null;
@@ -344,6 +3026,7 @@ function pushStatus() {
     }
   }
 }
+let watcherDebounce = null;
 function startWatcher() {
   if (watcher) return;
   if (!fs.existsSync(TEAM_HUB_DIR)) return;
@@ -353,7 +3036,15 @@ function startWatcher() {
     depth: 3
   });
   watcher.on("all", () => {
-    pushStatus();
+    if (watcherDebounce) clearTimeout(watcherDebounce);
+    watcherDebounce = setTimeout(() => {
+      watcherDebounce = null;
+      pushStatus();
+    }, 300);
+  });
+  watcher.on("error", (err) => {
+    process.stderr?.write?.(`[watcher] error: ${err}
+`);
   });
 }
 function stopWatcher() {
@@ -430,7 +3121,7 @@ function getMcpStore() {
           if (mcps.length > 0) {
             memberMounts.push({
               member: dir,
-              displayName: profile?.display_name ?? dir,
+              name: profile?.name ?? dir,
               mcps: mcps.map((m) => m.name)
             });
           }
@@ -443,12 +3134,12 @@ function getMcpStore() {
   return { store, memberMounts };
 }
 function getMemberDetail(memberName) {
-  const memberDir = path.join(MEMBERS_DIR, memberName);
-  if (!fs.existsSync(memberDir)) return null;
-  const profile = readJson(path.join(memberDir, "profile.json"));
+  const memberDir2 = path.join(MEMBERS_DIR, memberName);
+  if (!fs.existsSync(memberDir2)) return null;
+  const profile = readJson(path.join(memberDir2, "profile.json"));
   if (!profile) return null;
   let persona = null;
-  const personaPath = path.join(memberDir, "persona.md");
+  const personaPath = path.join(memberDir2, "persona.md");
   if (fs.existsSync(personaPath)) {
     try {
       persona = fs.readFileSync(personaPath, "utf-8");
@@ -456,7 +3147,7 @@ function getMemberDetail(memberName) {
     }
   }
   let memory = null;
-  const memoryPath = path.join(memberDir, "memory_generic.md");
+  const memoryPath = path.join(memberDir2, "memory_generic.md");
   if (fs.existsSync(memoryPath)) {
     try {
       memory = fs.readFileSync(memoryPath, "utf-8");
@@ -464,7 +3155,7 @@ function getMemberDetail(memberName) {
     }
   }
   const workLog = [];
-  const logPath = path.join(memberDir, "work_log.jsonl");
+  const logPath = path.join(memberDir2, "work_log.jsonl");
   if (fs.existsSync(logPath)) {
     try {
       const lines = fs.readFileSync(logPath, "utf-8").split("\n").filter((l) => l.trim());
@@ -477,11 +3168,24 @@ function getMemberDetail(memberName) {
     } catch {
     }
   }
-  const lock = readJson(path.join(memberDir, "lock.json"));
-  const heartbeat = readJson(path.join(memberDir, "heartbeat.json"));
-  const hasReservation = fs.existsSync(path.join(memberDir, "reservation.json"));
-  const heartbeatAlive = heartbeat !== null && Date.now() - heartbeat.last_seen_ms < HEARTBEAT_TIMEOUT_MS;
-  const status = lock ? "working" : hasReservation ? "reserved" : heartbeatAlive ? "online" : "offline";
+  const lock = readJson(path.join(memberDir2, "lock.json"));
+  const heartbeat = readJson(path.join(memberDir2, "heartbeat.json"));
+  const reservationPath2 = path.join(memberDir2, "reservation.json");
+  const reservation2 = readJson(reservationPath2);
+  const hasReservation = reservation2 !== null && Date.now() - reservation2.created_at <= reservation2.ttl_ms;
+  let status;
+  if (lock) {
+    status = "working";
+  } else {
+    const ptySession = getPtySessions().find((s) => s.memberId === memberName && s.status === "running");
+    if (ptySession) {
+      status = "working";
+    } else if (hasReservation) {
+      status = "reserved";
+    } else {
+      status = "offline";
+    }
+  }
   return {
     profile,
     persona,
@@ -550,6 +3254,7 @@ function deleteProject(id) {
 function getMemberProjects(memberName) {
   return listProjects().filter((p) => p.members.includes(memberName));
 }
+let messageRouter = null;
 function setupIpc() {
   electron.ipcMain.handle("get-initial-status", () => {
     return scanTeamStatus();
@@ -597,9 +3302,9 @@ function setupIpc() {
   });
   electron.ipcMain.handle("mount-member-mcp", (_event, memberName, mcpName) => {
     const { mkdirSync: mkdirSync2, writeFileSync: writeFileSync2 } = require("fs");
-    const memberDir = path.join(MEMBERS_DIR, memberName);
-    const mcpsPath = path.join(memberDir, "mcps.json");
-    if (!fs.existsSync(memberDir)) return { ok: false, reason: "成员不存在" };
+    const memberDir2 = path.join(MEMBERS_DIR, memberName);
+    const mcpsPath = path.join(memberDir2, "mcps.json");
+    if (!fs.existsSync(memberDir2)) return { ok: false, reason: "成员不存在" };
     const storePath = path.join(SHARED_DIR, "mcp_store.json");
     let storeItems = [];
     if (fs.existsSync(storePath)) {
@@ -653,11 +3358,68 @@ function setupIpc() {
   electron.ipcMain.handle("update-project", (_event, id, patch) => updateProject(id, patch));
   electron.ipcMain.handle("delete-project", (_event, id) => deleteProject(id));
   electron.ipcMain.handle("get-member-projects", (_event, memberName) => getMemberProjects(memberName));
+  electron.ipcMain.handle("spawn-pty-session", (_event, opts) => {
+    return spawnPtySession(opts);
+  });
+  electron.ipcMain.handle("write-to-pty", (_event, sessionId, data) => {
+    return writeToPty(sessionId, data);
+  });
+  electron.ipcMain.handle("resize-pty", (_event, sessionId, cols, rows) => {
+    return resizePty(sessionId, cols, rows);
+  });
+  electron.ipcMain.handle("kill-pty-session", (_event, sessionId) => {
+    return killPtySession(sessionId);
+  });
+  electron.ipcMain.handle("get-pty-sessions", () => {
+    return getPtySessions();
+  });
+  electron.ipcMain.handle("get-pty-session", (_event, sessionId) => {
+    return getPtySession(sessionId);
+  });
+  electron.ipcMain.handle("get-pty-buffer", (_event, sessionId) => {
+    return getPtyBuffer(sessionId);
+  });
+  electron.ipcMain.handle("attach-pty-window", (event, sessionId) => {
+    const win = electron.BrowserWindow.fromWebContents(event.sender);
+    if (!win) return { ok: false, reason: "no window" };
+    return attachWindow(sessionId, win);
+  });
   electron.ipcMain.handle("scan-agent-clis", (_event, force) => {
     return scanAgentClis(force);
   });
+  electron.ipcMain.handle("select-directory", async (event) => {
+    const win = electron.BrowserWindow.fromWebContents(event.sender);
+    const result = await electron.dialog.showOpenDialog(win ?? electron.BrowserWindow.getFocusedWindow(), {
+      properties: ["openDirectory"],
+      title: "选择工作目录",
+      buttonLabel: "选择"
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return { canceled: true, path: null };
+    }
+    return { canceled: false, path: result.filePaths[0] };
+  });
+  electron.ipcMain.handle("launch-member", (_event, opts) => {
+    return openTerminalWindow(opts);
+  });
   electron.ipcMain.handle("get-theme", () => {
     return electron.nativeTheme.shouldUseDarkColors ? "dark" : "light";
+  });
+  messageRouter = setupMessageRouter();
+  setMessageRouter(messageRouter);
+  electron.ipcMain.handle("send-message", (_event, from, to, content, priority) => {
+    if (!messageRouter) return { ok: false, reason: "router not ready" };
+    const result = messageRouter.sendMessage(from, to, content, priority);
+    if (result.error) return { ok: false, reason: result.error };
+    return { ok: true, id: result.id, delivered: result.delivered };
+  });
+  electron.ipcMain.handle("get-inbox", (_event, memberId) => {
+    if (!messageRouter) return [];
+    return messageRouter.getInbox(memberId);
+  });
+  electron.ipcMain.handle("clear-inbox", (_event, memberId) => {
+    if (!messageRouter) return;
+    messageRouter.clearInbox(memberId);
   });
   electron.nativeTheme.on("updated", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -665,6 +3427,68 @@ function setupIpc() {
     }
   });
 }
+async function ensureHub() {
+  const HUB_DIR = path.join(os.homedir(), ".claude", "team-hub");
+  path.join(HUB_DIR, "hub.pid");
+  const portFile = path.join(HUB_DIR, "hub.port");
+  const defaultPort = 58578;
+  function getPort() {
+    try {
+      const p = parseInt(fs.readFileSync(portFile, "utf-8").trim(), 10);
+      return isNaN(p) ? defaultPort : p;
+    } catch {
+      return defaultPort;
+    }
+  }
+  async function isHealthy(port2) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port2}/api/health`, { signal: AbortSignal.timeout(2e3) });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+  const port = getPort();
+  if (await isHealthy(port)) {
+    console.log(`[panel] Hub already running on port ${port}`);
+    return;
+  }
+  const hubScript = path.join(__dirname, "../../../mcp-server/src/hub.ts");
+  if (!fs.existsSync(hubScript)) {
+    console.warn(`[panel] Hub script not found: ${hubScript}`);
+    return;
+  }
+  let bunBin = "bun";
+  try {
+    bunBin = child_process.execSync("which bun", { encoding: "utf-8", timeout: 3e3 }).trim() || bunBin;
+  } catch {
+  }
+  fs.mkdirSync(HUB_DIR, { recursive: true });
+  const logFile = path.join(HUB_DIR, "hub.log");
+  const logFd = fs.openSync(logFile, "a");
+  const child = child_process.spawn(bunBin, ["run", hubScript], {
+    detached: true,
+    stdio: ["ignore", logFd, logFd],
+    env: { ...process.env },
+    cwd: path.dirname(hubScript)
+  });
+  child.unref();
+  fs.closeSync(logFd);
+  let ready = false;
+  for (let i = 0; i < 25; i++) {
+    await new Promise((r) => setTimeout(r, 200));
+    if (await isHealthy(getPort())) {
+      ready = true;
+      break;
+    }
+  }
+  if (ready) {
+    console.log(`[panel] Hub started successfully`);
+  } else {
+    console.warn(`[panel] Hub startup timeout, check ${logFile}`);
+  }
+}
+electron.app.name = "MCP-Team-Hub";
 const gotLock = electron.app.requestSingleInstanceLock();
 if (!gotLock) {
   electron.app.quit();
@@ -675,9 +3499,71 @@ if (!gotLock) {
       mainWindow.focus();
     }
   });
-  electron.app.whenReady().then(() => {
+  electron.app.whenReady().then(async () => {
+    await ensureHub();
+    try {
+      const STALE_HEARTBEAT_MS = 3 * 60 * 1e3;
+      const memberDirs = fs.readdirSync(MEMBERS_DIR).filter((d) => {
+        try {
+          return fs.statSync(path.join(MEMBERS_DIR, d)).isDirectory();
+        } catch {
+          return false;
+        }
+      });
+      for (const dir of memberDirs) {
+        let cleaned = false;
+        const lockPath = path.join(MEMBERS_DIR, dir, "lock.json");
+        if (fs.existsSync(lockPath)) {
+          try {
+            const lock = JSON.parse(fs.readFileSync(lockPath, "utf-8"));
+            const pid = lock.session_pid;
+            if (pid) {
+              const alive = isPidAlive(pid) && getPidLstart(pid) === lock.session_start;
+              if (!alive) {
+                fs.rmSync(lockPath, { force: true });
+                cleaned = true;
+              }
+            } else {
+              fs.rmSync(lockPath, { force: true });
+              cleaned = true;
+            }
+          } catch {
+            fs.rmSync(lockPath, { force: true });
+            cleaned = true;
+          }
+        }
+        const hbPath = path.join(MEMBERS_DIR, dir, "heartbeat.json");
+        if (fs.existsSync(hbPath)) {
+          try {
+            const hb = JSON.parse(fs.readFileSync(hbPath, "utf-8"));
+            const pid = hb.session_pid;
+            const pidDead = pid ? !isPidAlive(pid) : true;
+            const timedOut = hb.last_seen_ms ? Date.now() - hb.last_seen_ms > STALE_HEARTBEAT_MS : true;
+            if (pidDead || timedOut) {
+              fs.rmSync(hbPath, { force: true });
+              cleaned = true;
+            }
+          } catch {
+            fs.rmSync(hbPath, { force: true });
+            cleaned = true;
+          }
+        }
+        if (cleaned) {
+          const resPath = path.join(MEMBERS_DIR, dir, "reservation.json");
+          try {
+            fs.rmSync(resPath, { force: true });
+          } catch {
+          }
+        }
+      }
+    } catch {
+    }
     setupIpc();
+    setupTerminalIpc();
+    setupAskUserIpc();
+    startPanelApi();
     createWindow();
+    createOverlay();
     startWatcher();
     startPoll();
     setupPowerMonitor();
@@ -688,6 +3574,31 @@ if (!gotLock) {
     electron.app.quit();
   });
   electron.app.on("before-quit", () => {
+    try {
+      const memberDirs = fs.readdirSync(MEMBERS_DIR).filter((d) => {
+        try {
+          return fs.statSync(path.join(MEMBERS_DIR, d)).isDirectory();
+        } catch {
+          return false;
+        }
+      });
+      for (const dir of memberDirs) {
+        const lockPath = path.join(MEMBERS_DIR, dir, "lock.json");
+        const hbPath = path.join(MEMBERS_DIR, dir, "heartbeat.json");
+        try {
+          fs.rmSync(lockPath, { force: true });
+        } catch {
+        }
+        try {
+          fs.rmSync(hbPath, { force: true });
+        } catch {
+        }
+      }
+    } catch {
+    }
+    teardownMessageRouter();
+    stopPanelApi();
+    killAllPtySessions();
     const pidFile = path.join(TEAM_HUB_DIR, "hub.pid");
     const portFile = path.join(TEAM_HUB_DIR, "hub.port");
     const panelPidFile = path.join(TEAM_HUB_DIR, "panel.pid");

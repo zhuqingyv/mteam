@@ -15,8 +15,10 @@ import {
   waitForCliReady
 } from './pty-manager'
 import { openTerminalWindow } from './terminal-window'
+import { createAskUserRequest, type AskUserType } from './ask-user-window'
 import * as store from './member-store-service'
 import type { Profile, Lock, Heartbeat, Reservation, WorkLogEntry } from './member-store-service'
+import { proxyApiRequest, listApiKeys, addApiKey, removeApiKey } from './api-proxy'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -1042,6 +1044,179 @@ export function startPanelApi(): void {
         }
         store.appendWorkLog(MEMBERS_DIR, params.name, body)
         return jsonResponse(res, 200, { ok: true })
+      }
+
+      // ════════════════════════════════════════════════════════════════════════
+      // Ask User API — synchronous blocking endpoint
+      // ════════════════════════════════════════════════════════════════════════
+      // Vault Routes — API Key management and proxying
+      // ════════════════════════════════════════════════════════════════════════
+
+      // POST /api/vault/proxy — Forward API request with key injection
+      if (method === 'POST' && url === '/api/vault/proxy') {
+        const body = await readBody(req) as {
+          session_id?: string
+          api_name?: string
+          url?: string
+          method?: string
+          headers?: Record<string, string>
+          body?: string
+        }
+
+        // Session validation
+        if (!body.session_id) {
+          return jsonResponse(res, 400, { error: 'session_id is required' })
+        }
+        const session = getSessionByMemberId(body.session_id)
+        if (!session) {
+          return jsonResponse(res, 401, { error: 'invalid session_id' })
+        }
+
+        // Validate required params
+        if (!body.api_name || !body.url || !body.method) {
+          return jsonResponse(res, 400, { error: 'api_name, url, method are required' })
+        }
+
+        // Proxy the request
+        const proxyResult = await proxyApiRequest({
+          api_name: body.api_name,
+          url: body.url,
+          method: body.method,
+          headers: body.headers,
+          body: body.body,
+        })
+
+        if ('error' in proxyResult) {
+          return jsonResponse(res, 400, proxyResult)
+        }
+
+        // Return proxied response
+        const responseBody = JSON.stringify({
+          status: proxyResult.status,
+          headers: proxyResult.headers,
+          body: proxyResult.body,
+        })
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(responseBody)
+        })
+        res.end(responseBody)
+      }
+
+      // GET /api/vault/list — List available API keys
+      if (method === 'GET' && url === '/api/vault/list') {
+        const query = parseQuery(url)
+        const sessionId = query.session_id
+
+        // Session validation
+        if (!sessionId) {
+          return jsonResponse(res, 400, { error: 'session_id query param is required' })
+        }
+        const session = getSessionByMemberId(sessionId)
+        if (!session) {
+          return jsonResponse(res, 401, { error: 'invalid session_id' })
+        }
+
+        // List keys (only names, not values)
+        const keys = listApiKeys()
+        return jsonResponse(res, 200, { keys })
+      }
+
+      // POST /api/vault/add — Add API key
+      if (method === 'POST' && url === '/api/vault/add') {
+        const body = await readBody(req) as {
+          session_id?: string
+          api_name?: string
+          value?: string
+        }
+
+        // Session validation
+        if (!body.session_id) {
+          return jsonResponse(res, 400, { error: 'session_id is required' })
+        }
+        const session = getSessionByMemberId(body.session_id)
+        if (!session) {
+          return jsonResponse(res, 401, { error: 'invalid session_id' })
+        }
+
+        // Validate params
+        if (!body.api_name || !body.value) {
+          return jsonResponse(res, 400, { error: 'api_name and value are required' })
+        }
+
+        // Add key
+        const success = addApiKey(body.api_name, body.value)
+        if (!success) {
+          return jsonResponse(res, 500, { error: 'failed to add key' })
+        }
+
+        return jsonResponse(res, 200, { success: true, message: `Key for ${body.api_name} added` })
+      }
+
+      // DELETE /api/vault/remove — Remove API key
+      if (method === 'DELETE' && url.split('?')[0] === '/api/vault/remove') {
+        const body = await readBody(req) as {
+          session_id?: string
+          api_name?: string
+        }
+
+        // Session validation
+        if (!body.session_id) {
+          return jsonResponse(res, 400, { error: 'session_id is required' })
+        }
+        const session = getSessionByMemberId(body.session_id)
+        if (!session) {
+          return jsonResponse(res, 401, { error: 'invalid session_id' })
+        }
+
+        // Validate params
+        if (!body.api_name) {
+          return jsonResponse(res, 400, { error: 'api_name is required' })
+        }
+
+        // Remove key
+        const success = removeApiKey(body.api_name)
+        if (!success) {
+          return jsonResponse(res, 500, { error: 'failed to remove key' })
+        }
+
+        return jsonResponse(res, 200, { success: true, message: `Key for ${body.api_name} removed` })
+      }
+
+      // ════════════════════════════════════════════════════════════════════════
+
+      // POST /api/ask-user — create a popup, block until user answers or timeout
+      if (method === 'POST' && url === '/api/ask-user') {
+        const body = await readBody(req) as {
+          member_name?: string
+          type?: string
+          title?: string
+          question?: string
+          options?: string[]
+          timeout_ms?: number
+        }
+        if (!body.member_name || !body.type || !body.title || !body.question) {
+          return jsonResponse(res, 400, { error: 'member_name, type, title, question are required' })
+        }
+        const validTypes: AskUserType[] = ['confirm', 'single_choice', 'multi_choice', 'input']
+        if (!validTypes.includes(body.type as AskUserType)) {
+          return jsonResponse(res, 400, { error: `type must be one of: ${validTypes.join(', ')}` })
+        }
+        if ((body.type === 'single_choice' || body.type === 'multi_choice') && (!body.options || body.options.length === 0)) {
+          return jsonResponse(res, 400, { error: 'options are required for single_choice/multi_choice types' })
+        }
+
+        // This blocks until user responds or timeout
+        const response = await createAskUserRequest({
+          member_name: body.member_name,
+          type: body.type as AskUserType,
+          title: body.title,
+          question: body.question,
+          options: body.options,
+          timeout_ms: body.timeout_ms,
+        })
+
+        return jsonResponse(res, 200, response)
       }
 
       return jsonResponse(res, 404, { error: 'not found' })

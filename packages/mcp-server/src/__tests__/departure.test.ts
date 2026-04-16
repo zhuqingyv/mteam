@@ -172,7 +172,7 @@ describe("clock_out without pending_departure", () => {
     }) as { error?: string };
 
     expect(data).toHaveProperty("error");
-    expect(data.error).toContain("未被批准离场");
+    expect(data.error).toContain("未被 leader 批准离场");
   });
 });
 
@@ -235,7 +235,7 @@ describe("cancel departure request", () => {
     }) as { error?: string };
 
     expect(data).toHaveProperty("error");
-    expect(data.error).toContain("没有待离场请求");
+    expect(data.error).toContain("当前 offline");
   });
 });
 

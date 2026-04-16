@@ -170,6 +170,7 @@ interface Reservation {
   session_id: string;
   created_at: number;  // Date.now()
   ttl_ms: number;      // 默认 210000 (3分30秒)
+  previous_member?: string;  // 前任成员名（任务交接场景）
 }
 
 // 预约状态落盘（供 Panel 实时检测）
@@ -309,7 +310,7 @@ function checkPrivilege(caller: string, action: string): void {
   const profile = getProfile(MEMBERS_DIR, caller);
   const isPrivileged = allowed.includes(caller) || profile?.role === "leader" || profile?.role === "总控";
   if (!isPrivileged) {
-    throw new Error(`caller '${caller}' does not have permission to ${action}`);
+    throw new Error(`caller '${caller}' 没有 ${action} 权限。这是 leader 专用操作，请用 send_msg 联系 leader。`);
   }
 }
 
@@ -638,6 +639,7 @@ export const tools = [
         auto_spawn: { type: "boolean", description: "是否预约成功后自动创建终端窗口（默认 false）" },
         cli_name: { type: "string", description: "CLI 名称（auto_spawn=true 时使用，默认 'claude'）" },
         workspace_path: { type: "string", description: "工作目录路径（auto_spawn=true 时传给成员终端作为 cwd，同时预写 trust）" },
+        previous_member: { type: "string", description: "前任成员名（可选）。任务交接场景使用：接班人 activate 时会看到前任信息，引导读取前任的记忆和工作历史" },
       },
       required: ["caller", "member", "project", "task"],
     },
@@ -898,6 +900,7 @@ export const tools = [
         experience: { type: "string", description: "项目经验" },
         forbidden: { type: "array", items: { type: "string" }, description: "绝对禁止（全量替换）" },
         rules: { type: "array", items: { type: "string" }, description: "绝对遵循（全量替换）" },
+        confirm_overwrite: { type: "boolean", description: "当数组字段（members/forbidden/rules）缩短时必须传 true 确认覆盖，默认 false" },
       },
       required: ["caller", "project_id"],
     },
@@ -1006,7 +1009,7 @@ export const tools = [
     inputSchema: {
       type: "object",
       properties: {
-        to: { type: "string", description: "目标成员名" },
+        to: { type: "string", description: "目标成员名或 'leader'（回复 leader 消息时使用）" },
         content: { type: "string", description: "消息内容" },
         priority: { type: "string", enum: ["normal", "urgent"], description: "优先级（默认 normal）" },
       },
@@ -1015,11 +1018,12 @@ export const tools = [
   },
   {
     name: "check_inbox",
-    description: "查看自己的消息收件箱。→ 手动检查是否有其他 agent 发来的消息。返回值：{ messages: [{ from, content, priority, timestamp }] }。",
+    description: "消费收件箱消息（读取并清空队列）。注意：消息读取后将被清除，不可重复读取。→ 如需只读不消费，传 peek=true。返回值：{ messages: [{ from, content, priority, timestamp }] }。",
     inputSchema: {
       type: "object",
       properties: {
         member: { type: "string", description: "成员名" },
+        peek: { type: "boolean", description: "只读不消费（默认 false）。peek=true 时消息保留在队列中不被清除" },
       },
       required: ["member"],
     },
@@ -1040,14 +1044,56 @@ export const tools = [
   },
   {
     name: "clock_out",
-    description: "【成员专用】确认离场并执行下班流程：释放工作锁、清理 MCP 子进程、删除心跳、关闭终端窗口、通知 leader。→ 只有被 leader 标记为 pending_departure 的成员才能调用。",
+    description: "【成员专用】确认离场并执行下班流程：释放工作锁、清理 MCP 子进程、删除心跳、关闭终端窗口、通知 leader。→ 只有被 leader 标记为 pending_departure 的成员才能调用。→ 建议先 save_memory 保存经验再 clock_out，否则本次经验将丢失。",
     inputSchema: {
       type: "object",
       properties: {
         member: { type: "string", description: "成员 call_name" },
         note: { type: "string", description: "下班备注（可选）" },
+        force: { type: "boolean", description: "跳过经验保存检查（默认 false）。仅在确实无经验可存时使用" },
       },
       required: ["member"],
+    },
+  },
+  // ── 用户交互 ──────────────────────────────
+  {
+    name: "ask_user",
+    description: "向用户发起交互式确认/选择/输入弹窗。弹窗会直接出现在用户桌面上，用户可以选择答案或等待超时。超时默认 2 分钟，自动返回拒绝。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: ["confirm", "single_choice", "multi_choice", "input"], description: "交互类型：confirm=是/否, single_choice=单选, multi_choice=多选, input=纯输入" },
+        title: { type: "string", description: "弹窗标题（简短）" },
+        question: { type: "string", description: "详细问题描述" },
+        options: { type: "array", items: { type: "string" }, description: "选项列表（仅 single_choice/multi_choice 需要）" },
+        timeout_ms: { type: "number", description: "超时毫秒数，默认 120000（2分钟）" },
+      },
+      required: ["type", "title", "question"],
+    },
+  },
+  // ── API Key 保险柜 ──────────────────────────
+  {
+    name: "list_api_keys",
+    description: "列出可用的 API Key 名称。只返回名称列表，不返回密钥值。用于查看哪些 API 可以通过 use_api 调用。",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "use_api",
+    description: "通过安全代理发起 API 请求。系统会自动注入对应的 API Key，你无需也无法看到密钥值。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        api_name: { type: "string", description: "API 名称（通过 list_api_keys 查看可用值）" },
+        url: { type: "string", description: "完整请求 URL" },
+        method: { type: "string", enum: ["GET", "POST", "PUT", "DELETE", "PATCH"], description: "HTTP 方法，默认 POST" },
+        headers: { type: "object", description: "额外的请求头（不需要传 Authorization，系统自动注入）" },
+        body: { description: "请求体（对象或字符串）" },
+      },
+      required: ["api_name", "url"],
     },
   },
 ] as const;
@@ -1287,7 +1333,7 @@ export async function handleToolCall(
         const memberEnc = encodeURIComponent(member);
 
         if (!isActivated(member)) {
-          return ok({ success: false, error: "成员未激活" });
+          return ok({ success: false, error: "成员未激活，无需 deactivate。如需释放残留锁，用 check_out(force=true)" });
         }
 
         let lock: { nonce: string; project: string; task: string } | null;
@@ -1332,10 +1378,12 @@ export async function handleToolCall(
         } catch {
           removeHeartbeat(MEMBERS_DIR, member);
         }
+        // 清理残留的 departure.json（防止状态不一致）
+        deleteDepartureFile(member);
         // 清内存追踪
         clearMemberTracking(member);
 
-        return ok({ success: true, member, note: note ?? null, hint: "→ 已下线。如需通知 leader 任务完成可用 send_msg" });
+        return ok({ success: true, member, note: note ?? null, hint: "→ 已下线。建议用 send_msg(to=\"leader\", content=\"任务XXX已完成\") 通知 leader 任务进展。" });
       }
 
       // ── get_status ────────────────────────
@@ -1480,7 +1528,7 @@ export async function handleToolCall(
         const rule = str("rule");
         const reason = str("reason");
         const result = proposeRule(SHARED_DIR, member, rule, reason);
-        return ok({ ...result, hint: "→ 规则已进入待审队列。请通知 leader 调 review_rules 查看并审批" });
+        return ok({ ...result, hint: "→ 规则已入队。请用 send_msg(to='leader 名字', content='有新规则待审，请调 review_rules') 通知 leader。如不知道 leader 名字，调 get_roster 查看。" });
       }
 
       // ── review_rules ──────────────────────
@@ -1509,6 +1557,19 @@ export async function handleToolCall(
         const reason = str("reason");
         checkPrivilege(caller, "reject_rule");
         const result = rejectRule(SHARED_DIR, ruleId, reason);
+
+        // 通知提议者规则被拒
+        if (result.success && result.proposer) {
+          try {
+            await callPanel("POST", "/api/message/send", {
+              from: caller,
+              to: result.proposer,
+              content: `[规则审批结果] 你提议的规则「${result.rule}」已被拒绝。原因：${reason}`,
+              priority: "normal",
+            });
+          } catch { /* 通知失败不阻塞主流程 */ }
+        }
+
         return ok({ ...result, hint: "→ 继续 review_rules 查看剩余待审规则" });
       }
 
@@ -1753,6 +1814,7 @@ export async function handleToolCall(
         const autoSpawn = a.auto_spawn === true;
         const cliName = typeof a.cli_name === "string" ? a.cli_name : "claude";
         let workspacePath = optStr("workspace_path");
+        const previousMember = optStr("previous_member");
 
         // 如果没传 workspace_path 且需要 auto_spawn，尝试从 leader 的 PTY session 继承 cwd
         if (!workspacePath && autoSpawn) {
@@ -1818,7 +1880,7 @@ export async function handleToolCall(
           if (!takeResult.success) {
             return ok({
               reserved: false,
-              reason: `成员正在 ${existingLock.project} 项目工作，由session ${existingLock.session_pid} 占用`,
+              reason: `成员正忙。建议：1. get_roster 选其他空闲成员；2. 等对方完成后重试`,
             });
           }
           // takeover 成功 → 正式锁已转移，创建预约让成员 activate 完成注册
@@ -1840,6 +1902,7 @@ export async function handleToolCall(
             session_id: session.id,
             created_at: Date.now(),
             ttl_ms: 120_000,
+            ...(previousMember ? { previous_member: previousMember } : {}),
           };
           try {
             await callPanel("POST", `/api/member/${memberEnc}/reservation`, takeoverRes);
@@ -1905,6 +1968,7 @@ export async function handleToolCall(
           session_id: session.id,
           created_at: Date.now(),
           ttl_ms: 210_000,
+          ...(previousMember ? { previous_member: previousMember } : {}),
         };
         try {
           await callPanel("POST", `/api/member/${memberEnc}/reservation`, reservation);
@@ -1974,6 +2038,7 @@ export async function handleToolCall(
         const member = str("member");
         const reservationCodeArg = optStr("reservation_code");
         const memberEnc = encodeURIComponent(member);
+        let predecessorMember: string | undefined;
 
         let activeLock: { nonce: string; project: string; task: string } | null;
         try {
@@ -1994,7 +2059,12 @@ export async function handleToolCall(
           }
           if (Date.now() - res.created_at > res.ttl_ms) {
             try { await callPanel("DELETE", `/api/member/${memberEnc}/reservation`); } catch { deleteReservationFile(member); }
-            return ok({ error: "预约已过期，请重新调用 request_member 申请" });
+            return ok({ error: "预约已过期。请通知 leader 重新为你申请（leader 调 request_member）" });
+          }
+
+          // 记录前任成员（交接场景）
+          if (res.previous_member) {
+            predecessorMember = res.previous_member;
           }
 
           // 预约验证通过 → 删除预约 → 创建/复用正式锁
@@ -2033,8 +2103,19 @@ export async function handleToolCall(
           if (!activeLock) {
             return ok({ error: "需要预约码或已有工作锁。请先通过 request_member 申请并传入 reservation_code。" });
           }
-          // 已有正式锁 → 正常激活（老流程兼容）
+          // 已有正式锁 → 正常激活（老流程兼容，含 handoff 场景）
           registerLockNonce(member, activeLock.nonce);
+          // 检测 handoff 场景：最近一条 worklog 含 "handoff from" 说明有前任
+          try {
+            const logs = readWorkLog(MEMBERS_DIR, member);
+            if (logs.length > 0) {
+              const last = logs[logs.length - 1];
+              const handoffMatch = typeof last.note === "string" && last.note.match(/handoff from (\S+)/);
+              if (handoffMatch) {
+                predecessorMember = handoffMatch[1].replace(/:$/, "");
+              }
+            }
+          } catch { /* worklog 读取失败不影响激活 */ }
         }
 
         if (!activeLock) {
@@ -2106,6 +2187,34 @@ export async function handleToolCall(
           project_members = currentProject.members.filter((m) => m !== member);
         }
 
+        // 获取待处理消息数量（不消费）
+        let pending_messages_count = 0;
+        try {
+          const inboxData = await callPanel<{ messages?: unknown[] }>("GET", `/api/message/inbox/${memberEnc}`);
+          pending_messages_count = inboxData?.messages?.length ?? 0;
+        } catch { /* Panel 不可用时忽略 */ }
+
+        // 构建动态编号的 workflow 步骤
+        let stepNum = 1;
+        const workflowSteps: string[] = ["→ 你已激活。执行顺序："];
+        workflowSteps.push(`${stepNum++}. 阅读上面的 persona（你的角色定义）和 team_rules（团队规则）`);
+        workflowSteps.push(peer_pair
+          ? `${stepNum++}. 你的审计对象是 ${peer_pair.partner}（${peer_pair.relationship}），完成后找对方 review`
+          : `${stepNum++}. 无指定审计对象`);
+        workflowSteps.push(project_rules
+          ? `${stepNum++}. 注意 project_rules 中的 forbidden（绝对禁止）和 rules（必须遵守）`
+          : `${stepNum++}. 当前项目无特殊规则`);
+        workflowSteps.push(`${stepNum++}. 调 search_experience(keyword) 搜索相关经验，避免重复踩坑`);
+        if (predecessorMember) {
+          workflowSteps.push(`${stepNum++}. 你是接替 ${predecessorMember} 的任务，调 work_history(member="${predecessorMember}") 和 read_memory(member="${predecessorMember}") 了解前任进度`);
+        }
+        if (pending_messages_count > 0) {
+          workflowSteps.push(`${stepNum++}. 你有 ${pending_messages_count} 条待读消息，先调 check_inbox(member=你自己, peek=true) 查看`);
+        }
+        workflowSteps.push(`${stepNum++}. 开始执行任务`);
+        workflowSteps.push(`${stepNum++}. 每完成一个子任务后调 checkpoint(member=你自己) 自查：是否偏离目标、有无遗漏`);
+        workflowSteps.push(`${stepNum++}. 全部完成后：save_memory → deactivate(member=你自己)`);
+
         return ok({
           identity: {
             uid: profile?.uid ?? member,
@@ -2120,16 +2229,9 @@ export async function handleToolCall(
           peer_pair,
           project_rules,
           project_members,
-          workflow_hint: [
-            "→ 你已激活。执行顺序：",
-            "1. 阅读上面的 persona（你的角色定义）和 team_rules（团队规则）",
-            peer_pair ? `2. 你的审计对象是 ${peer_pair.partner}（${peer_pair.relationship}），完成后找对方 review` : "2. 无指定审计对象",
-            project_rules ? "3. 注意 project_rules 中的 forbidden（绝对禁止）和 rules（必须遵守）" : "3. 当前项目无特殊规则",
-            "4. 调 search_experience(keyword) 搜索相关经验，避免重复踩坑",
-            "5. 开始执行任务",
-            "6. 每完成一个子任务后调 checkpoint(member=你自己) 自查：是否偏离目标、有无遗漏",
-            "7. 全部完成后：save_memory → deactivate(member=你自己)",
-          ].join("\n"),
+          ...(predecessorMember ? { predecessor: predecessorMember } : {}),
+          pending_messages_count,
+          workflow_hint: workflowSteps.join("\n"),
         });
       }
 
@@ -2278,7 +2380,7 @@ export async function handleToolCall(
         const toolArgs = (a["arguments"] ?? {}) as Record<string, unknown>;
 
         const memberName = findMemberByUid(uid);
-        if (!memberName) throw new Error(`UID ${uid} 不存在`);
+        if (!memberName) throw new Error(`UID ${uid} 不存在。请通过 get_roster 查看成员 uid。`);
 
         const result = await proxyToolCall(MEMBERS_DIR, memberName, mcpName, toolName2, toolArgs);
         return ok(result);
@@ -2287,7 +2389,7 @@ export async function handleToolCall(
       case "list_member_mcps": {
         const uid = str("uid");
         const memberName = findMemberByUid(uid);
-        if (!memberName) throw new Error(`UID ${uid} 不存在`);
+        if (!memberName) throw new Error(`UID ${uid} 不存在。请通过 get_roster 查看成员 uid。`);
 
         // 最新商店列表
         const store = loadStore();
@@ -2340,11 +2442,11 @@ export async function handleToolCall(
         const member = str("member");
         const mcpName = str("mcp_name");
 
-        // 先清理运行中的子进程
+        // 只清理被卸载的那一个 MCP 子进程（而非全部）
         const configs = loadMemberMcps(MEMBERS_DIR, member);
         const hasIt = configs.some((c) => c.name === mcpName);
         if (hasIt) {
-          await cleanupMemberMcps(member);
+          await cleanupOneMcp(member, mcpName);
         }
 
         const removed = uninstallMcpConfig(MEMBERS_DIR, member, mcpName);
@@ -2394,7 +2496,7 @@ export async function handleToolCall(
         const uid = str("uid");
         const mcpName = str("mcp_name");
         const memberName = findMemberByUid(uid);
-        if (!memberName) throw new Error(`UID ${uid} 不存在`);
+        if (!memberName) throw new Error(`UID ${uid} 不存在。请通过 get_roster 查看成员 uid。`);
 
         const result = mountMcp(MEMBERS_DIR, memberName, mcpName);
         if (!result.success) return ok({ ...result, member: memberName, mcp_name: mcpName });
@@ -2424,7 +2526,7 @@ export async function handleToolCall(
         const uid = str("uid");
         const mcpName = str("mcp_name");
         const memberName = findMemberByUid(uid);
-        if (!memberName) throw new Error(`UID ${uid} 不存在`);
+        if (!memberName) throw new Error(`UID ${uid} 不存在。请通过 get_roster 查看成员 uid。`);
 
         // 只杀这一个子 MCP 进程
         await cleanupOneMcp(memberName, mcpName);
@@ -2545,6 +2647,24 @@ export async function handleToolCall(
         const project = readProjectFile(projectId);
         if (!project) return ok({ error: "项目不存在" });
 
+        const confirmOverwrite = bool("confirm_overwrite", false);
+
+        // 数组缩短保护：新数组比旧数组短时需要 confirm_overwrite=true
+        if (!confirmOverwrite) {
+          const shrunk: string[] = [];
+          for (const field of ["members", "forbidden", "rules"] as const) {
+            if (Array.isArray(a[field]) && (a[field] as string[]).length < project[field].length) {
+              shrunk.push(`${field}: ${project[field].length} → ${(a[field] as string[]).length}`);
+            }
+          }
+          if (shrunk.length > 0) {
+            return ok({
+              error: `数组字段将缩短（${shrunk.join(", ")}），可能导致数据丢失。如确认覆盖请传 confirm_overwrite=true`,
+              current: { members: project.members, forbidden: project.forbidden, rules: project.rules },
+            });
+          }
+        }
+
         if (a["status"]) project.status = a["status"] as ProjectStatus;
         if (typeof a["progress"] === "number") project.progress = Math.min(100, Math.max(0, a["progress"] as number));
         if (typeof a["description"] === "string") project.description = a["description"] as string;
@@ -2664,12 +2784,15 @@ export async function handleToolCall(
         const priority = optStr("priority");
 
         // 推断发送方：优先从 activatedMembers 取，
-        // 否则回退到 session 注册时的 memberName（leader 场景）
+        // 否则回退到 session 注册时的 memberName，
+        // leader session 的 memberName 为空，需特殊处理
         let from = "unknown";
         if (session.activatedMembers.size > 0) {
           from = session.activatedMembers.values().next().value as string;
         } else if (session.memberName) {
           from = session.memberName;
+        } else if (session.isLeader) {
+          from = "leader";
         }
 
         // 名字解析统一由 Panel 端完成，Hub 端直接透传 to 参数
@@ -2690,9 +2813,11 @@ export async function handleToolCall(
       // ── check_inbox ───────────────────────────
       case "check_inbox": {
         const member = str("member");
+        const peek = bool("peek", false);
         try {
-          // 使用 DELETE 方法消费消息（读取后清空队列，避免重复投递）
-          const data = await callPanel("DELETE", `/api/message/inbox/${encodeURIComponent(member)}`);
+          // peek=true 时用 GET 只读不消费；默认用 DELETE 消费（读后清空队列）
+          const method = peek ? "GET" : "DELETE";
+          const data = await callPanel(method, `/api/message/inbox/${encodeURIComponent(member)}`);
           return ok(data);
         } catch (err) {
           return ok({ error: `Panel 通信失败: ${(err as Error).message}` });
@@ -2840,6 +2965,7 @@ export async function handleToolCall(
       case "clock_out": {
         const member = str("member");
         const note = optStr("note");
+        const force = bool("force", false);
         const memberEnc = encodeURIComponent(member);
 
         // 权限校验：leader 不能调用
@@ -2859,7 +2985,15 @@ export async function handleToolCall(
           if (departure && !departure.pending) {
             return ok({ error: "leader 已撤回离场请求" });
           }
-          return ok({ error: "你未被批准离场，不能擅自下班" });
+          return ok({ error: "你未被 leader 批准离场。如需正常下线请用 deactivate。" });
+        }
+
+        // 经验保存检查（与 deactivate 一致）
+        if (isActivated(member) && !hasMemorySaved(member) && !force) {
+          return ok({
+            success: false,
+            error: "请先调用 save_memory 保存本次工作经验，再 clock_out。如确实无经验可存，传 force=true 跳过。",
+          });
         }
 
         // ── 执行下班流程（参考 deactivate 逻辑）──
@@ -2952,6 +3086,80 @@ export async function handleToolCall(
           status: "offline",
           hint: "已完成下班流程：释放锁、清理 MCP、删除心跳、关闭终端、通知 leader。",
         });
+      }
+
+      // ── list_api_keys ─────────────────────────
+      case "list_api_keys": {
+        try {
+          const data = await callPanel<{ keys: string[] }>("GET", "/api/vault/list");
+          return ok(data);
+        } catch (err) {
+          return ok({ error: `list_api_keys 失败: ${(err as Error).message}` });
+        }
+      }
+
+      // ── use_api ─────────────────────────────────
+      case "use_api": {
+        const api_name = str("api_name");
+        const url = str("url");
+        const method = optStr("method") ?? "POST";
+        const headers = a["headers"] as Record<string, string> | undefined;
+        const body = a["body"];
+
+        try {
+          const data = await callPanel("POST", "/api/vault/proxy", {
+            session_id: session.id,
+            api_name,
+            url,
+            method,
+            headers,
+            body,
+          }, 30000); // 30s timeout for API proxy calls
+
+          return ok(data);
+        } catch (err) {
+          return ok({ error: `use_api 失败: ${(err as Error).message}` });
+        }
+      }
+
+      // ── ask_user ──────────────────────────────
+      case "ask_user": {
+        const type = str("type");
+        const title = str("title");
+        const question = str("question");
+        const options = a["options"] as string[] | undefined;
+        const timeout_ms = num("timeout_ms", 120000);
+
+        // 参数校验：single_choice / multi_choice 必须有 options
+        if ((type === "single_choice" || type === "multi_choice") && (!Array.isArray(options) || options.length === 0)) {
+          return ok({ error: `type=${type} 需要提供非空 options 数组` });
+        }
+
+        // 推断发起者
+        let member_name = "unknown";
+        if (session.activatedMembers.size > 0) {
+          member_name = session.activatedMembers.values().next().value as string;
+        } else if (session.memberName) {
+          member_name = session.memberName;
+        } else if (session.isLeader) {
+          member_name = "leader";
+        }
+
+        try {
+          // 同步等待 Panel 端弹窗回答（Panel 控制超时）
+          const data = await callPanel("POST", "/api/ask-user", {
+            member_name,
+            type,
+            title,
+            question,
+            options,
+            timeout_ms,
+          }, timeout_ms + 5000); // HTTP 超时比弹窗超时多 5s 余量
+
+          return ok(data);
+        } catch (err) {
+          return ok({ error: `ask_user 失败: ${(err as Error).message}` });
+        }
       }
 
       default:
