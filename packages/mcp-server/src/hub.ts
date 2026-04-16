@@ -201,10 +201,9 @@ interface DepartureState {
 }
 
 function writeDepartureFile(member: string, state: DepartureState): void {
-  const filePath = path.join(MEMBERS_DIR, member, "departure.json");
-  try {
-    fs.writeFileSync(filePath, JSON.stringify(state), "utf-8");
-  } catch { /* 目录可能不存在，忽略 */ }
+  const dir = path.join(MEMBERS_DIR, member);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "departure.json"), JSON.stringify(state), "utf-8");
 }
 
 function readDepartureFile(member: string): DepartureState | null {
@@ -2812,6 +2811,11 @@ export async function handleToolCall(
         // 权限校验：leader 不能调用
         if (session.memberName === "") {
           return ok({ error: "leader 由用户控制，不能自行下班" });
+        }
+
+        // 身份校验：只能给自己下班
+        if (session.memberName !== member) {
+          return ok({ error: "你只能为自己下班" });
         }
 
         // 检查 pending_departure 状态
