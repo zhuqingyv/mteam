@@ -149,7 +149,7 @@ const MCP_INSTRUCTIONS = [
   "- clock_out 只有 pending_departure 状态的成员才能调用",
   "",
   "## 成员专用工具（leader 不要调）",
-  "activate, save_memory, read_memory, deactivate, submit_experience, checkpoint, check_in, check_out, check_inbox, clock_out",
+  "activate, save_memory, read_memory, deactivate, submit_experience, checkpoint, check_in（极少使用，仅应急）, check_out（极少使用，仅应急）, check_inbox, clock_out",
   "",
   "## 跨 Agent 通信",
   "- send_msg(to, content) → 消息写入目标 agent 终端 stdin",

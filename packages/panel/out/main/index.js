@@ -3053,11 +3053,11 @@ function startPanelApi() {
         if (!body.api_name || !body.value) {
           return jsonResponse(res, 400, { error: "api_name and value are required" });
         }
-        const success = addApiKey(body.api_name, body.value);
-        if (!success) {
-          return jsonResponse(res, 500, { error: "failed to add key" });
+        const result = addApiKey(body.api_name, body.value);
+        if (!result.success) {
+          return jsonResponse(res, 400, { error: result.error ?? "failed to add key" });
         }
-        return jsonResponse(res, 200, { success: true, message: `Key for ${body.api_name} added` });
+        return jsonResponse(res, 200, { success: true, display_hint: result.display_hint, message: `Key for ${body.api_name} added` });
       }
       if (method === "DELETE" && url.split("?")[0] === "/api/vault/remove") {
         const body = await readBody(req);
@@ -3071,9 +3071,9 @@ function startPanelApi() {
         if (!body.api_name) {
           return jsonResponse(res, 400, { error: "api_name is required" });
         }
-        const success = removeApiKey(body.api_name);
-        if (!success) {
-          return jsonResponse(res, 500, { error: "failed to remove key" });
+        const result = removeApiKey(body.api_name);
+        if (!result.success) {
+          return jsonResponse(res, 400, { error: result.error ?? "failed to remove key" });
         }
         return jsonResponse(res, 200, { success: true, message: `Key for ${body.api_name} removed` });
       }

@@ -1450,6 +1450,12 @@ export async function handleToolCall(
         const scope = str("scope") as "generic" | "project";
         const content = str("content");
         const project = optStr("project");
+
+        // Validate scope='project' requires project parameter
+        if (scope === "project" && !project) {
+          return ok({ error: "scope='project' 时 project 参数必填" });
+        }
+
         try {
           await callPanel("POST", `/api/member/${encodeURIComponent(member)}/memory/save`, { scope, content, ...(project ? { project } : {}) });
         } catch {
@@ -1672,9 +1678,12 @@ export async function handleToolCall(
         const idle: unknown[] = [];
         for (const m of members) {
           let lock: unknown;
+          let heartbeat: unknown;
           try { lock = await callPanel("GET", `/api/member/${encodeURIComponent(m.name)}/lock`); } catch { lock = readLock(MEMBERS_DIR, m.name); }
+          try { heartbeat = await callPanel("GET", `/api/member/${encodeURIComponent(m.name)}/heartbeat`); } catch { heartbeat = readHeartbeat(MEMBERS_DIR, m.name); }
           if (lock) {
-            working.push({ uid: m.uid, name: m.name, role: m.role, lock });
+            const lastSeen = heartbeat && typeof heartbeat === 'object' && 'last_seen' in heartbeat ? (heartbeat as { last_seen?: string }).last_seen : null;
+            working.push({ uid: m.uid, name: m.name, role: m.role, lock, last_seen: lastSeen });
           } else {
             idle.push({ uid: m.uid, name: m.name, role: m.role });
           }
@@ -2004,7 +2013,8 @@ export async function handleToolCall(
           ...(spawnResult ? { spawn_result: spawnResult } : {}),
           usage_hint: [
             `预约码: ${reservationCode}`,
-            `→ 终端已创建，用 send_msg(to="${member}", content="任务描述") 给成员下达指令`,
+            `→ 终端已创建，成员终端正在启动。建议等成员调用 activate 后再用 send_msg 下达指令`,
+            `→ 或直接用 send_msg(to="${member}", content="任务描述") 发送，消息会在成员启动后收到`,
             `→ 取消: 调 cancel_reservation(reservation_code="${reservationCode}") 释放成员`,
           ].join("\n"),
         });
@@ -2179,9 +2189,9 @@ export async function handleToolCall(
         let project_rules: { forbidden: string[]; rules: string[] } | null = null;
         let project_members: string[] = [];
         const allProjects = listAllProjects();
-        const currentProject = allProjects.find(
-          (p) => p.name === activeLock.project || p.members.includes(member)
-        );
+        // Prioritize exact name match, fallback to membership
+        const currentProject = allProjects.find((p) => p.name === activeLock.project)
+          || allProjects.find((p) => p.members.includes(member));
         if (currentProject) {
           project_rules = { forbidden: currentProject.forbidden, rules: currentProject.rules };
           project_members = currentProject.members.filter((m) => m !== member);
@@ -2553,9 +2563,9 @@ export async function handleToolCall(
         const originalTask = { project: lock.project, task: lock.task };
 
         const allProjects = listAllProjects();
-        const currentProject = allProjects.find(
-          (p) => p.name === lock.project || p.members.includes(member)
-        );
+        // Prioritize exact name match, fallback to membership
+        const currentProject = allProjects.find((p) => p.name === lock.project)
+          || allProjects.find((p) => p.members.includes(member));
         const projectRules = currentProject
           ? { forbidden: currentProject.forbidden, rules: currentProject.rules }
           : null;
@@ -2856,7 +2866,7 @@ export async function handleToolCall(
         }
         const online = hb !== null && (Date.now() - hb.last_seen_ms) < HEARTBEAT_TIMEOUT_MS;
         if (!online) {
-          return ok({ error: `成员 ${member} 当前 offline，无法发起离场请求` });
+          return ok({ error: `成员 ${member} 当前 offline。离场流程仅对在线成员有效。如需清理该成员的残留锁，请用 release_member 或 force_release` });
         }
 
         if (pending) {
