@@ -147,7 +147,7 @@ interface SessionState {
   id: string;
   pid: number;
   lstart: string;
-  memberName: string; // CLAUDE_MEMBER env var at registration time (empty for leader)
+  memberName: string; // CLAUDE_MEMBER env var at registration time (leader also has actual name)
   isLeader: boolean;
   activatedMembers: Set<string>;
   memorySavedMembers: Set<string>;
@@ -202,6 +202,7 @@ interface DepartureState {
   requirement?: string;
   requested_at: string;
   previous_status?: string;  // 撤销时恢复用
+  requested_by?: string;     // 发起离场的 leader 真名，clock_out 时用于通知对方
 }
 
 function writeDepartureFile(member: string, state: DepartureState): void {
@@ -682,7 +683,7 @@ export const tools = [
   },
   {
     name: "release_member",
-    description: "主动释放成员记忆工作区（需要 leader 权限）。比 force_release 更彻底：同时清理心跳、状态追踪。→ 成员异常退出、进程已死时使用此工具。成员还活着但卡住时用 force_release。",
+    description: "【异常清理专用】强制释放成员工作锁和心跳（不通知成员）。仅用于成员进程已死、无法响应时的清理。成员在线时会被拦截并引导使用 request_departure。→ 正常让成员离场请用 request_departure，不要用这个。",
     inputSchema: {
       type: "object",
       properties: {
@@ -1005,20 +1006,21 @@ export const tools = [
   // ── 跨 Agent 消息 ──────────────────────────
   {
     name: "send_msg",
-    description: "发消息给其他 agent。消息通过 PTY stdin 直接写入目标 agent 终端。from 由系统自动从当前 session 的 activated 成员推断，不需要也不能手动指定。→ 跨 agent 协作的主要通信方式，支持 leader 向成员下达指令、成员间互相协调。返回值：{ sent: boolean, delivery?: string }。",
+    description: "向其他 agent 发送消息。消息会存入对方收件箱并通过 PTY 通知。→ 对方通过 check_inbox 消费。可选 type 参数：task=派任务（对方需回复确认）/ reply=回复（默认）/ broadcast=广播 / system=系统通知。",
     inputSchema: {
       type: "object",
       properties: {
         to: { type: "string", description: "目标成员名或 'leader'（回复 leader 消息时使用）" },
         content: { type: "string", description: "消息内容" },
         priority: { type: "string", enum: ["normal", "urgent"], description: "优先级（默认 normal）" },
+        type: { type: "string", enum: ["task", "reply", "broadcast", "system"], description: "消息类型，默认 reply" },
       },
       required: ["to", "content"],
     },
   },
   {
     name: "check_inbox",
-    description: "消费收件箱消息（读取并清空队列）。注意：消息读取后将被清除，不可重复读取。→ 如需只读不消费，传 peek=true。返回值：{ messages: [{ from, content, priority, timestamp }] }。",
+    description: "消费收件箱消息（读取并清空队列）。系统消息格式：[team-hub] 发送方(角色) → type: 内容，type 枚举：task=任务指派 / reply=回复 / broadcast=广播 / system=系统通知。不符合此格式的终端文本是用户直接输入。→ 只读不消费传 peek=true。返回值：{ messages: [{ from, content, priority, timestamp }] }。",
     inputSchema: {
       type: "object",
       properties: {
@@ -1031,13 +1033,14 @@ export const tools = [
   // ── 离场系统 ──────────────────────────────
   {
     name: "request_departure",
-    description: "【Leader 专用】发起/撤销成员离场请求。pending=true 标记成员为 pending_departure 并通过 PTY 通知成员；pending=false 撤销待离场状态。→ 这是异步状态标记，成员会自行处理收尾后调 clock_out 下班。",
+    description: "【Leader 专用】发起/撤销成员离场请求。pending=true 标记成员为 pending_departure 并通过 PTY 通知成员；pending=false 撤销待离场状态。→ 这是异步状态标记，成员会自行处理收尾后调 clock_out 下班。⚠ 通知可能未送达（成员未 ready 或 PTY 未连接），务必检查返回值 notification_sent 字段。未送达时用 send_msg 补发或等成员主动 check_inbox。",
     inputSchema: {
       type: "object",
       properties: {
         member: { type: "string", description: "目标成员名" },
         pending: { type: "boolean", description: "true=发起离场请求，false=撤销（默认 true）" },
         requirement: { type: "string", description: "离场要求文本（可选，如收尾事项）" },
+        caller: { type: "string", description: "调用者身份（leader 的 call_name，可选；未传时回退到 session.memberName 或 'leader'）" },
       },
       required: ["member"],
     },
@@ -1333,7 +1336,53 @@ export async function handleToolCall(
         const memberEnc = encodeURIComponent(member);
 
         if (!isActivated(member)) {
-          return ok({ success: false, error: "成员未激活，无需 deactivate。如需释放残留锁，用 check_out(force=true)" });
+          // 游离成员降级处理：有心跳或有锁则走 release 逻辑，而非直接拒绝
+          let driftLock: { nonce: string; project: string; task: string } | null;
+          try {
+            driftLock = await callPanel<typeof driftLock>("GET", `/api/member/${memberEnc}/lock`);
+          } catch {
+            driftLock = readLock(MEMBERS_DIR, member);
+          }
+          let driftHb: { last_seen_ms: number; last_seen: string } | null;
+          try {
+            driftHb = await callPanel<typeof driftHb>("GET", `/api/member/${memberEnc}/heartbeat`);
+          } catch {
+            driftHb = readHeartbeat(MEMBERS_DIR, member);
+          }
+          const hasDriftState = driftLock !== null || driftHb !== null;
+
+          if (!hasDriftState) {
+            return ok({ success: false, error: "成员未激活且无残留状态，无需 deactivate。" });
+          }
+
+          // 有残留状态的游离成员：降级走清理逻辑
+          if (driftLock) {
+            const nonce = getLockNonce(member) ?? driftLock.nonce;
+            let result: { success: boolean; error?: string };
+            try {
+              result = await callPanel<typeof result>("POST", `/api/member/${memberEnc}/lock/release`, { nonce });
+            } catch {
+              result = releaseLock(MEMBERS_DIR, member, nonce);
+            }
+            if (result.success) {
+              unregisterLockNonce(member);
+              try {
+                await callPanel("POST", `/api/member/${memberEnc}/worklog`, { event: "check_out", timestamp: new Date().toISOString(), project: driftLock.project, task: driftLock.task, note: `deactivated(drift)${note ? ": " + note : ""}` });
+              } catch {
+                appendWorkLog(MEMBERS_DIR, member, { event: "check_out", timestamp: new Date().toISOString(), project: driftLock.project, task: driftLock.task, note: `deactivated(drift)${note ? ": " + note : ""}` });
+              }
+            }
+          }
+          await cleanupMemberMcps(member);
+          try {
+            await callPanel("DELETE", `/api/member/${memberEnc}/heartbeat`);
+          } catch {
+            removeHeartbeat(MEMBERS_DIR, member);
+          }
+          deleteDepartureFile(member);
+          clearMemberTracking(member);
+
+          return ok({ success: true, member, note: note ?? null, drift: true, hint: "→ 游离成员已清理下线（未经 activate 的残留状态已释放）。建议用 send_msg 通知 leader。" });
         }
 
         let lock: { nonce: string; project: string; task: string } | null;
@@ -1947,6 +1996,7 @@ export async function handleToolCall(
               `预约码: ${takeoverCode}`,
               `→ 终端已创建，用 send_msg(to="${member}", content="任务描述") 给成员下达指令`,
               `→ 取消: 调 cancel_reservation(reservation_code="${takeoverCode}") 释放成员`,
+              `→ 成员终端正在启动，建议等成员 activate 后再发送任务指令`,
             ].join("\n"),
           });
         }
@@ -2049,6 +2099,8 @@ export async function handleToolCall(
         const reservationCodeArg = optStr("reservation_code");
         const memberEnc = encodeURIComponent(member);
         let predecessorMember: string | undefined;
+        let callerName: string | null = null;
+        let callerSource: "reservation" | "worklog" | null = null;
 
         let activeLock: { nonce: string; project: string; task: string } | null;
         try {
@@ -2071,6 +2123,10 @@ export async function handleToolCall(
             try { await callPanel("DELETE", `/api/member/${memberEnc}/reservation`); } catch { deleteReservationFile(member); }
             return ok({ error: "预约已过期。请通知 leader 重新为你申请（leader 调 request_member）" });
           }
+
+          // 记录 session leader（预约发起者）
+          callerName = res.caller || null;
+          if (callerName) callerSource = "reservation";
 
           // 记录前任成员（交接场景）
           if (res.previous_member) {
@@ -2115,17 +2171,43 @@ export async function handleToolCall(
           }
           // 已有正式锁 → 正常激活（老流程兼容，含 handoff 场景）
           registerLockNonce(member, activeLock.nonce);
-          // 检测 handoff 场景：最近一条 worklog 含 "handoff from" 说明有前任
+          // 检测 handoff 场景 + caller：扫描 worklog
           try {
             const logs = readWorkLog(MEMBERS_DIR, member);
-            if (logs.length > 0) {
-              const last = logs[logs.length - 1];
-              const handoffMatch = typeof last.note === "string" && last.note.match(/handoff from (\S+)/);
-              if (handoffMatch) {
-                predecessorMember = handoffMatch[1].replace(/:$/, "");
+            for (let i = logs.length - 1; i >= 0; i--) {
+              const note = typeof logs[i].note === "string" ? logs[i].note as string : "";
+              if (!predecessorMember) {
+                const handoffMatch = note.match(/handoff from (\S+)/);
+                if (handoffMatch) {
+                  predecessorMember = handoffMatch[1].replace(/:$/, "");
+                }
               }
+              if (!callerName) {
+                const callerMatch = note.match(/caller=(\S+)/);
+                if (callerMatch) {
+                  callerName = callerMatch[1].replace(/[()]/g, "");
+                  callerSource = "worklog";
+                }
+              }
+              if (predecessorMember && callerName) break;
             }
           } catch { /* worklog 读取失败不影响激活 */ }
+
+          // 校验 worklog 回退匹配到的 callerName 是否仍为当前活跃 leader session 成员，
+          // 避免历史 takeover 残留（如 caller=adian）污染当前任务的 session_leader
+          if (callerName && callerSource === "worklog") {
+            let matched = false;
+            for (const s of sessions.values()) {
+              if (s.isLeader && s.memberName && s.memberName === callerName) {
+                matched = true;
+                break;
+              }
+            }
+            if (!matched) {
+              callerName = null;
+              callerSource = null;
+            }
+          }
         }
 
         if (!activeLock) {
@@ -2221,9 +2303,17 @@ export async function handleToolCall(
         if (pending_messages_count > 0) {
           workflowSteps.push(`${stepNum++}. 你有 ${pending_messages_count} 条待读消息，先调 check_inbox(member=你自己, peek=true) 查看`);
         }
+        if (callerName) {
+          const leaderNote = callerSource === "worklog"
+            ? `${stepNum++}. 你的 session leader 可能是 ${callerName}（来源：历史记录，建议用 check_inbox 确认最新指令来源）`
+            : `${stepNum++}. 你的 session leader 是 ${callerName}，任务由 ta 分配，完成后用 send_msg(to="${callerName}", ...) 汇报`;
+          workflowSteps.push(leaderNote);
+        } else {
+          workflowSteps.push(`${stepNum++}. 用 check_inbox(member=你自己) 查看是否有待读消息和任务指令，用 send_msg 与其他成员或 leader 通信`);
+        }
         workflowSteps.push(`${stepNum++}. 开始执行任务`);
         workflowSteps.push(`${stepNum++}. 每完成一个子任务后调 checkpoint(member=你自己) 自查：是否偏离目标、有无遗漏`);
-        workflowSteps.push(`${stepNum++}. 全部完成后：save_memory → deactivate(member=你自己)`);
+        workflowSteps.push(`${stepNum++}. 全部完成后：save_memory → 用 send_msg 通知 leader 任务完成，等 leader 发起离场（request_departure）后调 clock_out(member=你自己) 正式下班`);
 
         return ok({
           identity: {
@@ -2239,6 +2329,7 @@ export async function handleToolCall(
           peer_pair,
           project_rules,
           project_members,
+          session_leader: callerName,
           ...(predecessorMember ? { predecessor: predecessorMember } : {}),
           pending_messages_count,
           workflow_hint: workflowSteps.join("\n"),
@@ -2251,6 +2342,18 @@ export async function handleToolCall(
         const member = str("member");
         const memberEnc = encodeURIComponent(member);
         checkPrivilege(caller, "release_member");
+
+        // 检查成员是否在线，在线时拦截并引导使用 request_departure
+        let hb: { last_seen_ms: number; last_seen: string } | null;
+        try { hb = await callPanel<typeof hb>("GET", `/api/member/${memberEnc}/heartbeat`); } catch { hb = readHeartbeat(MEMBERS_DIR, member); }
+        const online = hb !== null && (Date.now() - hb.last_seen_ms) < HEARTBEAT_TIMEOUT_MS;
+        if (online) {
+          return ok({
+            success: false,
+            error: `成员 ${member} 当前在线，不应使用 release_member 强制释放。请用 request_departure(member="${member}") 正常发起离场流程，成员会收到通知并自行收尾。`,
+            hint: "release_member 仅用于成员进程已死时的异常清理。",
+          });
+        }
 
         let lock: { nonce: string; project: string; task: string } | null;
         try { lock = await callPanel<typeof lock>("GET", `/api/member/${memberEnc}/lock`); } catch { lock = readLock(MEMBERS_DIR, member); }
@@ -2652,7 +2755,6 @@ export async function handleToolCall(
       }
 
       case "update_project": {
-        const caller = str("caller");
         const projectId = str("project_id");
         const project = readProjectFile(projectId);
         if (!project) return ok({ error: "项目不存在" });
@@ -2703,7 +2805,6 @@ export async function handleToolCall(
       }
 
       case "add_project_rule": {
-        const caller = str("caller");
         const projectId = str("project_id");
         const ruleType = str("type") as "forbidden" | "rules";
         const content = str("content");
@@ -2793,14 +2894,16 @@ export async function handleToolCall(
         const content = str("content");
         const priority = optStr("priority");
 
-        // 推断发送方：优先从 activatedMembers 取，
-        // 否则回退到 session 注册时的 memberName，
-        // leader session 的 memberName 为空，需特殊处理
+        // 推断发送方：
+        // 1) session.memberName 是注册时传入的真名（leader 也有，来自 CLAUDE_MEMBER）
+        // 2) activatedMembers 是"本 session 激活过的成员名"集合；leader session 里存的是被激活的成员，
+        //    不能当 from 用，否则 leader 发消息会冒用成员身份
+        // 3) 都没有才退到 "leader" / "unknown"
         let from = "unknown";
-        if (session.activatedMembers.size > 0) {
-          from = session.activatedMembers.values().next().value as string;
-        } else if (session.memberName) {
+        if (session.memberName) {
           from = session.memberName;
+        } else if (!session.isLeader && session.activatedMembers.size > 0) {
+          from = session.activatedMembers.values().next().value as string;
         } else if (session.isLeader) {
           from = "leader";
         }
@@ -2839,6 +2942,7 @@ export async function handleToolCall(
         const member = str("member");
         const pending = bool("pending", true);
         const requirement = optStr("requirement");
+        const caller = optStr("caller");
         const memberEnc = encodeURIComponent(member);
 
         // 权限校验：只有 leader 能调用
@@ -2869,6 +2973,16 @@ export async function handleToolCall(
           return ok({ error: `成员 ${member} 当前 offline。离场流程仅对在线成员有效。如需清理该成员的残留锁，请用 release_member 或 force_release` });
         }
 
+        // 推断真实 leader 名：优先显式 caller 参数（避免与 activatedMembers 混淆），
+        // 其次 session.memberName（新架构下 leader PTY 注入 CLAUDE_MEMBER），最后回退字面量 "leader"。
+        // 不从 activatedMembers 取：那里装的是 leader 激活过的成员名（例如 "正方辩手"），不是 leader 自己。
+        let fromName = "leader";
+        if (caller) {
+          fromName = caller;
+        } else if (session.memberName) {
+          fromName = session.memberName;
+        }
+
         if (pending) {
           // 发起离场请求
           const departure: DepartureState = {
@@ -2876,6 +2990,7 @@ export async function handleToolCall(
             requirement: requirement ?? undefined,
             requested_at: new Date().toISOString(),
             previous_status: "working",
+            requested_by: fromName,
           };
           writeDepartureFile(member, departure);
 
@@ -2887,18 +3002,23 @@ export async function handleToolCall(
           msgContent += `\n\n行为指引：`;
           msgContent += `\n- 如果你不同意，请用 send_msg 回复 leader 简短原因`;
           msgContent += `\n- 如果你同意但需要收尾，请先用 send_msg 告知 leader 你需要收尾，完成后再调 clock_out`;
-          msgContent += `\n- 如果你直接同意，收尾后调 clock_out(member=你自己) 下班`;
+          msgContent += `\n- 如果你直接同意，先调 save_memory 保存经验，再调 clock_out(member=你自己) 下班`;
+          msgContent += `\n- 如果你确实没经验可存，调 clock_out(member=你自己, force=true) 跳过保存检查`;
+          msgContent += `\n- 如果系统提示"未激活"导致 deactivate 失败，请改用 clock_out(member=你自己) 下班`;
 
           // 通过 send_msg 机制通知成员
+          let notificationSent = false;
+          let notificationError: string | undefined;
           try {
-            await callPanel("POST", "/api/message/send", {
-              from: "leader",
+            const sendResult = await callPanel<{ ok?: boolean; delivered?: boolean }>("POST", "/api/message/send", {
+              from: fromName,
               to: member,
               content: msgContent,
               priority: "urgent",
             });
-          } catch {
-            // Panel 不可用时静默
+            notificationSent = !!sendResult?.delivered;
+          } catch (err) {
+            notificationError = (err as Error).message;
           }
 
           // 记录 worklog
@@ -2918,11 +3038,19 @@ export async function handleToolCall(
             });
           }
 
+          const hint = notificationSent
+            ? "离场请求已标记，通知已通过 PTY 送达成员。成员会自行处理收尾后调 clock_out 下班。"
+            : notificationError
+              ? `离场请求已标记，但通知发送失败（${notificationError}）。成员可能未收到通知，建议用 release_member 或 force_release 直接释放。`
+              : "离场请求已标记，但通知未送达（成员可能不在 ready 状态）。消息已入队等待成员主动 check_inbox，如长时间无响应请用 release_member 或 force_release 直接释放。";
+
           return ok({
-            success: true,
+            departure_marked: true,
             member,
             status: "pending_departure",
-            hint: "这是异步状态标记。已通过 PTY 通知成员，成员会自行处理收尾后调 clock_out 下班。你无需等待，可继续其他工作。",
+            notification_sent: notificationSent,
+            ...(notificationError ? { notification_error: notificationError } : {}),
+            hint,
           });
         } else {
           // 撤销离场请求
@@ -2936,7 +3064,7 @@ export async function handleToolCall(
           // 通知成员撤销
           try {
             await callPanel("POST", "/api/message/send", {
-              from: "leader",
+              from: fromName,
               to: member,
               content: "[离场撤销] leader 已撤回离场请求，你可以继续工作。",
               priority: "normal",
@@ -3060,11 +3188,14 @@ export async function handleToolCall(
           });
         }
 
-        // 6. 通知 leader
+        // 6. 通知 leader（优先发给 request_departure 时记录的真实 leader 名）
+        const leaderTo = departure.requested_by && departure.requested_by !== "leader"
+          ? departure.requested_by
+          : "leader";
         try {
           await callPanel("POST", "/api/message/send", {
             from: member,
-            to: "leader",
+            to: leaderTo,
             content: `[下班通知] ${member} 已完成收尾并下班。${note ? "备注：" + note : ""}`,
             priority: "normal",
           });
@@ -3075,7 +3206,8 @@ export async function handleToolCall(
         // 7. 清理 departure 状态文件
         deleteDepartureFile(member);
 
-        // 8. 关闭终端窗口（kill PTY）
+        // 8. 关闭终端窗口（等价右上角 X：kill PTY → onExit → win.close → 清理）
+        let windowClosed = false;
         try {
           const sessionsData = await callPanel<{ sessions: Array<{ session_id: string; memberId: string; status: string }> }>("GET", "/api/pty/sessions");
           if (sessionsData?.sessions) {
@@ -3084,10 +3216,18 @@ export async function handleToolCall(
             );
             if (memberSession) {
               await callPanel("POST", "/api/pty/kill", { session_id: memberSession.session_id });
+              windowClosed = true;
             }
           }
-        } catch {
-          // Panel 不可用时静默，终端窗口会因进程退出自然关闭
+        } catch (err) {
+          process.stderr.write(`[clock_out] Panel API 关窗失败: ${(err as Error).message}\n`);
+        }
+        // fallback：直接杀 CLI 进程
+        if (!windowClosed) {
+          try {
+            process.kill(session.pid, "SIGTERM");
+            process.stderr.write(`[clock_out] fallback: killed CLI pid=${session.pid}\n`);
+          } catch { /* 进程已退出 */ }
         }
 
         return ok({

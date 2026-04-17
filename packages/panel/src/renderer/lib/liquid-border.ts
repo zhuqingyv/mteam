@@ -69,6 +69,7 @@ export class LiquidBorder {
   private isRunning = false;
   private currentActivity = 0;
   private colors: [number, number, number][];
+  private isMultiColor: boolean;
 
   constructor(canvas: HTMLCanvasElement, options: LiquidBorderOptions) {
     this.canvas = canvas;
@@ -85,8 +86,11 @@ export class LiquidBorder {
       colors: options.colors,
     };
 
+    // Determine multi-color mode — must match createLiquidBorderShaders logic
+    this.isMultiColor = Array.isArray(options.colors[0]);
+
     // Normalize colors to array of triplets
-    this.colors = Array.isArray(options.colors[0])
+    this.colors = this.isMultiColor
       ? (options.colors as [number, number, number][])
       : [options.colors as [number, number, number]];
 
@@ -126,9 +130,10 @@ export class LiquidBorder {
       uActivity: this.gl.getUniformLocation(this.program, 'u_activity')!,
     };
 
-    if (this.colors.length > 1) {
+    // Must use isMultiColor (shader compile-time decision), not colors.length
+    if (this.isMultiColor) {
       this.uniforms.uColorCount = this.gl.getUniformLocation(this.program, 'u_colorCount');
-      this.uniforms.uColors = this.gl.getUniformLocation(this.program, 'u_colors');
+      this.uniforms.uColors = this.gl.getUniformLocation(this.program, 'u_colors[0]');
     }
 
     // Setup blend mode
@@ -253,7 +258,7 @@ export class LiquidBorder {
     this.gl.uniform1f(this.uniforms.uTime, ts / 1000);
     this.gl.uniform1f(this.uniforms.uDpr, dpr);
 
-    if (this.colors.length === 1) {
+    if (!this.isMultiColor) {
       // Single color mode
       const [r, g, b] = this.colors[0];
       this.gl.uniform3f(this.uniforms.uColor, r / 255, g / 255, b / 255);

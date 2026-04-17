@@ -1237,6 +1237,7 @@ export function startPanelApi(): void {
 
 export function stopPanelApi(): void {
   if (panelServer) {
+    panelServer.closeAllConnections()
     panelServer.close()
     panelServer = null
   }

@@ -40,9 +40,9 @@ function createOverlayForDisplay(display: Electron.Display): OverlayEntry {
     }
   })
 
-  win.setIgnoreMouseEvents(true)
+  win.setIgnoreMouseEvents(true, { forward: true })
   win.setAlwaysOnTop(true, 'floating')
-  win.setVisibleOnAllWorkspaces(true)
+  win.setVisibleOnAllWorkspaces(false)
 
   if (process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(`${process.env.ELECTRON_RENDERER_URL}/overlay.html`)
@@ -58,6 +58,10 @@ function createOverlayForDisplay(display: Electron.Display): OverlayEntry {
     width: b.width,
     height: b.height,
   }
+
+  win.webContents.on('dom-ready', () => {
+    win.webContents.send('init-display', display.id, display.scaleFactor, entry.originX, entry.originY)
+  })
 
   win.once('ready-to-show', () => {
     if (process.env.E2E_HEADLESS !== '1') win.show()
@@ -121,20 +125,26 @@ export function updateWindowPositions(positions: Array<{
     return
   }
 
-  // 按显示器分组终端窗口
-  const byDisplay = new Map<number, {
-    display: Electron.Display
-    positions: typeof positions
-  }>()
-
-  for (const p of positions) {
+  // 标记每个 box 所属 display 和全局坐标
+  const withDisplayInfo = positions.map(p => {
     const centerX = p.x + p.w / 2
     const centerY = p.y + p.h / 2
     const display = screen.getDisplayNearestPoint({ x: centerX, y: centerY })
-    let group = byDisplay.get(display.id)
+    return { ...p, displayId: display.id, globalX: p.x, globalY: p.y }
+  })
+
+  // 按显示器分组终端窗口
+  const byDisplay = new Map<number, {
+    display: Electron.Display
+    positions: typeof withDisplayInfo
+  }>()
+
+  for (const p of withDisplayInfo) {
+    let group = byDisplay.get(p.displayId)
     if (!group) {
+      const display = screen.getDisplayNearestPoint({ x: p.globalX + p.w / 2, y: p.globalY + p.h / 2 })
       group = { display, positions: [] }
-      byDisplay.set(display.id, group)
+      byDisplay.set(p.displayId, group)
     }
     group.positions.push(p)
   }
@@ -171,11 +181,12 @@ export function updateWindowPositions(positions: Array<{
     }
 
     // 发送所有终端窗口坐标（相对于本 overlay 的显示器原点），
-    // 包括其他显示器上的窗口，这样触手可以跨屏延伸
-    const adjusted = positions.map(p => ({
+    // 包括其他显示器上的窗口，这样触手可以跨屏延伸。
+    // displayId / globalX / globalY 保留，renderer 用于判断跨屏。
+    const adjusted = withDisplayInfo.map(p => ({
       ...p,
-      x: p.x - entry!.originX,
-      y: p.y - entry!.originY
+      x: p.globalX - entry!.originX,
+      y: p.globalY - entry!.originY,
     }))
 
     entry.win.webContents.send('window-positions', adjusted)

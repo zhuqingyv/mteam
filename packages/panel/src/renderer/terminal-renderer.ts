@@ -96,6 +96,9 @@ if (window.terminalBridge) {
 
   // Notify main of initial size
   window.terminalBridge.notifyReady(term.cols, term.rows)
+
+  // Ensure xterm has keyboard focus on first show
+  term.focus()
 } else {
   // Dev fallback: show a message so the window isn't blank
   term.write('\x1b[33mTerminal bridge not available (dev mode)\x1b[0m\r\n')

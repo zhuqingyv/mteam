@@ -1,6 +1,5 @@
 import {
   enqueue,
-  dequeue,
   peekAll,
   consumeAll,
   clearQueue,
@@ -107,33 +106,34 @@ function resolveCallName(name: string): string | null {
 
 // ── Envelope format ───────────────────────────────────────────────────────────
 
-function formatEnvelope(msg: Message): string {
+function formatEnvelope(msg: Message & { type?: string }): string {
   const role = getMemberRole(msg.from)
+  const type = msg.type ?? 'reply'
   // 压成单行，避免多行 paste 提交问题
   const oneLine = msg.content.replace(/\n/g, ' ')
-  return `[team-hub] 来自 ${msg.from}(${role}): ${oneLine}`
+  return `[team-hub] ${msg.from}(${role}) → ${type}: ${oneLine}`
 }
 
-// ── Flush: dequeue and inject into PTY ───────────────────────────────────────
+// ── PTY notification (peek-only, does NOT consume queue) ─────────────────────
 
-function flushQueue(memberId: string): void {
-  process.stderr.write(`[msg-router] flushQueue called for ${memberId}\n`)
+function notifyViaPty(memberId: string): void {
+  process.stderr.write(`[msg-router] notifyViaPty called for ${memberId}\n`)
   const session = getSessionByMemberId(memberId)
   if (!session) {
-    process.stderr.write(`[msg-router] flushQueue: no session for ${memberId}, abort\n`)
+    process.stderr.write(`[msg-router] notifyViaPty: no session for ${memberId}, abort\n`)
     return
   }
 
-  const msg = dequeue(memberId)
-  if (!msg) {
-    process.stderr.write(`[msg-router] flushQueue: queue empty for ${memberId}\n`)
+  const pending = peekAll(memberId)
+  if (pending.length === 0) {
+    process.stderr.write(`[msg-router] notifyViaPty: queue empty for ${memberId}\n`)
     return
   }
 
-  const envelope = formatEnvelope(msg)
-  process.stderr.write(`[msg-router] flushQueue: writing to PTY ${session.id}, msg from ${msg.from}, len=${envelope.length}\n`)
-  // 文本和提交键分开发，避免长文本被当成 paste blob 吞掉 \r
-  writeToPty(session.id, envelope)
+  // 只发通知摘要，不消费队列。消息由 check_inbox (MCP) 消费。
+  const summary = pending.map((m) => formatEnvelope(m)).join('\n')
+  process.stderr.write(`[msg-router] notifyViaPty: writing ${pending.length} msg(s) to PTY ${session.id}\n`)
+  writeToPty(session.id, summary)
   setTimeout(() => {
     writeToPty(session.id, '\r')
   }, 150)
@@ -183,12 +183,13 @@ export function setupMessageRouter(): {
     // Notify overlay for tentacle animation
     addActiveMessage(from, resolvedTo)
 
-    // 如果目标成员已就绪且有 PTY session，直接投递
+    // 如果目标成员已就绪且有 PTY session，通过 PTY 发送通知（不消费队列）
+    // 消息保留在队列中，由成员调 check_inbox 消费
     let delivered = false
     if (readyMembers.has(resolvedTo)) {
       const session = getSessionByMemberId(resolvedTo)
       if (session) {
-        flushQueue(resolvedTo)
+        notifyViaPty(resolvedTo)
         delivered = true
       }
     }
@@ -202,7 +203,7 @@ export function setupMessageRouter(): {
 
   /**
    * 消费收件箱：读取所有消息并清空队列。
-   * 用于 check_inbox，避免消息被 flushQueue 重复 PTY 投递。
+   * check_inbox 的唯一消费路径，PTY 通知只读不消费。
    */
   function consumeInbox(memberId: string): Message[] {
     return consumeAll(memberId)
@@ -216,8 +217,8 @@ export function setupMessageRouter(): {
 }
 
 /**
- * 成员 CLI 就绪后调用：创建 ready detector，onReady 时 flush 一次初始消息。
- * 之后的消息由成员通过 MCP check_inbox 主动获取。
+ * 成员 CLI 就绪后调用：创建 ready detector，onReady 时通过 PTY 通知积压消息。
+ * 消息保留在队列中，由成员通过 MCP check_inbox 消费。
  */
 export function onMemberReady(memberId: string): void {
   const session = getSessionByMemberId(memberId)
@@ -240,13 +241,10 @@ export function onMemberReady(memberId: string): void {
   const detector = createReadyDetector({
     sessionId: session.id,
     onReady: () => {
-      process.stderr.write(`[msg-router] onReady fired for ${memberId}, marking ready + flushing\n`)
+      process.stderr.write(`[msg-router] onReady fired for ${memberId}, marking ready + notifying\n`)
       readyMembers.add(memberId)
-      // 就绪时一次性投递所有积压消息
-      const pending = peekAll(memberId)
-      for (let i = 0; i < pending.length; i++) {
-        flushQueue(memberId)
-      }
+      // 就绪时通过 PTY 通知有积压消息（不消费队列）
+      notifyViaPty(memberId)
     }
   })
 

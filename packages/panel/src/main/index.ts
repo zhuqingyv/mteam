@@ -327,6 +327,11 @@ function createWindow(): void {
     if (process.env.E2E_HEADLESS !== '1') mainWindow?.show()
   })
 
+  mainWindow.on('closed', () => {
+    // Main panel closed = user wants to quit; overlay & terminal windows should not keep app alive
+    app.quit()
+  })
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
@@ -397,6 +402,7 @@ function startWatcher(): void {
 }
 
 function stopWatcher(): void {
+  if (watcherDebounce) { clearTimeout(watcherDebounce); watcherDebounce = null }
   if (watcher) {
     watcher.close()
     watcher = null
@@ -1064,6 +1070,11 @@ if (!gotLock) {
   })
 
   app.on('before-quit', () => {
+    // 清理所有 active handles，防止 Node.js 事件循环挂住导致进程残留
+    stopWatcher()
+    stopPoll()
+    if (autoQuitTimer) { clearTimeout(autoQuitTimer); autoQuitTimer = null }
+
     // 清理所有成员的 lock 和 heartbeat 文件
     try {
       const memberDirs = readdirSync(MEMBERS_DIR).filter((d) => {

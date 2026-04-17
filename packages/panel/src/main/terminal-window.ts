@@ -28,6 +28,10 @@ interface TerminalSession {
 
 const sessions = new Map<number, TerminalSession>() // key: BrowserWindow.id
 
+// Lightweight metadata set at window creation (before terminal-ready)
+// Used by calcCascadePosition to find leader window immediately
+const windowMeta = new Map<number, { memberName: string; isLeader: boolean }>()
+
 // ── Cascade window positioning ───────────────────────────────────────────────
 const MEMBERS_DIR = join(homedir(), '.claude', 'team-hub', 'members')
 const CASCADE_OFFSET = 30
@@ -69,9 +73,13 @@ function calcCascadePosition(winWidth: number, winHeight: number): { x: number; 
   const allWindows = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
   if (allWindows.length === 0) return undefined
 
-  // The Panel main window is typically the smallest (320x520), pick it as anchor.
-  // Fallback to focused window, then to the first window.
+  // Anchor priority: leader terminal → Panel main window → focused window → any
+
   const anchor =
+    allWindows.find((w) => {
+      const meta = windowMeta.get(w.id)
+      return meta?.isLeader === true
+    }) ??
     allWindows.find((w) => {
       const [w2] = w.getSize()
       return w2 < 400 // Panel is 320 wide
@@ -172,6 +180,29 @@ export function openTerminalWindow(opts: {
     }
   }
 
+  // macOS places new windows on the active Space. Use parent=leaderWin so the
+  // member window inherits the leader's Space silently (no focus switch).
+  // Detached in ready-to-show to become an independent top-level window.
+  let leaderWin: BrowserWindow | null = null
+  if (!isLeader) {
+    for (const [, session] of sessions) {
+      if (session.isLeader && !session.win.isDestroyed()) {
+        leaderWin = session.win
+        break
+      }
+    }
+    if (!leaderWin) {
+      const allWindows = BrowserWindow.getAllWindows().filter(w => !w.isDestroyed())
+      for (const w of allWindows) {
+        const meta = windowMeta.get(w.id)
+        if (meta?.isLeader) {
+          leaderWin = w
+          break
+        }
+      }
+    }
+  }
+
   const savedSize = readSavedWindowSize(memberName)
   const winWidth = savedSize?.width ?? 900
   const winHeight = savedSize?.height ?? 600
@@ -189,13 +220,18 @@ export function openTerminalWindow(opts: {
     backgroundColor: '#00000000',
     hasShadow: false,
     show: false,
+    ...(leaderWin ? { parent: leaderWin } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/terminal-preload.js'),
       sandbox: false,
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      backgroundThrottling: false,
     }
   })
+
+  // Register immediately so calcCascadePosition can find leader before terminal-ready
+  windowMeta.set(win.id, { memberName, isLeader })
 
   if (process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/terminal.html`)
@@ -241,7 +277,7 @@ export function openTerminalWindow(opts: {
       const systemPrompt = `【身份】
 ${personaContent}
 
-${isLeader ? '你被指派为 leader。使用 teamhub MCP 的 request_member(auto_spawn=true) 为成员创建独立终端窗口，不要使用内置 Agent 工具。' : '你是团队成员，专注于自己的角色和任务。'}
+${isLeader ? '你被指派为 leader。使用 teamhub MCP 的 request_member(auto_spawn=true) 为成员创建独立终端窗口，不要使用内置 Agent 工具。' : `你是团队成员，专注于自己的角色和任务。启动后第一步调用 activate(member="${memberName}") 加载工作上下文和任务记忆。`}
 
 定期调用 check_inbox 查看是否有新消息。
 
@@ -284,7 +320,7 @@ ${isLeader ? '你被指派为 leader。使用 teamhub MCP 的 request_member(aut
           BUN_DISABLE_KITTY_PROBE: '1',
           KITTY_WINDOW_ID: '',
           ...(isLeader
-            ? { CLAUDE_MEMBER: '', IS_LEADER: '1' }
+            ? { CLAUDE_MEMBER: memberName, IS_LEADER: '1' }
             : { CLAUDE_MEMBER: memberName }),
           TEAM_HUB_NO_LAUNCH: '1',
           ...env
@@ -356,7 +392,14 @@ ${isLeader ? '你被指派为 leader。使用 teamhub MCP 的 request_member(aut
 
   win.once('ready-to-show', () => {
     win.setTitle(memberName)
-    if (process.env.E2E_HEADLESS !== '1') win.show()
+    // Detach from leader — window stays on leader's Space but becomes independent.
+    if (leaderWin && !win.isDestroyed()) {
+      win.setParentWindow(null)
+    }
+    if (process.env.E2E_HEADLESS !== '1') {
+      win.show()
+      win.focus()
+    }
     broadcastPositions()
   })
 
@@ -398,6 +441,7 @@ ${isLeader ? '你被指派为 leader。使用 teamhub MCP 的 request_member(aut
 
       sessions.delete(win.id)
     }
+    windowMeta.delete(win.id)
     // Notify overlay that a window is gone
     broadcastPositions()
   })
@@ -427,7 +471,7 @@ function uidToColorRgb(uid: string): number[] {
   return PALETTE_RGB[Math.abs(hash) % PALETTE_RGB.length]
 }
 
-function getMemberColor(memberName: string): number[] {
+export function getMemberColor(memberName: string): number[] {
   const profilePath = join(MEMBERS_DIR, memberName, 'profile.json')
   try {
     if (existsSync(profilePath)) {
@@ -465,6 +509,7 @@ export function getAllTerminalPositions(): Array<{
   const BODY_PADDING = 8
   for (const [winId, session] of sessions) {
     if (session.win.isDestroyed()) continue
+    if (!session.win.isVisible()) continue
     const bounds = session.win.getBounds()
     result.push({
       id: winId,

@@ -5,6 +5,7 @@
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "restart": "pkill -f 'mcp-team-hub.*Electron' 2>/dev/null; sleep 0.5 && electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "package": "bun run build && electron-builder"

@@ -3,10 +3,11 @@
  * Team Hub CLI — 客户端入口
  *
  * Usage:
- *   team-hub start   启动 Hub 服务 + Panel（后台运行）
- *   team-hub stop    停止 Hub 服务
- *   team-hub status  查看运行状态
- *   team-hub restart 重启
+ *   mt start   启动 Hub 服务 + Panel（后台运行）
+ *   mt stop    停止 Hub 服务
+ *   mt status  查看运行状态
+ *   mt restart 重启
+ *   mt dev     开发模式：build 所有包 + restart hub + 启动 panel
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -219,6 +220,61 @@ function launchPanel(): void {
   }
 }
 
+async function dev(): Promise<void> {
+  // 检测开发环境：项目根目录存在 package.json 和 tsconfig.json
+  const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../..");
+  const hasPackageJson = fs.existsSync(path.join(projectRoot, "package.json"));
+  const hasTsConfig = fs.existsSync(path.join(projectRoot, "tsconfig.json"));
+
+  if (!hasPackageJson || !hasTsConfig) {
+    console.error("dev 命令仅在开发环境可用");
+    process.exit(1);
+  }
+
+  // 0. 精确杀掉本项目之前启动的 Panel 进程（通过 pid 文件，不影响其他 Electron 项目）
+  const panelPidFile = path.join(HUB_DIR, "panel.pid");
+  try {
+    const panelPid = parseInt(fs.readFileSync(panelPidFile, "utf-8").trim(), 10);
+    if (!isNaN(panelPid) && isRunning(panelPid)) {
+      process.kill(panelPid, "SIGTERM");
+      console.log(`[dev] 已停止旧 Panel 进程 (pid=${panelPid})`);
+    }
+  } catch {}
+  try { fs.rmSync(panelPidFile, { force: true }); } catch {}
+
+  const mcpServerDir = path.join(projectRoot, "packages", "mcp-server");
+  const panelDir = path.join(projectRoot, "packages", "panel");
+
+  // 1. Build mcp-server (index.ts)
+  console.log("[dev] Building mcp-server (index.ts)...");
+  execSync("bun build src/index.ts --outdir dist --target node", {
+    cwd: mcpServerDir,
+    stdio: "inherit",
+  });
+
+  // 2. Build hub.ts
+  console.log("[dev] Building mcp-server (hub.ts)...");
+  execSync("bun build src/hub.ts --outdir dist --target node", {
+    cwd: mcpServerDir,
+    stdio: "inherit",
+  });
+
+  // 3. Build panel
+  console.log("[dev] Building panel...");
+  execSync("npx electron-vite build", {
+    cwd: panelDir,
+    stdio: "inherit",
+  });
+
+  // 4. Restart hub (stop + start，start 会自动启动 Panel)
+  console.log("[dev] Restarting hub...");
+  stop();
+  await new Promise((r) => setTimeout(r, 500));
+  await start();
+
+  console.log("[dev] Done!");
+}
+
 // ── main ──
 
 const cmd = process.argv[2] ?? "start";
@@ -238,7 +294,10 @@ switch (cmd) {
   case "status":
     await status();
     break;
+  case "dev":
+    await dev();
+    break;
   default:
-    console.log("Usage: team-hub [start|stop|restart|status]");
+    console.log("Usage: mt [start|stop|restart|status|dev]");
     process.exit(1);
 }

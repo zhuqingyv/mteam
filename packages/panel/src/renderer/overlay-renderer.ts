@@ -19,6 +19,7 @@ interface BoxInfo {
   id: number; memberName: string; isLeader: boolean
   x: number; y: number; w: number; h: number
   color: number[]
+  displayId: number; globalX: number; globalY: number
 }
 
 interface MessageEvent {
@@ -384,12 +385,52 @@ function draw(ts: number): void {
     lives.push({ fromIdx: fi, toIdx: ti, mt, headPos, tailPos, fuseSrc, fuseDst, reach })
   }
 
+  // ── Cross-screen helpers ────────────────────────────────────────────────
+  const myDisplayId: number | undefined = (window as any).__overlayDisplayId
+  const cW = canvas.width, cH = canvas.height
+
+  /** Evaluate cubic bezier at parameter t */
+  function bezierAtCpu(p0x: number, p0y: number, p1x: number, p1y: number,
+                       p2x: number, p2y: number, p3x: number, p3y: number, t: number): [number, number] {
+    const it = 1 - t
+    return [
+      it*it*it*p0x + 3*it*it*t*p1x + 3*it*t*t*p2x + t*t*t*p3x,
+      it*it*it*p0y + 3*it*it*t*p1y + 3*it*t*t*p2y + t*t*t*p3y,
+    ]
+  }
+
+  /** Find t where the bezier exits the canvas bounds (0..cW, 0..cH).
+   *  Scans from tStart toward tEnd in small steps. Returns the first t that is out of bounds. */
+  function findBoundaryT(
+    p0x: number, p0y: number, p1x: number, p1y: number,
+    p2x: number, p2y: number, p3x: number, p3y: number,
+    tStart: number, tEnd: number
+  ): number {
+    const steps = 100
+    const dt = (tEnd - tStart) / steps
+    for (let i = 0; i <= steps; i++) {
+      const t = tStart + i * dt
+      const [px, py] = bezierAtCpu(p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, t)
+      if (px < -50 || px > cW + 50 || py < -50 || py > cH + 50) return t
+    }
+    return tEnd
+  }
+
   // ── Build tentacle geometry ──────────────────────────────────────────────
   const tentacles: TentacleData[] = []
   const tentacleBoxPairs: { src: typeof scaled[0]; dst: typeof scaled[0]; fromIdx: number; toIdx: number }[] = []
 
   for (const life of lives) {
     const src = scaled[life.fromIdx], dst = scaled[life.toIdx]
+
+    // Cross-screen filtering
+    if (myDisplayId !== undefined) {
+      const srcOnScreen = src.displayId === myDisplayId
+      const dstOnScreen = dst.displayId === myDisplayId
+      // Both off-screen → skip
+      if (!srcOnScreen && !dstOnScreen) continue
+    }
+
     const scx = src.x + src.w / 2, scy = src.y + src.h / 2
     const dcx = dst.x + dst.w / 2, dcy = dst.y + dst.h / 2
     const dx = dcx - scx, dy = dcy - scy
@@ -413,15 +454,39 @@ function draw(ts: number): void {
     const o2 = Math.sin(time * 2.1 + life.toIdx * 1.7 + life.fromIdx * 2.9) * wobbleAmt
              + Math.cos(time * 1.3 + life.fromIdx * 2.7) * wobbleAmt * 0.4
 
+    const cp1x = p0x + (p3x - p0x) * 0.33 + perpX * o1
+    const cp1y = p0y + (p3y - p0y) * 0.33 + perpY * o1
+    const cp2x = p0x + (p3x - p0x) * 0.67 + perpX * o2
+    const cp2y = p0y + (p3y - p0y) * 0.67 + perpY * o2
+
+    // Cross-screen bridge: truncate headPos/tailPos at canvas boundary
+    let effectiveHeadPos = life.headPos
+    let effectiveTailPos = life.tailPos
+
+    if (myDisplayId !== undefined) {
+      const srcOnScreen = src.displayId === myDisplayId
+      const dstOnScreen = dst.displayId === myDisplayId
+
+      if (srcOnScreen && !dstOnScreen) {
+        // Source on this screen, destination off-screen → truncate head at boundary
+        const boundaryT = findBoundaryT(p0x, p0y, cp1x, cp1y, cp2x, cp2y, p3x, p3y, 0, 1)
+        effectiveHeadPos = Math.min(life.headPos, boundaryT)
+      } else if (!srcOnScreen && dstOnScreen) {
+        // Source off-screen, destination on this screen → truncate tail at boundary
+        const boundaryT = findBoundaryT(p0x, p0y, cp1x, cp1y, cp2x, cp2y, p3x, p3y, 1, 0)
+        effectiveTailPos = Math.max(life.tailPos, boundaryT)
+      }
+    }
+
+    if (effectiveHeadPos <= effectiveTailPos) continue
+
     tentacles.push({
       p0x, p0y,
-      p1x: p0x + (p3x - p0x) * 0.33 + perpX * o1,
-      p1y: p0y + (p3y - p0y) * 0.33 + perpY * o1,
-      p2x: p0x + (p3x - p0x) * 0.67 + perpX * o2,
-      p2y: p0y + (p3y - p0y) * 0.67 + perpY * o2,
+      p1x: cp1x, p1y: cp1y,
+      p2x: cp2x, p2y: cp2y,
       p3x, p3y,
       reach: life.reach,
-      headPos: life.headPos, tailPos: life.tailPos,
+      headPos: effectiveHeadPos, tailPos: effectiveTailPos,
       fuseSrc: life.fuseSrc, fuseDst: life.fuseDst,
       colorA: src.color, colorB: dst.color
     })

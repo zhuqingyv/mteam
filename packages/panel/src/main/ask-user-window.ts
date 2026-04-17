@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain, screen } from 'electron'
 import { join } from 'path'
+import { getMemberColor, getAllTerminalPositions } from './terminal-window'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -14,6 +15,9 @@ export interface AskUserRequest {
   options?: string[]
   timeout_ms: number
   created_at: number
+  // Visual integration fields
+  member_color: [number, number, number]
+  source_terminal?: { x: number; y: number; w: number; h: number }
 }
 
 export interface AskUserResponse {
@@ -53,6 +57,18 @@ export function createAskUserRequest(params: {
   timeout_ms?: number
 }): Promise<AskUserResponse> {
   const id = `ask_${Date.now()}_${++requestCounter}`
+
+  // Look up member color
+  const rawColor = getMemberColor(params.member_name)
+  const member_color: [number, number, number] = [rawColor[0], rawColor[1], rawColor[2]]
+
+  // Find source terminal window for this member (for tentacle rendering)
+  const terminals = getAllTerminalPositions()
+  const sourceTerm = terminals.find((t) => t.memberName === params.member_name)
+  const source_terminal = sourceTerm
+    ? { x: sourceTerm.x, y: sourceTerm.y, w: sourceTerm.w, h: sourceTerm.h }
+    : undefined
+
   const request: AskUserRequest = {
     id,
     member_name: params.member_name,
@@ -62,6 +78,8 @@ export function createAskUserRequest(params: {
     options: params.options,
     timeout_ms: params.timeout_ms ?? DEFAULT_TIMEOUT_MS,
     created_at: Date.now(),
+    member_color,
+    source_terminal,
   }
 
   return new Promise<AskUserResponse>((resolve) => {
@@ -82,21 +100,16 @@ function calcWindowPosition(
   winWidth: number,
   winHeight: number,
 ): { x: number; y: number } | undefined {
-  const focused = BrowserWindow.getFocusedWindow()
-  const allWindows = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
-  const anchor = focused ?? allWindows[0]
-  if (!anchor || anchor.isDestroyed()) return undefined
+  // Follow the user: use cursor position to find which display the user is on
+  const cursor = screen.getCursorScreenPoint()
+  const display = screen.getDisplayNearestPoint(cursor)
+  const { x: sx, y: sy, width: sw, height: sh } = display.workArea
 
-  const [anchorX, anchorY] = anchor.getPosition()
-  const [anchorW, anchorH] = anchor.getSize()
-
-  // Center relative to anchor
-  let x = anchorX + Math.round((anchorW - winWidth) / 2) + stackIndex * STACK_OFFSET_X
-  let y = anchorY + Math.round((anchorH - winHeight) / 2) + stackIndex * STACK_OFFSET_Y
+  // Center on the display the user is currently on
+  let x = sx + Math.round((sw - winWidth) / 2) + stackIndex * STACK_OFFSET_X
+  let y = sy + Math.round((sh - winHeight) / 2) + stackIndex * STACK_OFFSET_Y
 
   // Clamp to screen
-  const display = screen.getDisplayNearestPoint({ x: anchorX, y: anchorY })
-  const { x: sx, y: sy, width: sw, height: sh } = display.workArea
   if (x + winWidth > sx + sw) x = sx + sw - winWidth
   if (y + winHeight > sy + sh) y = sy + sh - winHeight
   if (x < sx) x = sx
@@ -145,7 +158,7 @@ function showRequest(pending: PendingRequest): void {
 
   win.once('ready-to-show', () => {
     if (process.env.E2E_HEADLESS !== '1') win.show()
-    // Send the request data to the renderer
+    // Send the request data to the renderer (includes color + terminal bounds)
     win.webContents.send('show-ask-user', pending.request)
   })
 
@@ -202,7 +215,7 @@ function resolveRequest(pending: PendingRequest, response: AskUserResponse): voi
 // ── IPC handlers ────────────────────────────────────────────────────────────
 
 export function setupAskUserIpc(): void {
-  // Renderer → Main: user submitted an answer
+  // Renderer -> Main: user submitted an answer
   ipcMain.on('ask-user-response', (_event, requestId: string, response: {
     choice?: string | string[]
     input?: string
@@ -216,18 +229,26 @@ export function setupAskUserIpc(): void {
     })
   })
 
-  // Renderer → Main: user cancelled
+  // Renderer -> Main: user cancelled
   ipcMain.on('ask-user-cancel', (_event, requestId: string) => {
     const pending = visibleStack.find((p) => p.request.id === requestId)
     if (!pending) return
     resolveRequest(pending, { answered: false, reason: 'cancelled' })
   })
 
-  // Renderer → Main: get request data (for when renderer loads after show-ask-user)
+  // Renderer -> Main: get request data (for when renderer loads after show-ask-user)
   ipcMain.handle('ask-user-get-request', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return null
     const pending = visibleStack.find((p) => p.win?.id === win.id)
     return pending?.request ?? null
+  })
+
+  // Renderer -> Main: get current window bounds (for tentacle rendering)
+  ipcMain.handle('ask-user-get-bounds', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) return null
+    const bounds = win.getBounds()
+    return { x: bounds.x, y: bounds.y, w: bounds.width, h: bounds.height }
   })
 }
