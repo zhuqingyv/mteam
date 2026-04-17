@@ -159,6 +159,36 @@ interface SessionState {
 const sessions = new Map<string, SessionState>();
 
 // ──────────────────────────────────────────────
+// Team（临时，内存级，leader session 生命周期）
+// ──────────────────────────────────────────────
+interface TeamState {
+  leaderSessionId: string;
+  leaderName: string;
+  members: Set<string>;
+  projectId: string | null;
+}
+
+const teams = new Map<string, TeamState>(); // key = leader session id
+
+function getTeamByLeaderSession(sessionId: string): TeamState | null {
+  return teams.get(sessionId) ?? null;
+}
+
+function getTeamByMember(memberName: string): TeamState | null {
+  for (const team of teams.values()) {
+    if (team.members.has(memberName)) return team;
+  }
+  return null;
+}
+
+function getTeamByLeaderName(leaderName: string): TeamState | null {
+  for (const team of teams.values()) {
+    if (team.leaderName === leaderName) return team;
+  }
+  return null;
+}
+
+// ──────────────────────────────────────────────
 // 预约（Reservation）机制 — 磁盘格式
 // ──────────────────────────────────────────────
 interface Reservation {
@@ -241,6 +271,11 @@ function registerSession(pid: number, lstart: string, member: string = "", isLea
     lastActivity: Date.now(),
   };
   sessions.set(id, state);
+  // leader 注册时自动创建 team
+  if (leader && member) {
+    teams.set(id, { leaderSessionId: id, leaderName: member, members: new Set(), projectId: null });
+    process.stderr.write(`[hub] team created for leader ${member} (session=${id})\n`);
+  }
   process.stderr.write(`[hub] session registered: ${id} (pid=${pid}${member ? ` member=${member}` : ""}${leader ? " [leader]" : ""})\n`);
   return id;
 }
@@ -275,6 +310,13 @@ async function unregisterSession(sessionId: string): Promise<void> {
   for (const member of session.activatedMembers) {
     removeHeartbeat(MEMBERS_DIR, member);
     await cleanupMemberMcps(member);
+  }
+
+  // leader 退出时清理 team
+  if (teams.has(sessionId)) {
+    const team = teams.get(sessionId)!;
+    process.stderr.write(`[hub] team dissolved: leader=${team.leaderName}, members=${[...team.members].join(",") || "(none)"}, project=${team.projectId ?? "(none)"}\n`);
+    teams.delete(sessionId);
   }
 
   sessions.delete(sessionId);
@@ -864,6 +906,17 @@ export const tools = [
         members: { type: "array", items: { type: "string" }, description: "初始成员名单" },
       },
       required: ["caller", "name"],
+    },
+  },
+  {
+    name: "bind_project",
+    description: "【Leader 专用】将当前团队绑定到已有项目。绑定后新加入的成员自动成为项目成员。→ 用 list_projects 查找已有项目 ID。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_id: { type: "string", description: "要绑定的项目 ID" },
+      },
+      required: ["project_id"],
     },
   },
   {
@@ -1983,6 +2036,26 @@ export async function handleToolCall(
               takeoverSpawnResult = { error: `终端创建失败: ${(err as Error).message}` };
             }
           }
+          // takeover 路径也加入 team + project
+          const takeoverTeam = getTeamByLeaderSession(session.id);
+          if (takeoverTeam) {
+            takeoverTeam.members.add(member);
+            if (takeoverTeam.projectId) {
+              const proj = readProjectFile(takeoverTeam.projectId);
+              if (proj && !proj.members.includes(member)) {
+                proj.members.push(member);
+                proj.updated_at = new Date().toISOString();
+                writeProjectFile(proj);
+                callPanel("POST", "/api/message/send", {
+                  from: takeoverTeam.leaderName,
+                  to: member,
+                  summary: `你已加入项目「${proj.name}」`,
+                  content: `[项目通知] 你已加入项目「${proj.name}」（${proj.description}）。activate 后可查看项目规则。`,
+                  priority: "normal",
+                }).catch(() => {});
+              }
+            }
+          }
           return ok({
             reserved: true,
             reservation_code: takeoverCode,
@@ -2036,6 +2109,28 @@ export async function handleToolCall(
           writeReservationFile(member, reservation);
         }
         process.stderr.write(`[reservation] created for ${member} by ${caller} (code=${reservationCode.slice(0, 8)})\n`);
+
+        // 自动加入 leader 的 team + 关联 project
+        const team = getTeamByLeaderSession(session.id);
+        if (team) {
+          team.members.add(member);
+          if (team.projectId) {
+            const proj = readProjectFile(team.projectId);
+            if (proj && !proj.members.includes(member)) {
+              proj.members.push(member);
+              proj.updated_at = new Date().toISOString();
+              writeProjectFile(proj);
+              // 通知成员加入项目（异步，成员 activate 后通过 check_inbox 读取）
+              callPanel("POST", "/api/message/send", {
+                from: team.leaderName,
+                to: member,
+                summary: `你已加入项目「${proj.name}」`,
+                content: `[项目通知] 你已加入项目「${proj.name}」（${proj.description}）。activate 后可查看项目规则。`,
+                priority: "normal",
+              }).catch(() => {});
+            }
+          }
+        }
 
         let spawnResult: unknown = null;
         if (autoSpawn) {
@@ -2724,15 +2819,26 @@ export async function handleToolCall(
         checkPrivilege(caller, "hire_temp");
         const projName = str("name");
         const description = optStr("description") ?? "";
-        const members = Array.isArray(a["members"]) ? (a["members"] as string[]) : [];
+        const explicitMembers = Array.isArray(a["members"]) ? (a["members"] as string[]) : [];
         const now = new Date().toISOString();
+
+        // 合并显式传入的 members + leader + team 中已有的成员（去重）
+        const team = getTeamByLeaderSession(session.id);
+        const allMembers = new Set(explicitMembers);
+        if (team) {
+          allMembers.add(team.leaderName); // leader 也是项目成员
+          for (const m of team.members) allMembers.add(m);
+        } else if (session.memberName) {
+          allMembers.add(session.memberName);
+        }
+
         const project: ProjectData = {
           id: crypto.randomUUID(),
           name: projName,
           description,
           status: "planning",
           progress: 0,
-          members,
+          members: [...allMembers],
           experience: "",
           forbidden: [],
           rules: [],
@@ -2740,9 +2846,81 @@ export async function handleToolCall(
           updated_at: now,
         };
         writeProjectFile(project);
+
+        // 绑定 team → project
+        if (team) {
+          team.projectId = project.id;
+          process.stderr.write(`[hub] team bound to project: ${project.name} (id=${project.id})\n`);
+
+          // 通知所有 team 成员
+          for (const m of team.members) {
+            callPanel("POST", "/api/message/send", {
+              from: team.leaderName,
+              to: m,
+              summary: `你已加入项目「${projName}」`,
+              content: `[项目通知] 你已加入项目「${projName}」（${description}）。项目成员：${[...allMembers].join("、")}。activate 后可查看项目规则。`,
+              priority: "normal",
+            }).catch(() => {});
+          }
+        }
+
         return ok({
           ...project,
-          hint: `→ 项目已创建。建议立即调 add_project_rule 设置 forbidden（禁止事项）和 rules（必须遵循的规则）`,
+          hint: `→ 项目已创建${team ? `，已自动关联当前团队（${[...allMembers].join("、")}）` : ""}。建议立即调 add_project_rule 设置 forbidden（禁止事项）和 rules（必须遵循的规则）`,
+        });
+      }
+
+      case "bind_project": {
+        if (!session.isLeader) {
+          return ok({ error: "只有 leader 才能绑定项目" });
+        }
+        const projectId = str("project_id");
+        const project = readProjectFile(projectId);
+        if (!project) return ok({ error: "项目不存在" });
+
+        const team = getTeamByLeaderSession(session.id);
+        if (!team) {
+          return ok({ error: "当前没有活跃团队" });
+        }
+
+        team.projectId = projectId;
+
+        // 把 leader + team 现有成员同步到 project
+        const newMembers: string[] = [];
+        if (!project.members.includes(team.leaderName)) {
+          project.members.push(team.leaderName);
+          newMembers.push(team.leaderName);
+        }
+        for (const m of team.members) {
+          if (!project.members.includes(m)) {
+            project.members.push(m);
+            newMembers.push(m);
+          }
+        }
+        if (newMembers.length > 0) {
+          project.updated_at = new Date().toISOString();
+          writeProjectFile(project);
+        }
+
+        // 通知所有 team 成员
+        for (const m of team.members) {
+          callPanel("POST", "/api/message/send", {
+            from: team.leaderName,
+            to: m,
+            summary: `团队已绑定项目「${project.name}」`,
+            content: `[项目通知] 团队已绑定项目「${project.name}」（${project.description}）。项目成员：${project.members.join("、")}。`,
+            priority: "normal",
+          }).catch(() => {});
+        }
+
+        process.stderr.write(`[hub] team bound to existing project: ${project.name} (id=${projectId}), new members: ${newMembers.join(",") || "(none)"}\n`);
+        return ok({
+          success: true,
+          project_id: projectId,
+          project_name: project.name,
+          synced_members: newMembers,
+          total_members: project.members,
+          hint: `→ 已绑定项目「${project.name}」，${newMembers.length > 0 ? `新增成员：${newMembers.join("、")}` : "无新增成员"}`,
         });
       }
 
