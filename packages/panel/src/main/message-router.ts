@@ -107,11 +107,9 @@ function resolveCallName(name: string): string | null {
 // ── Envelope format ───────────────────────────────────────────────────────────
 
 function formatEnvelope(msg: Message & { type?: string }): string {
-  const role = getMemberRole(msg.from)
   const type = msg.type ?? 'reply'
-  // 压成单行，避免多行 paste 提交问题
-  const oneLine = msg.content.replace(/\n/g, ' ')
-  return `[team-hub] ${msg.from}(${role}) → ${type}: ${oneLine}`
+  const preview = msg.summary || msg.content.replace(/\n/g, ' ').slice(0, 30) + '…'
+  return `[team-hub] ${msg.from} → ${type}: ${preview}（调 check_inbox 读完整内容）`
 }
 
 // ── PTY notification (peek-only, does NOT consume queue) ─────────────────────
@@ -148,7 +146,7 @@ export interface SendResult {
 }
 
 export function setupMessageRouter(): {
-  sendMessage: (from: string, to: string, content: string, priority?: string) => SendResult
+  sendMessage: (from: string, to: string, content: string, priority?: string, summary?: string) => SendResult
   getInbox: (memberId: string) => Message[]
   consumeInbox: (memberId: string) => Message[]
   clearInbox: (memberId: string) => void
@@ -164,7 +162,8 @@ export function setupMessageRouter(): {
     from: string,
     to: string,
     content: string,
-    priority?: string
+    priority?: string,
+    summary?: string
   ): SendResult {
     const p: 'normal' | 'urgent' =
       priority === 'urgent' ? 'urgent' : 'normal'
@@ -172,13 +171,12 @@ export function setupMessageRouter(): {
     // 名字解析统一在 Panel 端完成（Hub 端直接透传 to）
     const resolvedTo = resolveCallName(to)
     if (resolvedTo === null) {
-      // 目标成员不存在，返回错误而不是静默入队
       process.stderr.write(`[msg-router] sendMessage: target '${to}' not found, reject\n`)
       return { id: '', delivered: false, error: `目标成员 '${to}' 不存在` }
     }
 
-    const id = enqueue({ from, to: resolvedTo, content, priority: p })
-    process.stderr.write(`[msg-router] sendMessage: from=${from}, to=${to}(resolved=${resolvedTo}), content=${content.slice(0, 50)}\n`)
+    const id = enqueue({ from, to: resolvedTo, summary, content, priority: p })
+    process.stderr.write(`[msg-router] sendMessage: from=${from}, to=${to}(resolved=${resolvedTo}), summary=${summary?.slice(0, 30) ?? '(none)'}\n`)
 
     // Notify overlay for tentacle animation
     addActiveMessage(from, resolvedTo)

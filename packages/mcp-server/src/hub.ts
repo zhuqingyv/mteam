@@ -1006,16 +1006,17 @@ export const tools = [
   // ── 跨 Agent 消息 ──────────────────────────
   {
     name: "send_msg",
-    description: "向其他 agent 发送消息。消息会存入对方收件箱并通过 PTY 通知。→ 对方通过 check_inbox 消费。可选 type 参数：task=派任务（对方需回复确认）/ reply=回复（默认）/ broadcast=广播 / system=系统通知。",
+    description: "向其他 agent 发送消息。消息会存入对方收件箱并通过 PTY 通知摘要。→ 对方通过 check_inbox 读完整内容。summary 是一句话摘要（显示在 PTY 通知里），content 是完整正文（存入收件箱）。",
     inputSchema: {
       type: "object",
       properties: {
         to: { type: "string", description: "目标成员名或 'leader'（回复 leader 消息时使用）" },
-        content: { type: "string", description: "消息内容" },
+        summary: { type: "string", description: "一句话摘要（显示在 PTY 通知里，如：方案做好了请查收）" },
+        content: { type: "string", description: "完整正文（存入收件箱，对方调 check_inbox 读取）" },
         priority: { type: "string", enum: ["normal", "urgent"], description: "优先级（默认 normal）" },
         type: { type: "string", enum: ["task", "reply", "broadcast", "system"], description: "消息类型，默认 reply" },
       },
-      required: ["to", "content"],
+      required: ["to", "summary", "content"],
     },
   },
   {
@@ -2334,6 +2335,16 @@ export async function handleToolCall(
           pending_messages_count,
           workflow_hint: workflowSteps.join("\n"),
         });
+
+        // activate 成功后通知 leader（异步，不阻塞返回）
+        if (callerName) {
+          callPanel("POST", "/api/message/send", {
+            from: member,
+            to: callerName,
+            content: `[上线通知] ${member} 已激活，等待任务指令。`,
+            priority: "normal",
+          }).catch(() => {});
+        }
       }
 
       // ── release_member ────────────────────
@@ -2891,14 +2902,11 @@ export async function handleToolCall(
       // ── send_msg ──────────────────────────────
       case "send_msg": {
         const to = str("to");
+        const summary = str("summary");
         const content = str("content");
         const priority = optStr("priority");
 
-        // 推断发送方：
-        // 1) session.memberName 是注册时传入的真名（leader 也有，来自 CLAUDE_MEMBER）
-        // 2) activatedMembers 是"本 session 激活过的成员名"集合；leader session 里存的是被激活的成员，
-        //    不能当 from 用，否则 leader 发消息会冒用成员身份
-        // 3) 都没有才退到 "leader" / "unknown"
+        // 推断发送方
         let from = "unknown";
         if (session.memberName) {
           from = session.memberName;
@@ -2908,11 +2916,11 @@ export async function handleToolCall(
           from = "leader";
         }
 
-        // 名字解析统一由 Panel 端完成，Hub 端直接透传 to 参数
         try {
           const data = await callPanel("POST", "/api/message/send", {
             from,
             to,
+            summary,
             content,
             priority: priority ?? "normal",
           });
@@ -3209,13 +3217,13 @@ export async function handleToolCall(
         // 8. 关闭终端窗口（等价右上角 X：kill PTY → onExit → win.close → 清理）
         let windowClosed = false;
         try {
-          const sessionsData = await callPanel<{ sessions: Array<{ session_id: string; memberId: string; status: string }> }>("GET", "/api/pty/sessions");
+          const sessionsData = await callPanel<{ sessions: Array<{ id: string; memberId: string; status: string }> }>("GET", "/api/pty/sessions");
           if (sessionsData?.sessions) {
             const memberSession = sessionsData.sessions.find(
               (s) => s.memberId === member && s.status === "running"
             );
             if (memberSession) {
-              await callPanel("POST", "/api/pty/kill", { session_id: memberSession.session_id });
+              await callPanel("POST", "/api/pty/kill", { session_id: memberSession.id });
               windowClosed = true;
             }
           }
@@ -3472,13 +3480,9 @@ setInterval(async () => {
   // 2. 心跳对应的 PID 已死亡（即使心跳时间很新）
   // 两者任一命中即清理。
 
-  // 收集需要清理的成员：心跳超时 OR PID 已死
+  // 只检查 PID 是否存活（覆盖 kill -9 / crash 等异常退出）
+  // 不再用心跳超时判断，因为 agent 等待消息时不调工具、心跳不刷新，会被误杀
   const zombieMembers = new Set<string>();
-  const staleMembers = scanStaleHeartbeats(MEMBERS_DIR, HEARTBEAT_TIMEOUT_MS);
-  for (const m of staleMembers) zombieMembers.add(m);
-
-  // 额外检查：心跳存在但 PID 已死（覆盖 kill -9 后不到 3 分钟的窗口期）
-  // heartbeat 不存 lstart，所以只做 PID 存活检查（kill -0）
   if (fs.existsSync(MEMBERS_DIR)) {
     const entries = fs.readdirSync(MEMBERS_DIR, { withFileTypes: true });
     for (const entry of entries) {

@@ -10,7 +10,8 @@ import {
   resizePty,
   getSessionByMemberId,
   killPtySession,
-  onSessionExit
+  onSessionExit,
+  waitForCliReady
 } from './pty-manager'
 import { onMemberReady } from './message-router'
 import { updateWindowPositions } from './overlay-window'
@@ -275,11 +276,32 @@ export function openTerminalWindow(opts: {
       const memorySection = memory ? `\n\n【记忆】\n${memory}` : ''
 
       const systemPrompt = `【身份】
+你的名字是 ${memberName}。团队中其他成员和 leader 通过"${memberName}"这个名字与你通信。
 ${personaContent}
 
-${isLeader ? '你被指派为 leader。使用 teamhub MCP 的 request_member(auto_spawn=true) 为成员创建独立终端窗口，不要使用内置 Agent 工具。' : `你是团队成员，专注于自己的角色和任务。启动后第一步调用 activate(member="${memberName}") 加载工作上下文和任务记忆。`}
+${isLeader ? `你被指派为 leader（你的名字是 ${memberName}）。使用 teamhub MCP 的 request_member(auto_spawn=true) 为成员创建独立终端窗口，不要使用内置 Agent 工具。
+当用户提出新任务时，主动分析是否需要创建项目（create_project），询问用户确认后再创建。` : `你是团队成员，专注于自己的角色和任务。启动后第一步调用 activate(member="${memberName}") 加载工作上下文和任务记忆。`}
 
-定期调用 check_inbox 查看是否有新消息。
+【团队工具（优先使用，不要用内置 Agent/SendMessage 替代）】
+- send_msg(to, summary, content)：发消息（summary=一句话摘要显示在通知，content=完整正文存入收件箱）
+- check_inbox(member=你自己)：读取收件箱（PTY 通知可能截断，务必调此工具读完整内容）
+- get_roster()：查看团队所有成员列表和状态
+- work_history(member)：查看某成员的工作日志（了解历史进度）
+- list_projects()：查看所有项目及成员（了解历史团队组成）
+- create_project(name, members, description)：创建新项目（leader 用）
+- search_experience(keyword)：搜索团队经验库
+- save_memory(member=你自己, content)：保存工作经验
+- clock_out(member=你自己)：下班（需 leader 先 request_departure）
+
+【通信规则】
+- 收到 PTY 通知后，先调 check_inbox 读完整消息再回复
+- 回复必须用 send_msg，不要只在终端输出文字（对方看不到）
+- 不知道队友名字时调 get_roster 查询，不要问 leader
+
+【输出格式】
+- 用 markdown 格式输出：● 列表项、**粗体**强调关键信息、\`代码\` 标记工具名和参数
+- 每次回复先用一句话总结要点，再展开细节
+- 工具调用结果用简洁的要点列出，不要大段复述
 
 这是独立交互式终端会话，与你对话的是用户本人。直接以上述身份与用户协作。${memorySection}`
 
@@ -302,17 +324,20 @@ ${isLeader ? '你被指派为 leader。使用 teamhub MCP 的 request_member(aut
         }
       })
 
+      const cliArgs = [
+        '--dangerously-skip-permissions',
+        '--mcp-config', mcpConfig,
+        '--strict-mcp-config',
+        '--append-system-prompt', systemPrompt
+      ]
+      // 成员启动后通过 PTY 注入 activate 指令（见下方 waitForCliReady）
+
       const result = spawnPtySession({
         agentId: memberName,
         memberId: memberName,
         cliName,
         bin: cliBin,
-        args: [
-          '--dangerously-skip-permissions',
-          '--mcp-config', mcpConfig,
-          '--strict-mcp-config',
-          '--append-system-prompt', systemPrompt
-        ],
+        args: cliArgs,
         cols: cols || 120,
         rows: rows || 36,
         cwd: workspacePath,
@@ -334,6 +359,15 @@ ${isLeader ? '你被指派为 leader。使用 teamhub MCP 的 request_member(aut
         return
       }
       sessionId = result.sessionId
+
+      // 成员启动后等 CLI ready，注入 activate 指令让 agent 立即开始工作
+      if (!isLeader) {
+        waitForCliReady(memberName, 30_000).then((ready) => {
+          if (ready && sessionId) {
+            writeToPty(sessionId, `调用 activate(member="${memberName}") 开始工作。\r`)
+          }
+        })
+      }
 
       // ── 自动生命周期管理：spawn 成功 → working ──
       const pid = process.pid

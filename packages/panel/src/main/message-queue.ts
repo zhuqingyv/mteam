@@ -4,6 +4,7 @@ export interface Message {
   id: string
   from: string
   to: string
+  summary?: string
   content: string
   priority: 'normal' | 'urgent'
   timestamp: number

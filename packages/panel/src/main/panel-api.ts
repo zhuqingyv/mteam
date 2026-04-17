@@ -286,6 +286,7 @@ export function startPanelApi(): void {
         const body = await readBody(req) as {
           from?: string
           to?: string
+          summary?: string
           content?: string
           priority?: string
         }
@@ -295,7 +296,7 @@ export function startPanelApi(): void {
         if (!_messageRouter) {
           return jsonResponse(res, 503, { error: 'message router not ready' })
         }
-        const result = _messageRouter.sendMessage(body.from, body.to, body.content, body.priority)
+        const result = _messageRouter.sendMessage(body.from, body.to, body.content, body.priority, body.summary)
         if (result.error) {
           return jsonResponse(res, 400, { ok: false, error: result.error })
         }
