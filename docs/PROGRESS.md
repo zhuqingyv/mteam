@@ -107,7 +107,8 @@ packages/
 ### 近期
 - [ ] 前端接入 WebSocket 实时推送（useEventBus hook + Jotai atom invalidation）
 - [ ] 端到端联调（启动 server → 创建实例 → agent 用 mteam-mcp 工具完成任务）
-- [ ] Team + Project（自动建 team、自动拉人、项目管理）
+- [ ] Team 模块（纯 DAO 原子模块，只管"谁和谁一组"的关系）— **技术方案已出**（见 `docs/teams/team-manager-design.md`）
+- [ ] Project 模块（更高层业务概念，与 team 解耦）
 - [ ] Bug #3 修复（handleUpdateRoster 非法类型静默丢弃）
 - [ ] comm 跨机（mlink 接入 + remote_peers + system handler）
 
@@ -140,6 +141,7 @@ packages/
 | 旧代码清理方案 | packages/backend/docs/cleanup-plan.md |
 | 角色模板定义 | docs/role-templates.md |
 | RxJS 事件总线设计 | docs/rxjs-event-bus-design.md |
+| Team 模块技术方案 | docs/teams/team-manager-design.md |
 
 ## 关键设计决策
 
