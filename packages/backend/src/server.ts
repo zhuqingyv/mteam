@@ -30,6 +30,15 @@ import {
   handleSetAlias,
   handleDeleteRoster,
 } from './api/panel/roster.js';
+import {
+  handleListTeams,
+  handleGetTeam,
+  handleCreateTeam,
+  handleDisbandTeam,
+  handleListMembers,
+  handleAddMember,
+  handleRemoveMember,
+} from './api/panel/teams.js';
 import { routeMcpStore } from './api/panel/mcp-store.js';
 import { ensureDefaults as ensureMcpDefaults } from './mcp-store/store.js';
 import type { ApiResponse } from './api/panel/role-templates.js';
@@ -42,6 +51,7 @@ const INSTANCES_PREFIX = '/api/role-instances';
 const SESSIONS_REGISTER = '/api/sessions/register';
 const ROSTER_PREFIX = '/api/roster';
 const ROSTER_SEARCH = '/api/roster/search';
+const TEAMS_PREFIX = '/api/teams';
 const PANEL_HTML_PATH = join(dirname(fileURLToPath(import.meta.url)), 'panel.html');
 
 async function readBody(req: http.IncomingMessage): Promise<unknown> {
@@ -125,6 +135,41 @@ async function route(req: http.IncomingMessage): Promise<ApiResponse> {
         const body = await readBody(req);
         return handleSetAlias(parts[0], body);
       }
+    }
+    return { status: 404, body: { error: 'not found' } };
+  }
+
+  if (pathname === TEAMS_PREFIX) {
+    if (method === 'GET') return handleListTeams();
+    if (method === 'POST') {
+      const body = await readBody(req);
+      return handleCreateTeam(body);
+    }
+    return { status: 404, body: { error: 'not found' } };
+  }
+
+  if (pathname.startsWith(TEAMS_PREFIX + '/')) {
+    const rest = pathname.slice(TEAMS_PREFIX.length + 1);
+    const parts = rest.split('/');
+    if (parts.length === 1 && parts[0]) {
+      if (method === 'GET') return handleGetTeam(parts[0]);
+      return { status: 404, body: { error: 'not found' } };
+    }
+    if (parts.length === 2 && parts[0] && parts[1] === 'disband') {
+      if (method === 'POST') return handleDisbandTeam(parts[0]);
+      return { status: 404, body: { error: 'not found' } };
+    }
+    if (parts.length === 2 && parts[0] && parts[1] === 'members') {
+      if (method === 'GET') return handleListMembers(parts[0]);
+      if (method === 'POST') {
+        const body = await readBody(req);
+        return handleAddMember(parts[0], body);
+      }
+      return { status: 404, body: { error: 'not found' } };
+    }
+    if (parts.length === 3 && parts[0] && parts[1] === 'members' && parts[2]) {
+      if (method === 'DELETE') return handleRemoveMember(parts[0], parts[2]);
+      return { status: 404, body: { error: 'not found' } };
     }
     return { status: 404, body: { error: 'not found' } };
   }

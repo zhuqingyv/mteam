@@ -77,3 +77,21 @@ export function apiPut<T = unknown>(path: string, body?: unknown): Promise<ApiRe
 export function apiDelete<T = unknown>(path: string): Promise<ApiResult<T>> {
   return apiFetch<T>(path, { method: 'DELETE' });
 }
+
+// Team API
+export const apiListTeams = () => apiGet('/api/teams');
+export const apiGetTeam = (id: string) => apiGet(`/api/teams/${encodeURIComponent(id)}`);
+export const apiCreateTeam = (body: { name: string; leaderInstanceId: string }) =>
+  apiPost('/api/teams', body);
+export const apiDisbandTeam = (id: string) =>
+  apiPost(`/api/teams/${encodeURIComponent(id)}/disband`);
+export const apiAddTeamMember = (
+  teamId: string,
+  body: { instanceId: string; roleInTeam?: string },
+) => apiPost(`/api/teams/${encodeURIComponent(teamId)}/members`, body);
+export const apiRemoveTeamMember = (teamId: string, instanceId: string) =>
+  apiDelete(
+    `/api/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(instanceId)}`,
+  );
+export const apiListTeamMembers = (teamId: string) =>
+  apiGet(`/api/teams/${encodeURIComponent(teamId)}/members`);

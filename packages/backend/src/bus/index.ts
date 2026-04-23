@@ -8,6 +8,7 @@ import { subscribePty } from './subscribers/pty.subscriber.js';
 import { subscribeDomainSync } from './subscribers/domain-sync.subscriber.js';
 import { subscribeCommNotify } from './subscribers/comm-notify.subscriber.js';
 import { subscribeLog } from './subscribers/log.subscriber.js';
+import { subscribeTeam } from './subscribers/team.subscriber.js';
 import { WsBroadcaster } from './subscribers/ws.subscriber.js';
 import type { CommRouter } from '../comm/router.js';
 
@@ -27,6 +28,7 @@ export function bootSubscribers(deps: { commRouter: CommRouter }): void {
   masterSub.add(subscribeDomainSync());
   masterSub.add(subscribeCommNotify(deps.commRouter));
   masterSub.add(subscribeLog());
+  masterSub.add(subscribeTeam());
   wsBroadcaster.start();
 }
 

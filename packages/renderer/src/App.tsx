@@ -4,6 +4,7 @@ import { currentTabAtom, type TabKey } from './store/atoms';
 import { TemplatePanel } from './components/TemplatePanel';
 import { InstancePanel } from './components/InstancePanel';
 import { RosterPanel } from './components/RosterPanel';
+import { TeamPanel } from './components/TeamPanel';
 import { McpStorePanel } from './components/McpStorePanel';
 import { API_BASE } from './api/client';
 
@@ -12,6 +13,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'template', label: '角色模板' },
   { key: 'instance', label: '角色实例' },
   { key: 'roster', label: '花名册' },
+  { key: 'team', label: 'Teams' },
   { key: 'mcp-store', label: 'MCP Store' },
 ];
 
@@ -50,6 +52,7 @@ export function App() {
         {tab === 'template' && <TemplatePanel />}
         {tab === 'instance' && <InstancePanel />}
         {tab === 'roster' && <RosterPanel />}
+        {tab === 'team' && <TeamPanel />}
         {tab === 'mcp-store' && <McpStorePanel />}
       </div>
     </main>

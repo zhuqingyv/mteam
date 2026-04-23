@@ -17,7 +17,11 @@ export type BusEventType =
   | 'template.updated'
   | 'template.deleted'
   | 'mcp.installed'
-  | 'mcp.uninstalled';
+  | 'mcp.uninstalled'
+  | 'team.created'
+  | 'team.disbanded'
+  | 'team.member_joined'
+  | 'team.member_left';
 
 export interface BusEventBase {
   type: BusEventType;
@@ -124,6 +128,33 @@ export interface McpUninstalledEvent extends BusEventBase {
   mcpName: string;
 }
 
+export interface TeamCreatedEvent extends BusEventBase {
+  type: 'team.created';
+  teamId: string;
+  name: string;
+  leaderInstanceId: string;
+}
+
+export interface TeamDisbandedEvent extends BusEventBase {
+  type: 'team.disbanded';
+  teamId: string;
+  reason: 'manual' | 'empty' | 'leader_gone';
+}
+
+export interface TeamMemberJoinedEvent extends BusEventBase {
+  type: 'team.member_joined';
+  teamId: string;
+  instanceId: string;
+  roleInTeam: string | null;
+}
+
+export interface TeamMemberLeftEvent extends BusEventBase {
+  type: 'team.member_left';
+  teamId: string;
+  instanceId: string;
+  reason: 'manual' | 'instance_deleted';
+}
+
 export type BusEvent =
   | InstanceCreatedEvent
   | InstanceActivatedEvent
@@ -140,4 +171,8 @@ export type BusEvent =
   | TemplateUpdatedEvent
   | TemplateDeletedEvent
   | McpInstalledEvent
-  | McpUninstalledEvent;
+  | McpUninstalledEvent
+  | TeamCreatedEvent
+  | TeamDisbandedEvent
+  | TeamMemberJoinedEvent
+  | TeamMemberLeftEvent;

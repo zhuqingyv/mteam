@@ -1,19 +1,19 @@
 -- ============================================================
 -- 4. teams —— 团队
 -- ============================================================
--- leader 调 request_member 时自动创建；一个 leader 实例对应一个 team
+-- team 只管"谁和谁是一个组"的关系，不绑 project。
+-- leader 调 request_member 时由业务层自动创建；一个 leader 实例对应一个 active team。
+-- leader_instance_id 上 ON DELETE CASCADE —— leader 被删 team 直接消失。
 CREATE TABLE IF NOT EXISTS teams (
-  id               TEXT PRIMARY KEY,
-  name             TEXT NOT NULL,
-  leader_instance_id TEXT NOT NULL REFERENCES role_instances(id),
-  project_id       TEXT REFERENCES projects(id) ON DELETE SET NULL,
-  description      TEXT NOT NULL DEFAULT '',
-  status           TEXT NOT NULL DEFAULT 'active'
-                   CHECK(status IN ('active','disbanded')),
-  created_at       TEXT NOT NULL,
-  disbanded_at     TEXT
+  id                 TEXT PRIMARY KEY,
+  name               TEXT NOT NULL,
+  leader_instance_id TEXT NOT NULL REFERENCES role_instances(id) ON DELETE CASCADE,
+  description        TEXT NOT NULL DEFAULT '',
+  status             TEXT NOT NULL DEFAULT 'ACTIVE'
+                     CHECK(status IN ('ACTIVE','DISBANDED')),
+  created_at         TEXT NOT NULL,
+  disbanded_at       TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_teams_leader   ON teams(leader_instance_id);
-CREATE INDEX IF NOT EXISTS idx_teams_project  ON teams(project_id);
-CREATE INDEX IF NOT EXISTS idx_teams_status   ON teams(status);
+CREATE INDEX IF NOT EXISTS idx_teams_leader ON teams(leader_instance_id);
+CREATE INDEX IF NOT EXISTS idx_teams_status ON teams(status);

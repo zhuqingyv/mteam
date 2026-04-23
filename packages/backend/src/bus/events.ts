@@ -26,6 +26,10 @@ export type {
   TemplateDeletedEvent,
   McpInstalledEvent,
   McpUninstalledEvent,
+  TeamCreatedEvent,
+  TeamDisbandedEvent,
+  TeamMemberJoinedEvent,
+  TeamMemberLeftEvent,
 } from './types.js';
 
 export class EventBus {
