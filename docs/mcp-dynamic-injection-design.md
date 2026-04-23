@@ -59,7 +59,7 @@ interface McpToolVisibility {
 }
 ```
 
-向后兼容：旧格式 `["mteam"]` 自动解析为 `[{ name: "mteam", surface: '*', search: [] }]`。
+新项目，无需向后兼容。
 
 ---
 
