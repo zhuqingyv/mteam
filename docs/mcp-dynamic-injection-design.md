@@ -34,7 +34,7 @@
 ```
 CLI 子进程（一个角色实例）
   ├── mteam MCP        — 内置，团队协作工具（平级）
-  ├── searchTools MCP  — 内置，动态工具发现（平级，每个实例配置不同）
+  ├── searchTools MCP  — 内置，工具信息查询（平级，每个实例配置不同）
   ├── mnemo MCP        — 三方
   └── ...其他三方 MCP
 
@@ -53,7 +53,7 @@ agent 看到的是扁平工具列表。
 | MCP Store | 全局仓库 | MCP server 运行配置（command/args/env）的安装/卸载/查询 |
 | 角色 MCP 管理工具 | 角色模板的子模块 | 管模板所有 MCP 配置 + resolve 输出 + 提供查询接口 |
 | mteam MCP | 内置 MCP server，跑在 agent 子进程 | 团队协作工具（send_msg/check_inbox 等），按 IS_LEADER env 过滤工具 |
-| searchTools MCP | 内置 MCP server，跑在 agent 子进程 | agent 调它 → 它回调 backend 管理工具查询接口 → 返回次屏工具清单 |
+| searchTools MCP | 内置 MCP server，跑在 agent 子进程 | agent 调它 → 回调 backend 查询次屏工具清单 → 返回工具名+描述。所有工具 spawn 时已注入可调，searchTools 只是让 agent 知道还有哪些工具 |
 
 ### 关键区分
 
@@ -114,13 +114,17 @@ MCP Store 卸载某个 MCP
 
 ### agent 搜索次屏工具
 
+所有 MCP server 在 spawn 时已全部启动，所有工具已可调用。区别只是 ListTools 是否返回（agent 是否"看到"）。
+
 ```
 agent 调 searchTools MCP 的 search(query)
   → searchTools 子进程 HTTP 回调 backend
   → backend 管理工具查询：当前角色模板的次屏工具清单，按 query 过滤
   → 返回匹配的工具名 + 描述
-  → agent 知道有哪些工具可用
+  → agent 知道有哪些工具可用，直接调即可（底层 MCP server 早就在跑）
 ```
+
+不需要动态注册，不需要 tools/list_changed。searchTools 只是信息查询。
 
 ---
 
