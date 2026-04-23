@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>V2 角色模板</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f7f8fa;
+    color: #1f2328;
+    padding: 24px;
+  }
+  h1 { font-size: 18px; margin-bottom: 4px; }
+  .sub { font-size: 12px; color: #6b7280; margin-bottom: 16px; }
+  .toolbar { margin-bottom: 12px; display: flex; gap: 8px; align-items: center; }
+  button {
+    font: inherit;
+    padding: 6px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+  }
+  button:hover { border-color: #6366f1; color: #6366f1; }
+  button.primary { background: #6366f1; color: #fff; border-color: #6366f1; }
+  button.primary:hover { background: #4f51d9; color: #fff; }
+  button.danger { color: #b91c1c; border-color: #fecaca; }
+  button.danger:hover { background: #fef2f2; color: #b91c1c; border-color: #fca5a5; }
+  button.small { padding: 3px 10px; font-size: 12px; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .status { font-size: 12px; color: #6b7280; }
+  .error {
+    padding: 8px 12px;
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    font-size: 12px;
+  }
+  .success {
+    padding: 8px 12px;
+    border: 1px solid #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    font-size: 12px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: top;
+  }
+  th {
+    background: #f3f4f6;
+    font-weight: 600;
+    font-size: 12px;
+    color: #374151;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafbfc; }
+  .name { font-weight: 600; color: #111827; }
+  .role-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #eef2ff;
+    color: #6366f1;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .desc { color: #4b5563; max-width: 300px; }
+  .mcps { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip {
+    display: inline-block;
+    padding: 1px 6px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 3px;
+    font-size: 11px;
+    font-family: 'SF Mono', Menlo, monospace;
+    color: #4b5563;
+  }
+  .ts { font-size: 11px; color: #9ca3af; white-space: nowrap; }
+  .actions { white-space: nowrap; display: flex; gap: 6px; }
+  .empty {
+    padding: 48px;
+    text-align: center;
+    color: #9ca3af;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+  }
+  .form-panel {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  .form-panel h2 {
+    font-size: 14px;
+    margin-bottom: 12px;
+    color: #111827;
+  }
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+  .form-row label {
+    font-size: 12px;
+    color: #374151;
+    font-weight: 500;
+  }
+  .form-row label .req { color: #dc2626; margin-left: 2px; }
+  .form-row .hint { font-size: 11px; color: #9ca3af; font-weight: normal; }
+  .form-row input,
+  .form-row textarea {
+    font: inherit;
+    padding: 6px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fff;
+    color: #1f2328;
+    width: 100%;
+  }
+  .form-row input:focus,
+  .form-row textarea:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+  }
+  .form-row textarea {
+    resize: vertical;
+    min-height: 80px;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+  }
+  .form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .form-error {
+    padding: 8px 12px;
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    font-size: 12px;
+  }
+  .tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .tab {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tab:hover { color: #6366f1; }
+  .tab.active {
+    color: #6366f1;
+    border-bottom-color: #6366f1;
+  }
+  .form-row select {
+    font: inherit;
+    padding: 6px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fff;
+    color: #1f2328;
+    width: 100%;
+  }
+  .form-row select:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+  }
+  .form-row.checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+  .form-row.checkbox input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+  }
+  .form-row.checkbox label {
+    margin: 0;
+    cursor: pointer;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .badge.pending {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  .badge.active {
+    background: #d1fae5;
+    color: #065f46;
+  }
+  .badge.other {
+    background: #f3f4f6;
+    color: #4b5563;
+  }
+  .id-cell {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    color: #6b7280;
+  }
+  .leader-mark {
+    color: #d97706;
+    font-weight: 600;
+  }
+  .task-cell {
+    color: #4b5563;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+  <h1 id="pageTitle">角色模板</h1>
+  <div class="sub" id="pageSub">V2 Role Templates · <code>/api/role-templates</code></div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="templates">模板</button>
+    <button class="tab" data-tab="instances">实例</button>
+  </div>
+
+  <!-- 模板 view -->
+  <div id="view-templates">
+    <div class="toolbar">
+      <button class="primary" id="addBtn">+ 新建模板</button>
+      <button id="refresh">刷新</button>
+      <span class="status" id="status"></span>
+    </div>
+
+    <div id="toast" style="display:none"></div>
+    <div id="error" class="error" style="display:none"></div>
+
+    <div id="formPanel" class="form-panel" style="display:none">
+      <h2 id="formTitle">新建模板</h2>
+      <div id="formError" class="form-error" style="display:none"></div>
+      <div class="form-row">
+        <label>Name<span class="req">*</span> <span class="hint">唯一标识，创建后不可修改</span></label>
+        <input type="text" id="f_name" placeholder="例如：frontend-dev" maxlength="64">
+      </div>
+      <div class="form-row">
+        <label>Role<span class="req">*</span> <span class="hint">职业类别</span></label>
+        <input type="text" id="f_role" placeholder="例如：前端开发" maxlength="64">
+      </div>
+      <div class="form-row">
+        <label>Description <span class="hint">简短描述</span></label>
+        <input type="text" id="f_description" placeholder="选填" maxlength="500">
+      </div>
+      <div class="form-row">
+        <label>Persona <span class="hint">身份提示词</span></label>
+        <textarea id="f_persona" placeholder="选填，详细的身份定义和工作风格"></textarea>
+      </div>
+      <div class="form-row">
+        <label>Available MCPs <span class="hint">逗号分隔，例如：notify, mnemo, team-hub</span></label>
+        <input type="text" id="f_mcps" placeholder="选填">
+      </div>
+      <div class="form-actions">
+        <button class="primary" id="submitBtn">保存</button>
+        <button id="cancelBtn">取消</button>
+      </div>
+    </div>
+
+    <div id="content"></div>
+  </div>
+
+  <!-- 实例 view -->
+  <div id="view-instances" style="display:none">
+    <div class="toolbar">
+      <button class="primary" id="addInstBtn">+ 创建实例</button>
+      <button id="refreshInst">刷新</button>
+      <span class="status" id="statusInst"></span>
+    </div>
+
+    <div id="toastInst" style="display:none"></div>
+    <div id="errorInst" class="error" style="display:none"></div>
+
+    <div id="instFormPanel" class="form-panel" style="display:none">
+      <h2>创建实例</h2>
+      <div id="instFormError" class="form-error" style="display:none"></div>
+      <div class="form-row">
+        <label>模板<span class="req">*</span> <span class="hint">选择一个已有模板</span></label>
+        <select id="if_template"></select>
+      </div>
+      <div class="form-row">
+        <label>成员名<span class="req">*</span> <span class="hint">唯一标识</span></label>
+        <input type="text" id="if_member" placeholder="例如：zhangsan" maxlength="64">
+      </div>
+      <div class="form-row checkbox">
+        <input type="checkbox" id="if_isLeader">
+        <label for="if_isLeader">是 Leader</label>
+      </div>
+      <div class="form-row">
+        <label>Leader 名 <span class="hint">非 Leader 填所属 Leader 名</span></label>
+        <input type="text" id="if_leaderName" placeholder="选填" maxlength="64">
+      </div>
+      <div class="form-row">
+        <label>任务 <span class="hint">该实例承担的任务描述</span></label>
+        <textarea id="if_task" placeholder="选填"></textarea>
+      </div>
+      <div class="form-actions">
+        <button class="primary" id="instSubmitBtn">创建</button>
+        <button id="instCancelBtn">取消</button>
+      </div>
+    </div>
+
+    <div id="instContent"></div>
+  </div>
+
+<script>
+  const API = '/api/role-templates';
+
+  let editingName = null;
+  let submitting = false;
+  let cachedList = [];
+
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return '';
+    try { return new Date(iso).toLocaleString(); } catch { return iso; }
+  }
+
+  function showToast(msg, kind) {
+    const el = document.getElementById('toast');
+    el.className = kind === 'error' ? 'error' : 'success';
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+  }
+
+  function renderEmpty() {
+    return '<div class="empty">暂无角色模板，点击右上角「+ 新建模板」添加</div>';
+  }
+
+  function renderTable(list) {
+    const rows = list.map((t) => {
+      const mcps = (t.availableMcps || []).map((m) => `<span class="chip">${esc(m)}</span>`).join('');
+      return `
+        <tr>
+          <td class="name">${esc(t.name)}</td>
+          <td><span class="role-tag">${esc(t.role)}</span></td>
+          <td class="desc">${esc(t.description || '')}</td>
+          <td><div class="mcps">${mcps}</div></td>
+          <td class="ts">${esc(fmtTime(t.updatedAt))}</td>
+          <td class="actions">
+            <button class="small" data-edit="${esc(t.name)}">编辑</button>
+            <button class="small danger" data-del="${esc(t.name)}">删除</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+    return `
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Description</th>
+            <th>Available MCPs</th>
+            <th>Updated</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  async function load() {
+    const statusEl = document.getElementById('status');
+    const errorEl = document.getElementById('error');
+    const contentEl = document.getElementById('content');
+    statusEl.textContent = '加载中…';
+    errorEl.style.display = 'none';
+    try {
+      const res = await fetch(API);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || ('HTTP ' + res.status));
+      }
+      const list = await res.json();
+      cachedList = Array.isArray(list) ? list : [];
+      contentEl.innerHTML = cachedList.length === 0 ? renderEmpty() : renderTable(cachedList);
+      statusEl.textContent = '共 ' + cachedList.length + ' 条 · ' + new Date().toLocaleTimeString();
+      bindRowActions();
+    } catch (e) {
+      errorEl.textContent = '加载失败：' + (e && e.message ? e.message : e);
+      errorEl.style.display = 'block';
+      statusEl.textContent = '';
+    }
+  }
+
+  function bindRowActions() {
+    document.querySelectorAll('[data-edit]').forEach((btn) => {
+      btn.addEventListener('click', () => openEdit(btn.getAttribute('data-edit')));
+    });
+    document.querySelectorAll('[data-del]').forEach((btn) => {
+      btn.addEventListener('click', () => onDelete(btn.getAttribute('data-del')));
+    });
+  }
+
+  function openForm(mode, tpl) {
+    editingName = mode === 'edit' ? tpl.name : null;
+    document.getElementById('formTitle').textContent = mode === 'edit' ? ('编辑模板：' + tpl.name) : '新建模板';
+    document.getElementById('formError').style.display = 'none';
+    const nameInput = document.getElementById('f_name');
+    nameInput.value = tpl ? (tpl.name || '') : '';
+    nameInput.disabled = mode === 'edit';
+    document.getElementById('f_role').value = tpl ? (tpl.role || '') : '';
+    document.getElementById('f_description').value = tpl ? (tpl.description || '') : '';
+    document.getElementById('f_persona').value = tpl ? (tpl.persona || '') : '';
+    document.getElementById('f_mcps').value = tpl && Array.isArray(tpl.availableMcps) ? tpl.availableMcps.join(', ') : '';
+    document.getElementById('formPanel').style.display = 'block';
+    setTimeout(() => nameInput.focus(), 0);
+  }
+
+  function closeForm() {
+    editingName = null;
+    document.getElementById('formPanel').style.display = 'none';
+    document.getElementById('formError').style.display = 'none';
+  }
+
+  function openEdit(name) {
+    const tpl = cachedList.find((t) => t.name === name);
+    if (!tpl) { showToast('找不到模板：' + name, 'error'); return; }
+    openForm('edit', tpl);
+  }
+
+  function collectForm() {
+    const name = document.getElementById('f_name').value.trim();
+    const role = document.getElementById('f_role').value.trim();
+    const description = document.getElementById('f_description').value.trim();
+    const persona = document.getElementById('f_persona').value;
+    const mcpsRaw = document.getElementById('f_mcps').value;
+    const availableMcps = mcpsRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    return { name, role, description, persona, availableMcps };
+  }
+
+  function showFormError(msg) {
+    const el = document.getElementById('formError');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function friendlyError(status, body) {
+    const raw = body && body.error ? body.error : ('HTTP ' + status);
+    if (status === 409) return '名字已存在：' + raw;
+    if (status === 404) return '模板不存在（可能已被删除）';
+    if (status === 400) return '参数错误：' + raw;
+    return raw;
+  }
+
+  async function onSubmit() {
+    if (submitting) return;
+    const data = collectForm();
+    if (!data.name) { showFormError('Name 必填'); return; }
+    if (!data.role) { showFormError('Role 必填'); return; }
+
+    submitting = true;
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = '保存中…';
+    document.getElementById('formError').style.display = 'none';
+
+    try {
+      const isEdit = !!editingName;
+      const url = isEdit ? (API + '/' + encodeURIComponent(editingName)) : API;
+      const method = isEdit ? 'PUT' : 'POST';
+      const payload = isEdit
+        ? { role: data.role, description: data.description, persona: data.persona, availableMcps: data.availableMcps }
+        : data;
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(friendlyError(res.status, body));
+      }
+      closeForm();
+      showToast(isEdit ? '已更新' : '已创建', 'success');
+      await load();
+    } catch (e) {
+      showFormError(e && e.message ? e.message : String(e));
+    } finally {
+      submitting = false;
+      btn.disabled = false;
+      btn.textContent = '保存';
+    }
+  }
+
+  async function onDelete(name) {
+    if (!confirm('确认删除模板「' + name + '」？此操作不可撤销。')) return;
+    try {
+      const res = await fetch(API + '/' + encodeURIComponent(name), { method: 'DELETE' });
+      if (!res.ok && res.status !== 204) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(friendlyError(res.status, body));
+      }
+      showToast('已删除：' + name, 'success');
+      if (editingName === name) closeForm();
+      await load();
+    } catch (e) {
+      showToast('删除失败：' + (e && e.message ? e.message : e), 'error');
+    }
+  }
+
+  document.getElementById('refresh').addEventListener('click', load);
+  document.getElementById('addBtn').addEventListener('click', () => openForm('create', null));
+  document.getElementById('cancelBtn').addEventListener('click', closeForm);
+  document.getElementById('submitBtn').addEventListener('click', onSubmit);
+  load();
+
+  // ========== 实例 ==========
+  const INST_API = '/api/role-instances';
+  let instSubmitting = false;
+  let instPollTimer = null;
+  let currentTab = 'templates';
+
+  function showInstToast(msg, kind) {
+    const el = document.getElementById('toastInst');
+    el.className = kind === 'error' ? 'error' : 'success';
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+  }
+
+  function shortId(id) {
+    return String(id || '').slice(0, 8);
+  }
+
+  function statusBadge(status) {
+    const s = String(status || '').toUpperCase();
+    if (s === 'PENDING') return '<span class="badge pending">PENDING</span>';
+    if (s === 'ACTIVE') return '<span class="badge active">ACTIVE</span>';
+    return '<span class="badge other">' + esc(s || '-') + '</span>';
+  }
+
+  function renderInstEmpty() {
+    return '<div class="empty">暂无实例，点击右上角「+ 创建实例」添加</div>';
+  }
+
+  function renderInstTable(list) {
+    const rows = list.map((it) => {
+      const id = it.id || it.instanceId || '';
+      const tpl = it.templateName || it.template || '';
+      const member = it.memberName || it.member || '';
+      const isLeader = !!(it.isLeader || it.is_leader);
+      const leaderName = it.leaderName || it.leader_name || '';
+      const task = it.task || '';
+      const created = it.createdAt || it.created_at || '';
+      return `
+        <tr>
+          <td class="id-cell" title="${esc(id)}">${esc(shortId(id))}</td>
+          <td>${esc(tpl)}</td>
+          <td class="name">${esc(member)}</td>
+          <td>${statusBadge(it.status)}</td>
+          <td>${isLeader ? '<span class="leader-mark">Leader</span>' : esc(leaderName || '-')}</td>
+          <td class="task-cell" title="${esc(task)}">${esc(task || '-')}</td>
+          <td class="ts">${esc(fmtTime(created))}</td>
+          <td class="actions">
+            <button class="small danger" data-del-inst="${esc(id)}">删除</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+    return `
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>模板</th>
+            <th>成员</th>
+            <th>状态</th>
+            <th>Leader</th>
+            <th>任务</th>
+            <th>创建时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  async function loadInstances(silent) {
+    const statusEl = document.getElementById('statusInst');
+    const errorEl = document.getElementById('errorInst');
+    const contentEl = document.getElementById('instContent');
+    if (!silent) statusEl.textContent = '加载中…';
+    try {
+      const res = await fetch(INST_API);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || ('HTTP ' + res.status));
+      }
+      const list = await res.json();
+      const arr = Array.isArray(list) ? list : [];
+      contentEl.innerHTML = arr.length === 0 ? renderInstEmpty() : renderInstTable(arr);
+      statusEl.textContent = '共 ' + arr.length + ' 条 · ' + new Date().toLocaleTimeString();
+      errorEl.style.display = 'none';
+      bindInstActions();
+    } catch (e) {
+      if (!silent) {
+        errorEl.textContent = '加载失败：' + (e && e.message ? e.message : e);
+        errorEl.style.display = 'block';
+        statusEl.textContent = '';
+      }
+    }
+  }
+
+  function bindInstActions() {
+    document.querySelectorAll('[data-del-inst]').forEach((btn) => {
+      btn.addEventListener('click', () => onDeleteInstance(btn.getAttribute('data-del-inst')));
+    });
+  }
+
+  async function loadTemplatesForSelect() {
+    const sel = document.getElementById('if_template');
+    try {
+      const res = await fetch(API);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const list = await res.json();
+      const arr = Array.isArray(list) ? list : [];
+      sel.innerHTML = arr.length === 0
+        ? '<option value="">（无可用模板，请先创建）</option>'
+        : arr.map((t) => `<option value="${esc(t.name)}">${esc(t.name)} - ${esc(t.role || '')}</option>`).join('');
+    } catch (e) {
+      sel.innerHTML = '<option value="">加载失败</option>';
+    }
+  }
+
+  async function openInstForm() {
+    document.getElementById('instFormError').style.display = 'none';
+    document.getElementById('if_member').value = '';
+    document.getElementById('if_isLeader').checked = false;
+    document.getElementById('if_leaderName').value = '';
+    document.getElementById('if_task').value = '';
+    await loadTemplatesForSelect();
+    document.getElementById('instFormPanel').style.display = 'block';
+    setTimeout(() => document.getElementById('if_member').focus(), 0);
+  }
+
+  function closeInstForm() {
+    document.getElementById('instFormPanel').style.display = 'none';
+    document.getElementById('instFormError').style.display = 'none';
+  }
+
+  function showInstFormError(msg) {
+    const el = document.getElementById('instFormError');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  async function onSubmitInstance() {
+    if (instSubmitting) return;
+    const templateName = document.getElementById('if_template').value;
+    const memberName = document.getElementById('if_member').value.trim();
+    const isLeader = document.getElementById('if_isLeader').checked;
+    const leaderName = document.getElementById('if_leaderName').value.trim();
+    const task = document.getElementById('if_task').value;
+
+    if (!templateName) { showInstFormError('请选择模板'); return; }
+    if (!memberName) { showInstFormError('成员名必填'); return; }
+
+    instSubmitting = true;
+    const btn = document.getElementById('instSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = '创建中…';
+    document.getElementById('instFormError').style.display = 'none';
+
+    try {
+      const payload = { templateName, memberName, isLeader, leaderName, task };
+      const res = await fetch(INST_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(friendlyError(res.status, body));
+      }
+      closeInstForm();
+      showInstToast('已创建', 'success');
+      await loadInstances();
+    } catch (e) {
+      showInstFormError(e && e.message ? e.message : String(e));
+    } finally {
+      instSubmitting = false;
+      btn.disabled = false;
+      btn.textContent = '创建';
+    }
+  }
+
+  async function onDeleteInstance(id) {
+    if (!id) return;
+    if (!confirm('确认删除实例「' + shortId(id) + '」？')) return;
+    try {
+      const res = await fetch(INST_API + '/' + encodeURIComponent(id), { method: 'DELETE' });
+      if (!res.ok && res.status !== 204) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(friendlyError(res.status, body));
+      }
+      showInstToast('已删除', 'success');
+      await loadInstances();
+    } catch (e) {
+      showInstToast('删除失败：' + (e && e.message ? e.message : e), 'error');
+    }
+  }
+
+  function startInstPolling() {
+    stopInstPolling();
+    instPollTimer = setInterval(() => {
+      if (currentTab === 'instances') loadInstances(true);
+    }, 3000);
+  }
+
+  function stopInstPolling() {
+    if (instPollTimer) {
+      clearInterval(instPollTimer);
+      instPollTimer = null;
+    }
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab').forEach((el) => {
+      el.classList.toggle('active', el.getAttribute('data-tab') === tab);
+    });
+    const isTpl = tab === 'templates';
+    document.getElementById('view-templates').style.display = isTpl ? '' : 'none';
+    document.getElementById('view-instances').style.display = isTpl ? 'none' : '';
+    document.getElementById('pageTitle').textContent = isTpl ? '角色模板' : '角色实例';
+    document.getElementById('pageSub').innerHTML = isTpl
+      ? 'V2 Role Templates · <code>/api/role-templates</code>'
+      : 'V2 Role Instances · <code>/api/role-instances</code>';
+    if (isTpl) {
+      stopInstPolling();
+    } else {
+      loadInstances();
+      startInstPolling();
+    }
+  }
+
+  document.querySelectorAll('.tab').forEach((el) => {
+    el.addEventListener('click', () => switchTab(el.getAttribute('data-tab')));
+  });
+  document.getElementById('addInstBtn').addEventListener('click', openInstForm);
+  document.getElementById('refreshInst').addEventListener('click', () => loadInstances());
+  document.getElementById('instCancelBtn').addEventListener('click', closeInstForm);
+  document.getElementById('instSubmitBtn').addEventListener('click', onSubmitInstance);
+</script>
+</body>
+</html>

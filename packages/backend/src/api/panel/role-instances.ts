@@ -1,0 +1,168 @@
+// 角色实例 HTTP 接口。负责实例生命周期（创建/激活/请求下线/删除），并通过 roster-sync 保持名册一致。
+import { RoleTemplate } from '../../domain/role-template.js';
+import { RoleInstance } from '../../domain/role-instance.js';
+import type { CreateRoleInstanceInput } from '../../domain/role-instance.js';
+import type { ApiResponse } from './role-templates.js';
+import { ptyManager } from '../../pty/manager.js';
+import {
+  rosterAddInstance,
+  rosterUpdateStatus,
+  rosterRemoveIfPresent,
+} from './role-instance-roster-sync.js';
+
+const errRes = (status: number, error: string): ApiResponse => ({ status, body: { error } });
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function validateRequiredString(v: unknown, field: string, max: number): string | null {
+  if (typeof v !== 'string') return `${field} is required`;
+  if (v.length < 1 || v.length > max) return `${field} must be 1~${max} chars`;
+  return null;
+}
+
+function validateOptionalString(v: unknown, field: string, max: number): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v !== 'string') return `${field} must be string or null`;
+  if (v.length > max) return `${field} must be ≤ ${max} chars`;
+  return null;
+}
+
+// 从 body 取并校验 create 所需字段。失败返回错误消息，成功返回 null。
+function validateCreateBody(body: Record<string, unknown>): string | null {
+  const tplErr = validateRequiredString(body.templateName, 'templateName', 64);
+  if (tplErr) return tplErr;
+  const memberErr = validateRequiredString(body.memberName, 'memberName', 64);
+  if (memberErr) return memberErr;
+  if ('isLeader' in body && body.isLeader !== undefined && typeof body.isLeader !== 'boolean') {
+    return 'isLeader must be boolean';
+  }
+  const taskErr = validateOptionalString(body.task, 'task', 2048);
+  if (taskErr) return taskErr;
+  const leaderErr = validateOptionalString(body.leaderName, 'leaderName', 64);
+  if (leaderErr) return leaderErr;
+  return null;
+}
+
+// 创建角色实例：校验 → 查模板 → 入库 → spawn PTY → 进 roster。
+export function handleCreateInstance(body: unknown): ApiResponse {
+  if (!isPlainObject(body)) return errRes(400, 'body must be a JSON object');
+  const verr = validateCreateBody(body);
+  if (verr) return errRes(400, verr);
+
+  const templateName = body.templateName as string;
+  const template = RoleTemplate.findByName(templateName);
+  if (!template) return errRes(404, `template '${templateName}' not found`);
+
+  const input: CreateRoleInstanceInput = {
+    templateName,
+    memberName: body.memberName as string,
+    isLeader: (body.isLeader as boolean | undefined) ?? false,
+    task: (body.task as string | null | undefined) ?? null,
+    leaderName: (body.leaderName as string | null | undefined) ?? null,
+  };
+  const instance = RoleInstance.create(input);
+
+  try {
+    const entry = ptyManager.spawn({
+      instanceId: instance.id,
+      memberName: instance.memberName,
+      isLeader: instance.isLeader,
+      leaderName: instance.leaderName,
+      task: instance.task,
+      persona: template.persona,
+      availableMcps: template.availableMcps,
+    });
+    instance.setSessionPid(entry.pid);
+  } catch (err) {
+    instance.delete();
+    const msg = err instanceof Error ? err.message : 'spawn failed';
+    return errRes(500, `spawn CLI failed: ${msg}`);
+  }
+
+  rosterAddInstance(instance);
+  return { status: 201, body: instance.toJSON() };
+}
+
+export function handleListInstances(): ApiResponse {
+  const list = RoleInstance.listAll();
+  return { status: 200, body: list.map((i) => i.toJSON()) };
+}
+
+// Leader 批准某成员下线：ACTIVE -> PENDING_OFFLINE。
+// callerInstanceId 优先从 header（X-Role-Instance-Id），body 作 fallback，兼容旧调用方。
+export function handleRequestOffline(
+  id: string,
+  body: unknown,
+  headerCallerId: string | null = null,
+): ApiResponse {
+  const instance = RoleInstance.findById(id);
+  if (!instance) return errRes(404, `role instance '${id}' not found`);
+
+  const obj = isPlainObject(body) ? body : {};
+  const bodyCallerId = typeof obj.callerInstanceId === 'string' ? obj.callerInstanceId : null;
+  const callerId = headerCallerId ?? bodyCallerId;
+  if (!callerId) return errRes(400, 'callerInstanceId is required');
+  const caller = RoleInstance.findById(callerId);
+  if (!caller) return errRes(404, `caller '${callerId}' not found`);
+  if (!caller.isLeader) return errRes(403, 'only leader can request offline');
+
+  if (instance.status !== 'ACTIVE') {
+    return errRes(409, `instance status is '${instance.status}', expected ACTIVE`);
+  }
+
+  try {
+    instance.requestOffline(caller.id);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'transition failed';
+    return errRes(409, msg);
+  }
+
+  rosterUpdateStatus(id, 'PENDING_OFFLINE');
+  return { status: 200, body: instance.toJSON() };
+}
+
+// 面板或测试走的激活入口：PENDING -> ACTIVE，不依赖 session register。
+export function handleActivate(id: string): ApiResponse {
+  const instance = RoleInstance.findById(id);
+  if (!instance) return errRes(404, `role instance '${id}' not found`);
+  if (instance.status !== 'PENDING') {
+    return errRes(409, `instance status is '${instance.status}', expected PENDING`);
+  }
+  try {
+    instance.activate(null);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'transition failed';
+    return errRes(409, msg);
+  }
+
+  rosterUpdateStatus(id, 'ACTIVE');
+  return { status: 200, body: instance.toJSON() };
+}
+
+// 删除实例，状态机保护：
+//   PENDING / PENDING_OFFLINE -> 正常删（PENDING 尚未激活可撤销；PENDING_OFFLINE 已批准下线）
+//   ACTIVE                    -> 拒绝 409（必须先 request-offline）
+//   ?force=1                  -> 强制删（crash 语义，用于清理脏数据/僵尸）
+export function handleDeleteInstance(id: string, force = false): ApiResponse {
+  const instance = RoleInstance.findById(id);
+  if (!instance) return errRes(404, `role instance '${id}' not found`);
+
+  if (!force) {
+    if (instance.status === 'ACTIVE') {
+      return errRes(409, '需要 leader 批准下线');
+    }
+    if (instance.status !== 'PENDING' && instance.status !== 'PENDING_OFFLINE') {
+      return errRes(
+        409,
+        `instance status is '${instance.status}', expected PENDING or PENDING_OFFLINE (use ?force=1 to override)`,
+      );
+    }
+  }
+
+  ptyManager.kill(id);
+  instance.delete();
+  rosterRemoveIfPresent(id);
+  return { status: 204, body: null };
+}
