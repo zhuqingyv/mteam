@@ -1,4 +1,5 @@
-import { SqliteError } from 'better-sqlite3';
+// 迁移到 bun:sqlite 后，错误类从 SqliteError 改为 SQLiteError；code 字段命名一致。
+import { SQLiteError } from 'bun:sqlite';
 import { RoleTemplate } from '../../domain/role-template.js';
 import type {
   CreateRoleTemplateInput,
@@ -80,10 +81,10 @@ export function handleCreateTemplate(body: unknown): ApiResponse {
     const tpl = RoleTemplate.create(input);
     return { status: 201, body: tpl.toJSON() };
   } catch (e) {
-    if (e instanceof SqliteError && e.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
+    if (e instanceof SQLiteError && e.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
       return errRes(409, `template '${input.name}' already exists`);
     }
-    if (e instanceof SqliteError && typeof e.code === 'string' && e.code.startsWith('SQLITE_CONSTRAINT')) {
+    if (e instanceof SQLiteError && typeof e.code === 'string' && e.code.startsWith('SQLITE_CONSTRAINT')) {
       return errRes(409, `template '${input.name}' already exists`);
     }
     throw e;
@@ -141,7 +142,7 @@ export function handleDeleteTemplate(name: string): ApiResponse {
     RoleTemplate.delete(name);
     return { status: 204, body: null };
   } catch (e) {
-    if (e instanceof SqliteError && typeof e.code === 'string' && e.code.startsWith('SQLITE_CONSTRAINT')) {
+    if (e instanceof SQLiteError && typeof e.code === 'string' && e.code.startsWith('SQLITE_CONSTRAINT')) {
       return errRes(409, `template '${name}' is still referenced by active role instances`);
     }
     throw e;

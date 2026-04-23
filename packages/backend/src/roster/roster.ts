@@ -105,7 +105,9 @@ export class Roster {
     const existed = selectLocalById(instanceId);
     if (!existed) throw new Error(`instance '${instanceId}' not in roster`);
     const sets: string[] = [];
-    const args: unknown[] = [];
+    // bun:sqlite 的 run(...args) 参数类型比 better-sqlite3 更严格；此处 status/teamId/task/id
+    // 均为 string | null，显式类型收窄避免 TS 报 SQLQueryBindings 相关错误。
+    const args: (string | null)[] = [];
     if (fields.status !== undefined) {
       sets.push('status = ?');
       args.push(fields.status);
