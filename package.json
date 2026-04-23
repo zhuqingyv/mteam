@@ -4,8 +4,10 @@
   "private": true,
   "workspaces": ["packages/*"],
   "scripts": {
-    "build": "bun run --cwd packages/mcp-server build",
-    "dev": "bun run --cwd packages/mcp-server dev"
+    "dev": "bun run dev:backend & bun run dev:frontend",
+    "dev:backend": "bun run --cwd packages/backend src/server.ts",
+    "dev:frontend": "bun run --cwd packages/renderer dev",
+    "test": "bun test packages/backend/"
   },
   "devDependencies": {
     "tsx": "^4.21.0"

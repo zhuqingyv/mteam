@@ -27,7 +27,10 @@ function applySchemas(db: Database): void {
   const combined = files
     .map((f) => readFileSync(resolve(SCHEMAS_DIR, f), 'utf8'))
     .join('\n');
+  // 建表时暂关外键，避免 SQL 文件字母排序导致的依赖顺序问题。
+  db.exec('PRAGMA foreign_keys = OFF');
   db.exec(combined);
+  db.exec('PRAGMA foreign_keys = ON');
 }
 
 // 将当前 SCHEMA_VERSION 登记到 schema_version 表（若未登记）。
