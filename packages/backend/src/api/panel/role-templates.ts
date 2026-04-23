@@ -7,6 +7,7 @@ import type {
   CreateRoleTemplateInput,
   UpdateRoleTemplateInput,
   RoleTemplateProps,
+  TemplateMcpConfig,
 } from '../../domain/role-template.js';
 
 export interface ApiResponse {
@@ -46,15 +47,31 @@ function validatePersona(v: unknown): string | null {
   return null;
 }
 
+function validateVisibilityList(v: unknown, field: string): string | null {
+  if (v === '*') return null;
+  if (!Array.isArray(v)) return `${field} must be '*' or an array of strings`;
+  for (const t of v) {
+    if (typeof t !== 'string') return `${field} items must be strings`;
+    if (t.length < 1 || t.length > 64) return `${field} items must be 1~64 chars`;
+  }
+  return null;
+}
+
 function validateMcps(v: unknown): string | null {
   if (v === undefined) return null;
-  if (!Array.isArray(v)) return 'availableMcps must be an array of strings';
+  if (!Array.isArray(v)) return 'availableMcps must be an array of McpToolVisibility';
   const seen = new Set<string>();
   for (const item of v) {
-    if (typeof item !== 'string') return 'availableMcps must be an array of strings';
-    if (item.length < 1 || item.length > 64) return 'availableMcps items must be 1~64 chars';
-    if (seen.has(item)) return 'availableMcps must not contain duplicates';
-    seen.add(item);
+    if (!isPlainObject(item)) return 'availableMcps items must be objects';
+    const name = item.name;
+    if (typeof name !== 'string') return 'availableMcps.name is required';
+    if (name.length < 1 || name.length > 64) return 'availableMcps.name must be 1~64 chars';
+    if (seen.has(name)) return 'availableMcps must not contain duplicate names';
+    seen.add(name);
+    const surfaceErr = validateVisibilityList(item.surface, 'availableMcps.surface');
+    if (surfaceErr) return surfaceErr;
+    const searchErr = validateVisibilityList(item.search, 'availableMcps.search');
+    if (searchErr) return searchErr;
   }
   return null;
 }
@@ -78,7 +95,7 @@ export function handleCreateTemplate(body: unknown): ApiResponse {
     role: body.role as string,
     description: (body.description as string | null | undefined) ?? null,
     persona: (body.persona as string | null | undefined) ?? null,
-    availableMcps: (body.availableMcps as string[] | undefined) ?? [],
+    availableMcps: (body.availableMcps as TemplateMcpConfig | undefined) ?? [],
   };
   try {
     const tpl = RoleTemplate.create(input);
@@ -136,7 +153,7 @@ export function handleUpdateTemplate(name: string, body: unknown): ApiResponse {
   if ('role' in body) patch.role = body.role as string;
   if ('description' in body) patch.description = body.description as string | null;
   if ('persona' in body) patch.persona = body.persona as string | null;
-  if ('availableMcps' in body) patch.availableMcps = body.availableMcps as string[];
+  if ('availableMcps' in body) patch.availableMcps = body.availableMcps as TemplateMcpConfig;
 
   const updated = RoleTemplate.update(name, patch);
   bus.emit({

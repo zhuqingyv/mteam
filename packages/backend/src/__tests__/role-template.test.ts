@@ -6,8 +6,10 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 // 关键：在 import domain 之前先设环境变量，保证 connection 使用 :memory:。
 process.env.TEAM_HUB_V2_DB = ':memory:';
 
-import { RoleTemplate } from '../domain/role-template.js';
+import { RoleTemplate, type McpToolVisibility } from '../domain/role-template.js';
 import { closeDb } from '../db/connection.js';
+
+const vis = (name: string): McpToolVisibility => ({ name, surface: '*', search: '*' });
 
 describe('RoleTemplate', () => {
   // 每个用例前把 DB 关掉，这样下一个 getDb() 会重新建 :memory: DB，避免数据残留。
@@ -26,13 +28,13 @@ describe('RoleTemplate', () => {
         role: 'lead',
         description: '规划师',
         persona: 'you are planner',
-        availableMcps: ['fs', 'web'],
+        availableMcps: [vis('fs'), vis('web')],
       });
       expect(tpl.name).toBe('planner');
       expect(tpl.role).toBe('lead');
       expect(tpl.description).toBe('规划师');
       expect(tpl.persona).toBe('you are planner');
-      expect(tpl.availableMcps).toEqual(['fs', 'web']);
+      expect(tpl.availableMcps).toEqual([vis('fs'), vis('web')]);
       expect(tpl.createdAt).toBeTruthy();
       expect(tpl.updatedAt).toBeTruthy();
     });
@@ -65,9 +67,13 @@ describe('RoleTemplate', () => {
     });
 
     it('反序列化 availableMcps 正确', () => {
-      RoleTemplate.create({ name: 'mcp-user', role: 'dev', availableMcps: ['a', 'b', 'c'] });
+      RoleTemplate.create({
+        name: 'mcp-user',
+        role: 'dev',
+        availableMcps: [vis('a'), vis('b'), vis('c')],
+      });
       const got = RoleTemplate.findByName('mcp-user');
-      expect(got!.availableMcps).toEqual(['a', 'b', 'c']);
+      expect(got!.availableMcps).toEqual([vis('a'), vis('b'), vis('c')]);
     });
   });
 
@@ -100,13 +106,13 @@ describe('RoleTemplate', () => {
         role: 'dev',
         description: 'old desc',
         persona: 'old persona',
-        availableMcps: ['a'],
+        availableMcps: [vis('a')],
       });
       const updated = RoleTemplate.update('u1', { role: 'lead' });
       expect(updated.role).toBe('lead');
       expect(updated.description).toBe('old desc');
       expect(updated.persona).toBe('old persona');
-      expect(updated.availableMcps).toEqual(['a']);
+      expect(updated.availableMcps).toEqual([vis('a')]);
     });
 
     it('description 可显式设为 null', () => {
@@ -143,12 +149,12 @@ describe('RoleTemplate', () => {
 
   describe('toJSON', () => {
     it('返回纯数据对象', () => {
-      const tpl = RoleTemplate.create({ name: 'j1', role: 'dev', availableMcps: ['x'] });
+      const tpl = RoleTemplate.create({ name: 'j1', role: 'dev', availableMcps: [vis('x')] });
       const json = tpl.toJSON();
-      expect(json.availableMcps).toEqual(['x']);
+      expect(json.availableMcps).toEqual([vis('x')]);
       // 确保是拷贝不是引用
-      json.availableMcps.push('y');
-      expect(tpl.availableMcps).toEqual(['x']);
+      json.availableMcps.push(vis('y'));
+      expect(tpl.availableMcps).toEqual([vis('x')]);
     });
   });
 });

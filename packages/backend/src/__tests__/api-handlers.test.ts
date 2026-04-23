@@ -55,7 +55,7 @@ describe('role-templates API handler', () => {
         role: 'lead',
         description: '规划',
         persona: 'p',
-        availableMcps: ['fs'],
+        availableMcps: [{ name: 'fs', surface: '*', search: '*' }],
       });
       expect(resp.status).toBe(201);
       const body = resp.body as { name: string; role: string };
@@ -89,7 +89,14 @@ describe('role-templates API handler', () => {
 
     it('availableMcps 含重复 -> 400', () => {
       expect(
-        handleCreateTemplate({ name: 'a', role: 'x', availableMcps: ['x', 'x'] }).status,
+        handleCreateTemplate({
+          name: 'a',
+          role: 'x',
+          availableMcps: [
+            { name: 'x', surface: '*', search: '*' },
+            { name: 'x', surface: '*', search: '*' },
+          ],
+        }).status,
       ).toBe(400);
     });
 

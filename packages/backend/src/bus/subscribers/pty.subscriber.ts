@@ -31,7 +31,9 @@ export function subscribePty(eventBus: EventBus = defaultBus): Subscription {
           leaderName: null,
           task: e.task,
           persona: template.persona,
-          availableMcps: template.availableMcps,
+          // Phase 1A 过渡：pty SpawnOptions 仍吃 string[]，这里摊平成 name 列表；
+          // Phase 1C 会改用 McpManager.resolve() 直接接 McpToolVisibility[]。
+          availableMcps: template.availableMcps.map((v) => v.name),
         });
         eventBus.emit({
           ...makeBase('pty.spawned', 'pty', e.correlationId),

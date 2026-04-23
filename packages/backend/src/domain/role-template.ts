@@ -1,11 +1,19 @@
 import { getDb } from '../db/connection.js';
 
+export interface McpToolVisibility {
+  name: string;
+  surface: string[] | '*';
+  search: string[] | '*';
+}
+
+export type TemplateMcpConfig = McpToolVisibility[];
+
 export interface RoleTemplateProps {
   name: string;
   role: string;
   description: string | null;
   persona: string | null;
-  availableMcps: string[];
+  availableMcps: TemplateMcpConfig;
   createdAt: string;
   updatedAt: string;
 }
@@ -15,14 +23,14 @@ export interface CreateRoleTemplateInput {
   role: string;
   description?: string | null;
   persona?: string | null;
-  availableMcps?: string[];
+  availableMcps?: TemplateMcpConfig;
 }
 
 export interface UpdateRoleTemplateInput {
   role?: string;
   description?: string | null;
   persona?: string | null;
-  availableMcps?: string[];
+  availableMcps?: TemplateMcpConfig;
 }
 
 interface Row {
@@ -40,7 +48,7 @@ export class RoleTemplate {
   role: string;
   description: string | null;
   persona: string | null;
-  availableMcps: string[];
+  availableMcps: TemplateMcpConfig;
   readonly createdAt: string;
   updatedAt: string;
 
@@ -60,7 +68,7 @@ export class RoleTemplate {
       role: row.role,
       description: row.description,
       persona: row.persona,
-      availableMcps: JSON.parse(row.available_mcps) as string[],
+      availableMcps: JSON.parse(row.available_mcps) as TemplateMcpConfig,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     });
