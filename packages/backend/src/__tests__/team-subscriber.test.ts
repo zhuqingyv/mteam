@@ -67,7 +67,7 @@ describe('subscribeTeam — instance.deleted 级联', () => {
     expect(after.status).toBe('ACTIVE');
   });
 
-  it('最后一个成员：instance.deleted → team 自动 disband', () => {
+  it('最后一个成员 deleted → team 不解散（leader 还在，可再拉人）', () => {
     const leaderId = mkInstance('leader', true);
     const memberId = mkInstance('only');
     const t = dao.create({ name: 'T', leaderInstanceId: leaderId });
@@ -76,8 +76,9 @@ describe('subscribeTeam — instance.deleted 级联', () => {
     emitDeleted(memberId);
 
     const after = dao.findById(t.id)!;
-    expect(after.status).toBe('DISBANDED');
-    expect(after.disbandedAt).not.toBeNull();
+    expect(after.status).toBe('ACTIVE');
+    expect(after.disbandedAt).toBeNull();
+    expect(dao.countMembers(t.id)).toBe(0);
   });
 
   it('leader 被删：CASCADE 物理删 team', () => {
