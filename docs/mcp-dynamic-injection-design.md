@@ -105,23 +105,26 @@ MCP Store 卸载某个 MCP
 ```
 创建角色实例
   → 角色模板调管理工具 resolve(ctx)
-  → 管理工具输出 --mcp-config JSON，包含：
+  → 管理工具输出 --mcp-config JSON，包含所有可用且可见的 MCP：
       mteam:       内置，注入 IS_LEADER env
       searchTools: 内置，注入当前模板的次屏工具配置
       mnemo 等:    从 store 取运行配置，直接透传
-  → 角色实例拿到直接 spawn
+  → 所有 MCP server 全部启动，全部可调用
+  → 首屏/次屏只是配置区分，不影响 MCP 进程是否启动
 ```
 
-### agent 搜索次屏工具
+### 首屏与次屏
 
-所有 MCP server 在 spawn 时已全部启动，所有工具已可调用。区别只是 ListTools 是否返回（agent 是否"看到"）。
+- **首屏**：各 MCP server 的 ListTools 返回的工具，agent 直接看到
+- **次屏**：MCP server 在跑、工具能调，但 ListTools 没返回，agent 不知道有它
+- **searchTools**：agent 调它查询次屏工具清单，知道后直接调目标工具即可
 
 ```
 agent 调 searchTools MCP 的 search(query)
   → searchTools 子进程 HTTP 回调 backend
   → backend 管理工具查询：当前角色模板的次屏工具清单，按 query 过滤
   → 返回匹配的工具名 + 描述
-  → agent 知道有哪些工具可用，直接调即可（底层 MCP server 早就在跑）
+  → agent 直接调目标工具（MCP server 早就在跑）
 ```
 
 不需要动态注册，不需要 tools/list_changed。searchTools 只是信息查询。
