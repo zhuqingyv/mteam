@@ -57,6 +57,10 @@ export interface InstanceDeletedEvent extends BusEventBase {
   instanceId: string;
   previousStatus: string;
   force: boolean;
+  // teamId / isLeader：emit 端（handleDeleteInstance）在 instance.delete() 之前抓快照
+  // 带过来。CASCADE 发生后 team 行可能已消失，subscriber 不能再 findByInstance。
+  teamId: string | null;
+  isLeader: boolean;
 }
 
 export interface InstanceSessionRegisteredEvent extends BusEventBase {
@@ -152,7 +156,7 @@ export interface TeamMemberLeftEvent extends BusEventBase {
   type: 'team.member_left';
   teamId: string;
   instanceId: string;
-  reason: 'manual' | 'instance_deleted';
+  reason: 'manual' | 'instance_deleted' | 'offline_requested';
 }
 
 export type BusEvent =

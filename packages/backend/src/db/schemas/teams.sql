@@ -17,3 +17,7 @@ CREATE TABLE IF NOT EXISTS teams (
 
 CREATE INDEX IF NOT EXISTS idx_teams_leader ON teams(leader_instance_id);
 CREATE INDEX IF NOT EXISTS idx_teams_status ON teams(status);
+
+-- 一个 leader 同时只能有一个 ACTIVE team；partial unique index 不影响 DISBANDED 历史行。
+CREATE UNIQUE INDEX IF NOT EXISTS uq_teams_active_leader
+  ON teams(leader_instance_id) WHERE status = 'ACTIVE';

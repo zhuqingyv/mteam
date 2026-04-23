@@ -100,6 +100,8 @@ describe('subscribeRoster', () => {
       instanceId: inst.id,
       previousStatus: 'PENDING',
       force: false,
+      teamId: null,
+      isLeader: false,
     });
 
     expect(roster.get(inst.id)).toBeNull();
@@ -115,6 +117,8 @@ describe('subscribeRoster', () => {
         instanceId: 'ghost',
         previousStatus: 'PENDING',
         force: false,
+        teamId: null,
+        isLeader: false,
       }),
     ).not.toThrow();
   });

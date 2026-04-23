@@ -50,7 +50,10 @@ export function handleCreateTeam(body: unknown): ApiResponse {
     });
     return { status: 201, body: created };
   } catch (e) {
-    return errRes(400, (e as Error).message);
+    const msg = (e as Error).message;
+    // DAO 层（team.create）遇到已存在 ACTIVE team 时抛 "leader '...' already has active team '...'"
+    if (msg.includes('already has active team')) return errRes(409, msg);
+    return errRes(400, msg);
   }
 }
 

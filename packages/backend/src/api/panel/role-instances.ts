@@ -168,7 +168,11 @@ export function handleDeleteInstance(id: string, force = false): ApiResponse {
     }
   }
 
+  // CASCADE 时序：instance.delete() 会触发 teams / team_members 的级联删除，
+  // subscriber 之后再查 findByInstance 会拿到 null。所以必须在 delete 之前抓快照。
   const previousStatus = instance.status;
+  const teamId = instance.teamId;
+  const isLeader = instance.isLeader;
   instance.delete();
 
   bus.emit({
@@ -176,6 +180,8 @@ export function handleDeleteInstance(id: string, force = false): ApiResponse {
     instanceId: id,
     previousStatus,
     force,
+    teamId,
+    isLeader,
   });
 
   return { status: 204, body: null };

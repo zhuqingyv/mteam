@@ -87,9 +87,9 @@ describe('team 集成：handler → bus → subscriber → DB', () => {
     expect(riRow.team_id).toBe(teamId);
   });
 
-  it('handleRemoveMember → team_members 无行 + role_instances.team_id 清空', () => {
+  it('handleRemoveMember → team_members 无行 + 被踢成员被级联下线', () => {
     const leaderId = mkInstance('leader', true);
-    const memberId = mkInstance('m1');
+    const memberId = mkInstance('m1'); // 默认 PENDING
     const teamResp = handleCreateTeam({ name: 'T', leaderInstanceId: leaderId });
     const teamId = (teamResp.body as TeamRow).id;
     handleAddMember(teamId, { instanceId: memberId });
@@ -97,15 +97,18 @@ describe('team 集成：handler → bus → subscriber → DB', () => {
     const rmResp = handleRemoveMember(teamId, memberId);
     expect(rmResp.status).toBe(204);
 
+    // team_members 行已删
     const tmRow = getDb()
       .prepare('SELECT id FROM team_members WHERE team_id=? AND instance_id=?')
       .get(teamId, memberId);
     expect(tmRow).toBeNull();
 
+    // 成员是 PENDING → 新 team.member_left(manual) subscriber 把它 force delete 掉。
+    // 设计意图（docs/teams/team-lifecycle-sync.md Case 7）：踢人后成员 instance 也应该下线。
     const riRow = getDb()
-      .prepare('SELECT team_id FROM role_instances WHERE id=?')
-      .get(memberId) as { team_id: string | null };
-    expect(riRow.team_id).toBeNull();
+      .prepare('SELECT id FROM role_instances WHERE id=?')
+      .get(memberId);
+    expect(riRow).toBeNull();
   });
 
   it('handleDisbandTeam → team status 变 disbanded', () => {

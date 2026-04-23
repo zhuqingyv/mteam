@@ -61,7 +61,15 @@ function rowToMember(r: TeamMemberDbRow): TeamMemberRow {
 
 export class Team {
   // create：插入一行 teams，返回新记录。不自动把 leader 加入 team_members。
+  // 三层防御之应用层：创建前先查有无 ACTIVE team；有就抛错。
+  // DB 层 uq_teams_active_leader 兜底；API 层 catch 转 409。
   create(input: CreateTeamInput): TeamRow {
+    const existing = this.findActiveByLeader(input.leaderInstanceId);
+    if (existing) {
+      throw new Error(
+        `leader '${input.leaderInstanceId}' already has active team '${existing.id}'`,
+      );
+    }
     const id = input.id ?? randomUUID();
     const now = new Date().toISOString();
     getDb()
@@ -73,6 +81,16 @@ export class Team {
     const created = this.findById(id);
     if (!created) throw new Error(`team '${id}' not found after insert`);
     return created;
+  }
+
+  // findActiveByLeader：按 leader instance id 查 ACTIVE team。配合 create 做唯一校验。
+  findActiveByLeader(leaderInstanceId: string): TeamRow | null {
+    const row = getDb()
+      .prepare(
+        `SELECT ${TEAM_COLS} FROM teams WHERE leader_instance_id=? AND status='ACTIVE'`,
+      )
+      .get(leaderInstanceId) as TeamDbRow | undefined;
+    return row ? rowToTeam(row) : null;
   }
 
   // findById：按 id 查 team；不过滤 status（disbanded 也返回）。
@@ -148,7 +166,9 @@ export class Team {
     return rows.map(rowToMember);
   }
 
-  // findByInstance：查 instance 当前所属 team（最多一个，受 uq_tm_member 约束）。
+  // findByInstance：查 instance 当前所属 ACTIVE team（最多一个，受 uq_tm_member 约束）。
+  // 只返 ACTIVE team 是防 subscriber 循环的关键：disbanded/CASCADE 的 team 查不到，
+  // 级联事件进入 handler 直接 return。
   findByInstance(instanceId: string): TeamRow | null {
     const row = getDb()
       .prepare(
@@ -157,7 +177,7 @@ export class Team {
                 t.created_at AS created_at, t.disbanded_at AS disbanded_at
          FROM teams t
          INNER JOIN team_members tm ON tm.team_id=t.id
-         WHERE tm.instance_id=?`,
+         WHERE tm.instance_id=? AND t.status='ACTIVE'`,
       )
       .get(instanceId) as TeamDbRow | undefined;
     return row ? rowToTeam(row) : null;
