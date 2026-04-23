@@ -2,6 +2,7 @@
 // handler 发主动事件（team.created/disbanded/member_joined/member_left），
 // 级联响应（instance 被删时自动清理成员/解散空 team）由 bus/subscribers/team.subscriber.ts 处理。
 import { team } from '../../team/team.js';
+import { RoleInstance } from '../../domain/role-instance.js';
 import { bus } from '../../bus/index.js';
 import { makeBase, newCorrelationId } from '../../bus/helpers.js';
 import type { ApiResponse } from './role-templates.js';
@@ -98,6 +99,34 @@ export function handleAddMember(teamId: string, body: unknown): ApiResponse {
     roleInTeam,
   });
   return { status: 201, body: { teamId, instanceId, roleInTeam } };
+}
+
+// 按 instanceId 反查所属 ACTIVE team，并返回 enrich 后的成员列表。
+// 成员条目带 memberName / status / isLeader，供 list_members 工具直接返回。
+export function handleGetTeamByInstance(instanceId: string): ApiResponse {
+  const t = team.findByInstance(instanceId);
+  if (!t) return errRes(404, `instance '${instanceId}' is not in any active team`);
+  const rows = team.listMembers(t.id);
+  const members = rows.map((m) => {
+    const inst = RoleInstance.findById(m.instanceId);
+    return {
+      instanceId: m.instanceId,
+      memberName: inst?.memberName ?? null,
+      status: inst?.status ?? null,
+      isLeader: inst?.isLeader ?? false,
+      roleInTeam: m.roleInTeam,
+      joinedAt: m.joinedAt,
+    };
+  });
+  return {
+    status: 200,
+    body: {
+      teamId: t.id,
+      teamName: t.name,
+      leaderInstanceId: t.leaderInstanceId,
+      members,
+    },
+  };
 }
 
 export function handleRemoveMember(teamId: string, instanceId: string): ApiResponse {

@@ -6,6 +6,8 @@ import { requestOfflineSchema, runRequestOffline } from './request_offline.js';
 import { sendMsgSchema, runSendMsg } from './send_msg.js';
 import { checkInboxSchema, runCheckInbox } from './check_inbox.js';
 import { lookupSchema, runLookup } from './lookup.js';
+import { addMemberSchema, runAddMember } from './add_member.js';
+import { listMembersSchema, runListMembers } from './list_members.js';
 
 export interface ToolSchema {
   name: string;
@@ -59,6 +61,16 @@ export const ALL_TOOLS: ToolEntry[] = [
     schema: requestOfflineSchema,
     handler: ({ env }, args) => runRequestOffline(env, args),
     leaderOnly: true,
+  },
+  {
+    schema: addMemberSchema,
+    handler: ({ env }, args) => runAddMember(env, args),
+    leaderOnly: true,
+  },
+  {
+    schema: listMembersSchema,
+    handler: ({ env }) => runListMembers(env),
+    leaderOnly: false,
   },
 ];
 

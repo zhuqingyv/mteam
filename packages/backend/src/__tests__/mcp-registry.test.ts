@@ -6,8 +6,8 @@ import { ALL_TOOLS, findTool, visibleTools } from '../mcp/tools/registry.js';
 import { readEnv } from '../mcp/config.js';
 
 describe('mcp tools registry', () => {
-  it('exposes 6 tools total', () => {
-    expect(ALL_TOOLS).toHaveLength(6);
+  it('exposes 8 tools total', () => {
+    expect(ALL_TOOLS).toHaveLength(8);
   });
 
   it('every entry has schema.name / description / inputSchema', () => {
@@ -26,25 +26,29 @@ describe('mcp tools registry', () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it('only request_offline is leaderOnly', () => {
-    const leaderOnlyNames = ALL_TOOLS.filter((t) => t.leaderOnly).map(
-      (t) => t.schema.name,
-    );
-    expect(leaderOnlyNames).toEqual(['request_offline']);
+  it('leaderOnly set contains request_offline and add_member', () => {
+    const leaderOnlyNames = ALL_TOOLS.filter((t) => t.leaderOnly)
+      .map((t) => t.schema.name)
+      .sort();
+    expect(leaderOnlyNames).toEqual(['add_member', 'request_offline']);
   });
 
   it('visibleTools(false) hides leader-only tools', () => {
     const names = visibleTools(false).map((t) => t.schema.name);
     expect(names).not.toContain('request_offline');
+    expect(names).not.toContain('add_member');
     expect(names).toContain('activate');
     expect(names).toContain('send_msg');
-    expect(names).toHaveLength(5);
+    expect(names).toContain('list_members');
+    expect(names).toHaveLength(6);
   });
 
   it('visibleTools(true) includes all tools', () => {
     const names = visibleTools(true).map((t) => t.schema.name);
     expect(names).toContain('request_offline');
-    expect(names).toHaveLength(6);
+    expect(names).toContain('add_member');
+    expect(names).toContain('list_members');
+    expect(names).toHaveLength(8);
   });
 
   it('findTool returns entry by name', () => {

@@ -38,6 +38,7 @@ import {
   handleListMembers,
   handleAddMember,
   handleRemoveMember,
+  handleGetTeamByInstance,
 } from './api/panel/teams.js';
 import { routeMcpStore } from './api/panel/mcp-store.js';
 import { handleSearchMcpTools } from './api/panel/mcp-tools.js';
@@ -159,6 +160,10 @@ async function route(req: http.IncomingMessage): Promise<ApiResponse> {
   if (pathname.startsWith(TEAMS_PREFIX + '/')) {
     const rest = pathname.slice(TEAMS_PREFIX.length + 1);
     const parts = rest.split('/');
+    if (parts.length === 2 && parts[0] === 'by-instance' && parts[1]) {
+      if (method === 'GET') return handleGetTeamByInstance(parts[1]);
+      return { status: 404, body: { error: 'not found' } };
+    }
     if (parts.length === 1 && parts[0]) {
       if (method === 'GET') return handleGetTeam(parts[0]);
       return { status: 404, body: { error: 'not found' } };
