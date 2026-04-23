@@ -6,7 +6,7 @@ mteam 是多 agent 团队协作平台。管理角色模板/实例、进程生命
 
 ## 技术栈
 
-- 后端：TypeScript + Node.js + better-sqlite3 + Unix socket
+- 后端：TypeScript + bun:sqlite + RxJS（事件总线）+ Unix socket + WebSocket（ws）
 - 前端：React 19 + Vite + TypeScript + Jotai（测试面板阶段）
 - MCP：@modelcontextprotocol/sdk
 - PTY：node-pty
@@ -19,7 +19,8 @@ packages/
 ├── backend/       # 后端服务
 │   ├── src/
 │   │   ├── server.ts       # HTTP server 入口（端口 58580）
-│   │   ├── domain/         # 领域对象（角色模板、角色实例、状态机、事件）
+│   │   ├── bus/            # RxJS 事件总线（EventBus + 6 个 subscriber + WS 推送）
+│   │   ├── domain/         # 领域对象（角色模板、角色实例、状态机）
 │   │   ├── db/             # SQLite 连接 + schemas/（11 张表，每张一个 SQL 文件）
 │   │   ├── api/panel/      # HTTP 接口（模板 CRUD、实例管理、花名册、MCP Store、session 注册）
 │   │   ├── comm/           # 通信模块（Unix socket，NDJSON 协议）
@@ -43,7 +44,7 @@ packages/
 - [x] 角色模板 RoleTemplate（CRUD）
 - [x] 角色实例 RoleInstance（create/findById/listAll/activate/delete）
 - [x] 状态机（PENDING → ACTIVE → PENDING_OFFLINE → 物理删除）
-- [x] 事件系统（EventEmitter，SSE 预留）
+- [x] 事件系统（RxJS EventBus，16 种强类型事件，WebSocket 推送）
 - [x] 模板 HTTP 接口（5 个端点）
 - [x] 实例 HTTP 接口（创建/列表/删除/activate/request-offline）
 
@@ -66,9 +67,17 @@ packages/
 - [x] 所有元素带 data-testid（Playwright 就绪）
 
 ### 测试
-- [x] 后端单测 176/176 通过（vitest）
-- [x] 覆盖：state-machine + role-template + role-instance + roster + API handlers + HTTP server
+- [x] 后端单测 197/197 通过（bun:test）
+- [x] 覆盖：state-machine + role-template + role-instance + roster + API handlers + HTTP server + EventBus + subscriber + 集成
 - [x] Playwright e2e 15/15 通过（模板 3 + 实例 4 + 花名册 4 + MCP Store 4）
+
+### RxJS 事件总线（Phase 3）
+- [x] EventBus 核心（Subject<BusEvent> + 16 种强类型事件 + on/onPrefix/emit/destroy）
+- [x] 6 个 subscriber（roster / pty / domain-sync / comm-notify / log / ws-broadcaster）
+- [x] handler 解耦（role-instances / sessions / templates / mcp-store 副作用改 emit）
+- [x] WebSocket 推送（ws 包 + /ws/events upgrade，前端就绪）
+- [x] 旧代码清理（删 EventEmitter + 手动 roster sync）
+- [x] 修复 handleRegisterSession activate 后 roster 未同步的 bug
 
 ### 基础设施
 - [x] better-sqlite3 → bun:sqlite（全栈 bun）
@@ -96,16 +105,14 @@ packages/
 ## 待做
 
 ### 近期
-- [ ] RxJS 事件总线改造（EventEmitter → RxJS Subject，handler 解耦，WS 推送）
-- [ ] Playwright e2e 测试
-- [ ] Bug #3 修复
+- [ ] 前端接入 WebSocket 实时推送（useEventBus hook + Jotai atom invalidation）
 - [ ] 端到端联调（启动 server → 创建实例 → agent 用 mteam-mcp 工具完成任务）
 - [ ] Team + Project（自动建 team、自动拉人、项目管理）
+- [ ] Bug #3 修复（handleUpdateRoster 非法类型静默丢弃）
 - [ ] comm 跨机（mlink 接入 + remote_peers + system handler）
 
 ### 中期
 - [ ] 前端终端渲染（xterm.js + WebSocket 连 PTY）
-- [ ] SSE 实时状态推送
 - [ ] mnemo 内置（git submodule）
 - [ ] 多 CLI adapter（Gemini/Codex/Trae 支持）
 - [ ] 前端特效接入（liquid border + 触手）
@@ -143,3 +150,5 @@ packages/
 5. **MCP Store 文件存储** — 每个 MCP 一个 JSON 文件，spawn 时取交集动态注入
 6. **mteam MCP 内置不可卸载** — command="__builtin__"，其他 MCP 可装可卸
 7. **成员不能自己下线** — 必须 leader 批准（request_offline → PENDING_OFFLINE → 才能 deactivate）
+8. **RxJS 事件总线** — handler 只做 domain 操作 + emit，副作用由 subscriber 自动触发，模块间零耦合
+9. **WebSocket 推前端** — bus 事件通过 /ws/events 实时推送，前端不再轮询
