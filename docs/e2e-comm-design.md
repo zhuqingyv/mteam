@@ -12,8 +12,8 @@
   → RoleInstance.create(PENDING) + emit instance.created
   → pty.subscriber: McpManager.resolve() → spawn CLI
   → CLI 启动 → mteam MCP 启动 → CommClient 立即连 socket → register local:<leaderId>
-  → team 自动创建（leader = team）
   → roster 写入
+  → 实例化最后一步：自动创建 team（leader instance 生命周期的一部分，不是独立操作）
   → [外部触发激活] → ACTIVE
   → emit instance.activated
 ```
@@ -161,3 +161,4 @@ leader agent 调 request_offline(instanceId: memberId)
 | 1 | CommClient 懒连接，不是启动即连 | 所有 Case（可能丢消息） | mcp/server.ts 启动时连 |
 | 2 | member activate 不通知 leader | Case 3 | comm-notify.subscriber 加 instance.activated 订阅 |
 | 3 | leader 的 teamId 是否在 env 里 | Case 2 | 确认 McpManager.resolve 注入或 handler 查询 |
+| 4 | leader 实例化时不自动创建 team | Case 1 | instance.created subscriber 检测 isLeader → 自动 team.create |
