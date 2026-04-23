@@ -35,16 +35,17 @@
 ```
 ┌─────────────┐     ┌──────────────┐     ┌───────────────────┐
 │  MCP Store   │     │  角色模板      │     │  MCP 管理器         │
-│ (全局仓库)    │     │ (模板配置)     │     │ (resolve + 输出)   │
+│ (全局仓库)    │     │ (模板配置)     │     │ (快照 + resolve)   │
 │              │     │              │     │                   │
-│ command      │◄────┤ mcpConfig[]  ├────►│ resolve(template) │
+│ command      │     │ mcpConfig[]  ├────►│ resolve(template) │
 │ args/env     │     │ surface/search│    │ → McpConfigJSON   │
 │ transport    │     │              │     │                   │
-│ builtin      │     │ 不关心运行配置  │     │ 订阅 store 变更    │
-└──────────────┘     └──────────────┘     └───────────────────┘
-        │                                          │
-        │         mcp.installed / uninstalled       │
-        └──────────────────────────────────────────┘
+│ builtin      │     │ 不关心运行配置  │     │ 内存快照(Map)      │
+└──────┬───────┘     └──────────────┘     └────────▲──────────┘
+       │                                           │
+       │      bus: mcp.installed / uninstalled      │
+       └───────────────────────────────────────────┘
+              管理器订阅事件维护快照，不主动查 store
 ```
 
 ### 职责边界
@@ -53,34 +54,20 @@
 |----|--------|----------|
 | MCP Store | 全局 MCP server 运行配置 (command/args/env/transport)；安装/卸载/查询 | 角色模板、工具可见性 |
 | 角色模板 | "我要哪些 MCP" + 每个 MCP 的工具可见性配置 (surface/search) | MCP Store、运行配置 |
-| MCP 管理器 | 合并模板清单 + store 运行配置 → 输出可注入的完整 JSON；订阅 store 变更维护可用性 | 不做业务判断，不做 CRUD |
+| MCP 管理器 | 订阅 store 事件维护内存快照；resolve 时模板清单 ∩ 快照 → 输出可注入的完整 JSON | 不查 store、不做业务判断、不做 CRUD |
 
 ---
 
 ## 3. MCP Store 改动
 
-**几乎不需要改**。现有 store 已满足"全局仓库"职责：
+**不需要改**。现有 store 已满足"全局仓库"职责：
 
 - `listAll()` / `findByName()` / `install()` / `uninstall()` — 保留
 - `McpConfig` 类型 — 保留
 - 文件存储 `~/.claude/team-hub/mcp-store/` — 保留
+- bus 事件 `mcp.installed` / `mcp.uninstalled` — 已存在
 
-唯一新增：一个批量查询方法，供管理器一次性解析多个 MCP。
-
-```ts
-// mcp-store/store.ts — 新增
-export function findByNames(names: string[]): Map<string, McpConfig> {
-  ensureDir();
-  const result = new Map<string, McpConfig>();
-  for (const name of names) {
-    const cfg = findByName(name);
-    if (cfg) result.set(name, cfg);
-  }
-  return result;
-}
-```
-
-bus 事件 `mcp.installed` / `mcp.uninstalled` 已存在，无需改动。
+MCP 管理器通过订阅 bus 事件维护自己的快照，不需要 store 加任何新方法。
 
 ---
 
@@ -212,12 +199,14 @@ export interface ResolvedMcpSet {
 }
 ```
 
-### 核心接口
+### 核心类
 
 ```ts
+import { Subscription } from 'rxjs';
 import type { TemplateMcpConfig } from '../domain/role-template.js';
 import type { McpConfig } from './types.js';
-import { findByNames } from './store.js';
+import { listAll } from './store.js';
+import { bus } from '../bus/index.js';
 
 export interface McpManagerContext {
   /** 角色实例 ID，用于 __builtin__ 的 env 注入 */
@@ -231,24 +220,63 @@ export interface McpManagerContext {
 }
 
 /**
- * resolve: 从模板拿 MCP 清单 + 可见性，从 store 拿运行配置，合并输出。
+ * MCP 管理器 — 订阅 store 事件维护快照，resolve 时从内存取交集。
  *
- * 保证：输出的 configJson 里每个 MCP 一定在 store 中存在。
- * store 里不存在的自动跳过，记入 skipped。
+ * 生命周期：server 启动时 boot()，关闭时 teardown()。
+ * resolve() 保证：输出的 configJson 里每个 MCP 一定是当前可用的。
  */
-export function resolve(
-  templateMcps: TemplateMcpConfig,
-  ctx: McpManagerContext,
-): ResolvedMcpSet {
-  const names = templateMcps.map((m) => m.name);
-  const storeMap = findByNames(names);
+export class McpManager {
+  private snapshot = new Map<string, McpConfig>();
+  private sub: Subscription | null = null;
+
+  /** 启动：从 store 拿一次全量，然后订阅增量事件 */
+  boot(): void {
+    for (const cfg of listAll()) {
+      this.snapshot.set(cfg.name, cfg);
+    }
+    this.sub = new Subscription();
+    this.sub.add(
+      bus.on('mcp.installed').subscribe((e) => {
+        // 新安装的 MCP，从 store 读最新配置加入快照
+        const cfg = findByName(e.mcpName);
+        if (cfg) this.snapshot.set(cfg.name, cfg);
+      }),
+    );
+    this.sub.add(
+      bus.on('mcp.uninstalled').subscribe((e) => {
+        this.snapshot.delete(e.mcpName);
+      }),
+    );
+  }
+
+  teardown(): void {
+    this.sub?.unsubscribe();
+    this.sub = null;
+    this.snapshot.clear();
+  }
+
+  /** 快照里是否有这个 MCP */
+  isAvailable(name: string): boolean {
+    return this.snapshot.has(name);
+  }
+
+  /** 标注模板中哪些 MCP 当前不可用 */
+  checkTemplate(mcps: TemplateMcpConfig): { name: string; available: boolean }[] {
+    return mcps.map((m) => ({ name: m.name, available: this.snapshot.has(m.name) }));
+  }
+
+  /**
+   * resolve: 模板清单 ∩ 内存快照 → 完整可注入配置。
+   * 快照里没有的自动跳过，记入 skipped。
+   */
+  resolve(templateMcps: TemplateMcpConfig, ctx: McpManagerContext): ResolvedMcpSet {
 
   const mcpServers: McpConfigJson['mcpServers'] = {};
   const visibility: ResolvedMcpSet['visibility'] = {};
   const skipped: string[] = [];
 
   for (const mcpDef of templateMcps) {
-    const storeCfg = storeMap.get(mcpDef.name);
+    const storeCfg = this.snapshot.get(mcpDef.name);
     if (!storeCfg) {
       skipped.push(mcpDef.name);
       continue;
@@ -301,66 +329,13 @@ function getMteamMcpEntry(): string {
 }
 ```
 
-### 与 store 的订阅联动
+### 与 store 的联动
 
-MCP 管理器本身是**无状态函数**（resolve 是纯计算），不持有缓存。但提供一个 `McpAvailabilityChecker` 给需要运行时感知 store 变更的场景（如前端展示模板 MCP 可用性）：
-
-```ts
-// mcp-store/mcp-manager.ts
-
-import { bus } from '../bus/index.js';
-import { Subscription } from 'rxjs';
-
-/**
- * 运行时 MCP 可用性缓存。
- * 订阅 mcp.installed / mcp.uninstalled，维护一份 Set<string>。
- * 用于：
- *   1. API 层查模板时标注"哪些 MCP 当前可用"
- *   2. 前端编辑模板时实时显示不可用 MCP 的警告
- *
- * spawn 时不依赖这个缓存——resolve() 直接读 store 文件，保证一致性。
- */
-export class McpAvailabilityChecker {
-  private available = new Set<string>();
-  private sub: Subscription | null = null;
-
-  /** 从 store 初始化 + 订阅 bus */
-  boot(): void {
-    // 初始化：读一遍 store
-    const all = listAll();
-    for (const cfg of all) this.available.add(cfg.name);
-
-    this.sub = new Subscription();
-    this.sub.add(
-      bus.on('mcp.installed').subscribe((e) => {
-        this.available.add(e.mcpName);
-      }),
-    );
-    this.sub.add(
-      bus.on('mcp.uninstalled').subscribe((e) => {
-        this.available.delete(e.mcpName);
-      }),
-    );
-  }
-
-  isAvailable(name: string): boolean {
-    return this.available.has(name);
-  }
-
-  /** 标注模板中哪些 MCP 当前不可用 */
-  checkTemplate(mcps: TemplateMcpConfig): { name: string; available: boolean }[] {
-    return mcps.map((m) => ({
-      name: m.name,
-      available: this.available.has(m.name),
-    }));
-  }
-
-  teardown(): void {
-    this.sub?.unsubscribe();
-    this.sub = null;
-  }
-}
-```
+McpManager 通过 bus 订阅 `mcp.installed` / `mcp.uninstalled` 维护内存快照。
+- boot() 时从 store 拿一次全量初始化
+- 之后增量靠事件，不再查 store
+- resolve() 读内存快照取交集，零 I/O
+- isAvailable() / checkTemplate() 也读内存，供 API 层和前端使用
 
 ---
 
