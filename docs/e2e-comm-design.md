@@ -2,80 +2,162 @@
 
 ---
 
-## 完整链路
+## 功能 Case 清单
+
+### Case 1: leader 创建并激活
 
 ```
-外部触发（用户/中心 agent）
-  │
-  ▼
-创建 leader instance(isLeader: true)
-  → spawn CLI → mteam MCP 启动 → CommClient 立即连 socket 注册 local:<leaderId>
-  → leader 自动激活（不走 activate 工具）
-  → team 自动创建，leader 知道自己的 teamId
-  │
-  ▼
-leader 调 add_member(templateName, memberName, task?)
-  → 系统创建 member instance → spawn CLI → mteam MCP 启动 → CommClient 立即连 socket 注册
-  → member 此时 PENDING，但 comm 已在线
-  │
-  ▼
+外部触发
+  → POST /api/role-instances (isLeader: true)
+  → RoleInstance.create(PENDING) + emit instance.created
+  → pty.subscriber: McpManager.resolve() → spawn CLI
+  → CLI 启动 → mteam MCP 启动 → CommClient 立即连 socket → register local:<leaderId>
+  → team 自动创建（leader = team）
+  → roster 写入
+  → [外部触发激活] → ACTIVE
+  → emit instance.activated
+```
+
+### Case 2: leader 拉人
+
+```
+leader agent 调 add_member(templateName, memberName, task?)
+  → mteam handler:
+      1. 用 env.instanceId 查自己的 team（leader 创建时 teamId 已有）
+      2. POST /api/role-instances (isLeader: false, leaderName: leaderId)
+         → RoleInstance.create(PENDING) + emit instance.created
+         → pty.subscriber: spawn member CLI
+         → member CLI 启动 → mteam MCP 启动 → CommClient 立即连 socket → register local:<memberId>
+         → roster 写入
+      3. POST /api/teams/:teamId/members (instanceId: memberId)
+         → team.addMember + emit team.member_joined
+  → 返回 { instanceId, memberName, teamId }
+```
+
+### Case 3: member 激活 + 通知 leader
+
+```
 member agent 调 activate
+  → POST /api/role-instances/:id/activate
   → PENDING → ACTIVE
-  → 系统自动通过 comm 给 leader 发消息："xxx 上线了"
-  → leader 收到，知道 member 准备好了
-  │
-  ▼
-双方通过 send_msg 互发消息，走 comm socket
+  → emit instance.activated
+  → comm-notify.subscriber: 检测到非 leader 激活 → 通过 comm 给 leader 发系统消息 "xxx 上线了"
+  → leader 的 comm socket 收到通知
+```
+
+### Case 4: leader → member 发消息
+
+```
+leader agent 调 send_msg(to: "member名字", summary, content)
+  → mteam handler:
+      1. lookup("member名字") → roster 模糊搜 alias → 返回 local:<memberId>
+      2. CommClient.send({ from: local:<leaderId>, to: local:<memberId>, payload })
+  → CommServer → CommRouter:
+      查 registry → memberId 在线 → 直接推 socket
+  → member 的 mteam MCP 子进程收到消息
+```
+
+### Case 5: member → leader 发消息
+
+```
+member agent 调 send_msg(to: "leader名字", summary, content)
+  → 同 Case 4 反向
+```
+
+### Case 6: member 查收消息
+
+```
+member agent 调 check_inbox
+  → mteam handler: GET /api/role-instances/:id/inbox（或 comm 离线消息查询）
+  → 返回未读消息列表
+```
+
+### Case 7: member 下线
+
+```
+leader agent 调 request_offline(instanceId: memberId)
+  → POST /api/role-instances/:id/request-offline
+  → ACTIVE → PENDING_OFFLINE
+  → emit instance.offline_requested
+  → comm-notify.subscriber: 通过 comm 给 member 发系统消息 "leader 已批准你下线"
+  → team.subscriber: removeMember
+  → member agent 收到通知 → 调 deactivate → 进程退出
+```
+
+### Case 8: leader 下线 → team 消失 → 成员跟随
+
+```
+[外部触发 leader 下线]
+  → leader instance.offline_requested
+  → team.subscriber: 级联所有 ACTIVE 成员 request_offline
+  → 每个成员收到 comm 通知 → deactivate → 退出
+  → team.disband(leader_gone)
+  → leader 自己退出
 ```
 
 ---
 
-## 需要确认/修改的代码点
+## 全景数据流图
 
-### 1. CommClient 启动时机
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                        Backend Server                                │
+│                                                                      │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐            │
+│  │ roster   │  │ team     │  │ pty      │  │mcp-store │            │
+│  │ (DAO)    │  │ (DAO)    │  │ (spawn)  │  │(全局仓库) │            │
+│  └────▲─────┘  └────▲─────┘  └────▲─────┘  └────▲─────┘            │
+│       │              │              │              │                  │
+│  ┌────┴──────────────┴──────────────┴──────────────┴──────┐          │
+│  │                   RxJS Event Bus                        │          │
+│  │  instance.created / activated / deleted / offline_req   │          │
+│  │  team.created / disbanded / member_joined / member_left │          │
+│  └────▲──────────────────────────────────────────▲────────┘          │
+│       │                                          │                   │
+│  ┌────┴─────────────┐                  ┌─────────┴──────────┐       │
+│  │  HTTP API        │                  │  CommServer         │       │
+│  │  :58590          │                  │  Unix socket        │       │
+│  │                  │                  │                     │       │
+│  │  /role-templates │                  │  registry(addr→sock)│       │
+│  │  /role-instances │                  │  router(在线直推)    │       │
+│  │  /teams          │                  │  offline(DB存/重放)  │       │
+│  │  /roster         │                  │                     │       │
+│  │  /mcp-store      │                  │                     │       │
+│  └──────────────────┘                  └──────┬──────────────┘       │
+│                                               │                      │
+└───────────────────────────────────────────────┼──────────────────────┘
+                                                │ Unix socket
+                    ┌───────────────────────────┼───────────────────┐
+                    │                           │                   │
+          ┌─────────▼─────────┐       ┌─────────▼─────────┐       ...
+          │  Leader CLI       │       │  Member CLI       │
+          │                   │       │                   │
+          │  mteam MCP        │       │  mteam MCP        │
+          │  ├ send_msg       │       │  ├ activate       │
+          │  ├ check_inbox    │       │  ├ send_msg       │
+          │  ├ add_member     │       │  ├ check_inbox    │
+          │  ├ list_members   │       │  ├ deactivate     │
+          │  ├ request_offline│       │  ├ lookup         │
+          │  └ lookup         │       │  └ ...            │
+          │                   │       │                   │
+          │  CommClient       │       │  CommClient       │
+          │  local:<leaderId> │       │  local:<memberId> │
+          └───────────────────┘       └───────────────────┘
 
-**现状**：send_msg 被调用时才懒连接
-**应改为**：mteam MCP server 启动时（runMteamServer）立即连 socket 并 register
-
-改动文件：`mcp/server.ts`
-
-### 2. member activate 时自动通知 leader
-
-**现状**：activate 只改状态 + emit bus 事件，不发 comm 消息
-**应加**：activate 成功后，系统通过 comm 给 leader 发系统消息 "xxx 上线了"
-
-实现方式：bus subscriber 订阅 `instance.activated`，查 instance 的 leaderName/teamId，通过 CommRouter 发系统消息给 leader
-
-改动文件：`bus/subscribers/comm-notify.subscriber.ts`（已有 offline_requested 通知，加一个 activated 通知）
-
-### 3. leader 的 teamId
-
-**现状**：leader 创建时 team 自动创建，但 teamId 可能没写到 instance 上
-**应确认**：leader instance 的 teamId 字段在创建时就有值，mteam MCP 子进程通过 env 或 HTTP 能拿到
-
-### 4. 离线消息重放
-
-**现状**：CommServer 已实现。register 时自动重放未读消息
-**无需改动**：member 在 PENDING 时 comm 已连，如果 leader 在 member activate 前发消息，消息会在线直接推（因为 socket 已连），不会丢
+消息流：
+  leader send_msg("member名字")
+    → CommClient → socket → CommServer → router → socket → member CommClient
+    
+  member activate
+    → HTTP API → bus emit → comm-notify subscriber → CommServer → leader CommClient
+```
 
 ---
 
-## 状态流转
+## 当前代码缺口
 
-```
-leader:  创建 → [自动激活] → ACTIVE → 调 add_member/send_msg/...
-member:  创建 → PENDING(comm 已连) → [调 activate] → ACTIVE → 通知 leader → 调 send_msg/...
-```
-
----
-
-## 测试验证点
-
-| # | 验证项 | 方式 |
-|---|--------|------|
-| 1 | leader spawn 后 comm 已注册 | 查 CommServer registry |
-| 2 | member spawn 后 comm 已注册（PENDING 状态） | 查 CommServer registry |
-| 3 | member activate 后 leader 收到上线通知 | leader check_inbox |
-| 4 | leader send_msg → member check_inbox 收到 | 双向验证 |
-| 5 | member send_msg → leader check_inbox 收到 | 反向验证 |
-| 6 | member 离线前的消息不丢 | send_msg 在 register 之后立即可达 |
+| # | 缺口 | 影响的 Case | 改动 |
+|---|------|------------|------|
+| 1 | CommClient 懒连接，不是启动即连 | 所有 Case（可能丢消息） | mcp/server.ts 启动时连 |
+| 2 | member activate 不通知 leader | Case 3 | comm-notify.subscriber 加 instance.activated 订阅 |
+| 3 | leader 的 teamId 是否在 env 里 | Case 2 | 确认 McpManager.resolve 注入或 handler 查询 |
