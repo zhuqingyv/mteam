@@ -168,13 +168,7 @@ required: `["instanceId"]`
 
 ---
 
-### ~~8. remove_member~~ — 暂不实现
-
-leader 不允许直接清除成员。成员下线走 request_offline 流程（leader 批准 → 成员进入 PENDING_OFFLINE → 成员自行 deactivate）。
-
----
-
-### 9. list_members
+### 8. list_members
 
 | 属性 | 值 |
 |------|-----|
@@ -198,24 +192,6 @@ leader 不允许直接清除成员。成员下线走 request_offline 流程（le
 
 ---
 
-### ~~10. disband_team~~ — 暂不实现
-
-leader 下线 team 自动消失（生命周期联动已实现）。leader 在 team 就在，没有主动解散场景。
-
----
-
-### ~~11. assign_task~~ — 暂不实现
-
-send_msg 已能覆盖。leader 给成员发消息即分配任务。
-
----
-
-### ~~12. broadcast~~ — 暂不实现
-
-send_msg 逐个发即可。后续如有需要再加。
-
----
-
 ## 完整工具矩阵
 
 | # | 工具名 | 角色 | 首屏/次屏 | 状态 | 说明 |
@@ -227,11 +203,7 @@ send_msg 逐个发即可。后续如有需要再加。
 | 5 | `lookup` | 公共 | 次屏 | 已实现 | 模糊查找通信目标 |
 | 6 | `request_offline` | leader | 次屏 | 已实现 | 批准成员下线 |
 | 7 | `add_member` | leader | 首屏 | **待实现** | 创建成员 instance + 加入 team |
-| 8 | ~~`remove_member`~~ | — | — | 暂不实现 | 走 request_offline |
-| 9 | `list_members` | 公共 | 首屏 | **待实现** | 查看 team 成员列表 |
-| 10 | ~~`disband_team`~~ | — | — | 暂不实现 | leader 下线 team 自动消失 |
-| 11 | ~~`assign_task`~~ | — | — | 暂不实现 | send_msg 覆盖 |
-| 12 | ~~`broadcast`~~ | — | — | 暂不实现 | send_msg 逐个发 |
+| 8 | `list_members` | 公共 | 首屏 | **待实现** | 查看 team 成员列表 |
 
 ---
 
