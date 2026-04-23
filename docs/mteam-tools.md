@@ -168,33 +168,9 @@ required: `["instanceId"]`
 
 ---
 
-### 8. remove_member
+### ~~8. remove_member~~ — 暂不实现
 
-| 属性 | 值 |
-|------|-----|
-| 角色 | leader 专属 |
-| 首屏建议 | 次屏 |
-| leaderOnly | true |
-
-**功能**: leader 从 team 移除成员并删除实例。先 request_offline，再 delete。
-
-**inputSchema**:
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "instanceId": { "type": "string", "description": "目标成员 instanceId" },
-    "force":      { "type": "boolean", "default": false, "description": "强制删除（跳过下线流程）" }
-  },
-  "required": ["instanceId"],
-  "additionalProperties": false
-}
-```
-
-**回调 backend API**:
-1. `DELETE /api/teams/:teamId/members/:instanceId`
-2. `DELETE /api/role-instances/:id?force=0|1`
+leader 不允许直接清除成员。成员下线走 request_offline 流程（leader 批准 → 成员进入 PENDING_OFFLINE → 成员自行 deactivate）。
 
 ---
 
@@ -316,7 +292,7 @@ required: `["instanceId"]`
 | 5 | `lookup` | 公共 | 次屏 | 已实现 | 模糊查找通信目标 |
 | 6 | `request_offline` | leader | 次屏 | 已实现 | 批准成员下线 |
 | 7 | `add_member` | leader | 首屏 | 待实现 | 添加成员到 team |
-| 8 | `remove_member` | leader | 次屏 | 待实现 | 从 team 移除成员 |
+| 8 | ~~`remove_member`~~ | — | — | 暂不实现 | leader 不直接清除成员，走 request_offline |
 | 9 | `list_members` | leader | 首屏 | 待实现 | 查看 team 成员列表 |
 | 10 | `disband_team` | leader | 次屏 | 待实现 | 解散 team |
 | 11 | `assign_task` | leader | 首屏 | 待实现 | 分配任务给成员 |
