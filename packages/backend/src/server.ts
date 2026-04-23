@@ -58,14 +58,25 @@ async function readBody(req: http.IncomingMessage): Promise<unknown> {
   });
 }
 
+// CORS 公共头：允许本地开发面板（Vite 5174 等）跨域调用 58580。
+// 前端浏览器跨域会先发预检（OPTIONS），若缺失这些头会直接失败。
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+  'Access-Control-Allow-Headers':
+    'Content-Type,X-Role-Instance-Id,X-Requested-With,Authorization',
+  'Access-Control-Max-Age': '600',
+};
+
 function jsonResponse(res: http.ServerResponse, resp: ApiResponse): void {
   if (resp.status === 204) {
-    res.writeHead(204);
+    res.writeHead(204, CORS_HEADERS);
     res.end();
     return;
   }
   const body = JSON.stringify(resp.body);
   res.writeHead(resp.status, {
+    ...CORS_HEADERS,
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
   });
@@ -208,6 +219,12 @@ export function createServer(): http.Server {
   return http.createServer(async (req, res) => {
     try {
       const pathname = (req.url ?? '/').split('?')[0] ?? '/';
+      // CORS 预检：浏览器对非简单请求会先发 OPTIONS，直接回 204 + 跨域头放行。
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, CORS_HEADERS);
+        res.end();
+        return;
+      }
       if (req.method === 'GET' && (pathname === '/' || pathname === '/panel')) {
         servePanelHtml(res);
         return;

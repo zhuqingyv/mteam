@@ -55,10 +55,15 @@ export function apiGet<T = unknown>(path: string): Promise<ApiResult<T>> {
   return apiFetch<T>(path, { method: 'GET' });
 }
 
-export function apiPost<T = unknown>(path: string, body?: unknown): Promise<ApiResult<T>> {
+export function apiPost<T = unknown>(
+  path: string,
+  body?: unknown,
+  headers?: Record<string, string>,
+): Promise<ApiResult<T>> {
   return apiFetch<T>(path, {
     method: 'POST',
     body: body === undefined ? undefined : JSON.stringify(body),
+    headers,
   });
 }
 

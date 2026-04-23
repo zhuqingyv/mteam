@@ -19,6 +19,27 @@ const row: React.CSSProperties = { display: 'flex', gap: 8, marginBottom: 6 };
 const label: React.CSSProperties = { width: 110, fontSize: 13 };
 const input: React.CSSProperties = { flex: 1, padding: 4, fontSize: 13 };
 
+// 状态徽章颜色映射：PENDING 黄、ACTIVE 绿、PENDING_OFFLINE 橙，其他落灰色。
+function getStatusBadgeStyle(status: string): React.CSSProperties {
+  const base: React.CSSProperties = {
+    display: 'inline-block',
+    padding: '2px 8px',
+    borderRadius: 10,
+    fontSize: 12,
+    fontWeight: 500,
+  };
+  switch (status) {
+    case 'PENDING':
+      return { ...base, background: '#fef3c7', color: '#92400e' };
+    case 'ACTIVE':
+      return { ...base, background: '#d1fae5', color: '#065f46' };
+    case 'PENDING_OFFLINE':
+      return { ...base, background: '#fed7aa', color: '#9a3412' };
+    default:
+      return { ...base, background: '#e5e7eb', color: '#374151' };
+  }
+}
+
 export function InstancePanel() {
   const [list, setList] = useState<Instance[]>([]);
   const [templateName, setTemplateName] = useState('');
@@ -59,11 +80,16 @@ export function InstancePanel() {
     await refresh();
   };
 
-  // 请求下线：headers 和 body 两种方式都传 callerInstanceId，容错
+  // 请求下线：优先用 header X-Role-Instance-Id（任务要求），body 保留作为兼容 fallback。
+  // callerId 为空时 fallback 到列表里第一个 leader 实例，方便手工测试。
   const onRequestOffline = async (id: string): Promise<void> => {
-    const r = await apiPost(`/api/role-instances/${encodeURIComponent(id)}/request-offline`, {
-      callerInstanceId: callerId,
-    });
+    const effectiveCaller =
+      callerId.trim() || list.find((x) => x.isLeader && x.status === 'ACTIVE')?.id || '';
+    const r = await apiPost(
+      `/api/role-instances/${encodeURIComponent(id)}/request-offline`,
+      { callerInstanceId: effectiveCaller },
+      { 'X-Role-Instance-Id': effectiveCaller },
+    );
     setResponse(r);
     await refresh();
   };
@@ -165,18 +191,32 @@ export function InstancePanel() {
             >
               <td style={{ padding: 6, fontFamily: 'monospace', fontSize: 12 }}>{i.id}</td>
               <td style={{ padding: 6 }}>{i.memberName}</td>
-              <td style={{ padding: 6 }}>{i.status}</td>
+              <td style={{ padding: 6 }}>
+                {/* 状态徽章：按状态使用不同颜色，便于快速识别生命周期阶段 */}
+                <span data-testid={`instance-status-${i.id}`} style={getStatusBadgeStyle(i.status)}>
+                  {i.status}
+                </span>
+              </td>
               <td style={{ padding: 6 }}>{i.isLeader ? 'yes' : 'no'}</td>
               <td style={{ padding: 6 }}>
-                <button data-testid={`instance-activate-${i.id}`} onClick={() => void onActivate(i.id)}>
-                  激活
-                </button>{' '}
-                <button
-                  data-testid={`instance-request-offline-${i.id}`}
-                  onClick={() => void onRequestOffline(i.id)}
-                >
-                  请求下线
-                </button>{' '}
+                {/* 激活按钮：仅 PENDING 状态可见 */}
+                {i.status === 'PENDING' && (
+                  <button
+                    data-testid={`instance-activate-${i.id}`}
+                    onClick={() => void onActivate(i.id)}
+                  >
+                    激活
+                  </button>
+                )}{' '}
+                {/* 请求下线按钮：仅 ACTIVE 状态可见 */}
+                {i.status === 'ACTIVE' && (
+                  <button
+                    data-testid={`instance-request-offline-${i.id}`}
+                    onClick={() => void onRequestOffline(i.id)}
+                  >
+                    请求下线
+                  </button>
+                )}{' '}
                 <button data-testid={`instance-delete-${i.id}`} onClick={() => void onDelete(i.id, false)}>
                   删除
                 </button>{' '}
