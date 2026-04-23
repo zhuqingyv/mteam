@@ -101,6 +101,10 @@ export class CommClient {
     });
   }
 
+  async ensureReady(): Promise<void> {
+    await this.ensureRegistered();
+  }
+
   async send(opts: SendOpts): Promise<void> {
     await this.ensureRegistered();
     const id = randomUUID();

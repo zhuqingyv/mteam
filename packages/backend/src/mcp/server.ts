@@ -17,9 +17,30 @@ function toTextResult(data: unknown): { content: Array<{ type: 'text'; text: str
   return { content: [{ type: 'text', text }], ...(isError ? { isError: true } : {}) };
 }
 
+async function connectCommWithRetry(comm: CommClient, address: string): Promise<void> {
+  const MAX_ATTEMPTS = 3;
+  const DELAY_MS = 500;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await comm.ensureReady();
+      process.stderr.write(`[mteam] comm ready address=${address} attempt=${attempt}\n`);
+      return;
+    } catch (e) {
+      const msg = (e as Error).message;
+      process.stderr.write(`[mteam] comm connect failed attempt=${attempt}/${MAX_ATTEMPTS} err=${msg}\n`);
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, DELAY_MS));
+      }
+    }
+  }
+  process.stderr.write(`[mteam] comm connect gave up address=${address} — send_msg will retry on demand\n`);
+}
+
 export async function runMteamServer(): Promise<void> {
   const env = readEnv();
-  const comm = new CommClient(env.commSock, `local:${env.instanceId}`);
+  const selfAddress = `local:${env.instanceId}`;
+  const comm = new CommClient(env.commSock, selfAddress);
+  await connectCommWithRetry(comm, selfAddress);
   const deps: ToolDeps = { env, comm };
 
   const server = new Server(

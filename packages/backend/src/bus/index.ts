@@ -24,11 +24,15 @@ export function bootSubscribers(deps: { commRouter: CommRouter }): void {
   if (masterSub) return;
   masterSub = new Subscription();
   masterSub.add(subscribeRoster());
+  // team 必须在 pty 之前注册：leader instance.created 先建 team，
+  // 才能保证后续 pty.spawn → CLI 启动 → mteam MCP 能通过 HTTP 查到 self.teamId。
+  // （实际不依赖执行顺序——Subject 分发同步，team.create 是同步 DB 写入；
+  // 但注册顺序保持与"建 team 先于 spawn"的因果顺序一致，便于排查。）
+  masterSub.add(subscribeTeam());
   masterSub.add(subscribePty());
   masterSub.add(subscribeDomainSync());
   masterSub.add(subscribeCommNotify(deps.commRouter));
   masterSub.add(subscribeLog());
-  masterSub.add(subscribeTeam());
   wsBroadcaster.start();
 }
 

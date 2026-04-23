@@ -110,6 +110,57 @@ describe('subscribeTeam — instance.deleted 级联', () => {
   });
 });
 
+describe('subscribeTeam — instance.created leader 自动建 team', () => {
+  it('isLeader=true → team.create + leader addMember + role_instances.team_id 写入', () => {
+    const leaderId = mkInstance('alice', true);
+
+    const created: string[] = [];
+    bus.on('team.created').subscribe((e) => created.push(e.teamId));
+
+    bus.emit({
+      type: 'instance.created',
+      ts: new Date().toISOString(),
+      source: 'test',
+      instanceId: leaderId,
+      templateName: 'tpl',
+      memberName: 'alice',
+      isLeader: true,
+      teamId: null,
+      task: null,
+    });
+
+    const t = dao.findActiveByLeader(leaderId);
+    expect(t).not.toBeNull();
+    expect(t!.name).toBe(`alice's team`);
+    expect(dao.listMembers(t!.id).map((m) => m.instanceId)).toEqual([leaderId]);
+    // role_instances.team_id 冗余列同步写入
+    expect(RoleInstance.findById(leaderId)!.teamId).toBe(t!.id);
+    // team.created 事件被发出
+    expect(created).toEqual([t!.id]);
+  });
+
+  it('isLeader=true 幂等：同一 leader 事件重放不重复建 team', () => {
+    const leaderId = mkInstance('bob', true);
+
+    const basePayload = {
+      type: 'instance.created' as const,
+      ts: new Date().toISOString(),
+      source: 'test',
+      instanceId: leaderId,
+      templateName: 'tpl',
+      memberName: 'bob',
+      isLeader: true,
+      teamId: null,
+      task: null,
+    };
+    bus.emit(basePayload);
+    const firstId = dao.findActiveByLeader(leaderId)!.id;
+    bus.emit(basePayload);
+    const secondId = dao.findActiveByLeader(leaderId)!.id;
+    expect(secondId).toBe(firstId);
+  });
+});
+
 describe('subscribeTeam — instance.created 级联', () => {
   it('带 teamId 的 instance.created → 自动 addMember', () => {
     const leaderId = mkInstance('leader', true);

@@ -59,19 +59,23 @@ let seq = 0;
 const uniq = (p: string): string => `${p}-${Date.now()}-${seq++}`;
 const idOf = (r: { data: unknown }): string => (r.data as { id: string }).id;
 
-// 建 leader + team 公用工具。addLeaderAsMember=true 把 leader 也加进 team_members，
-// 这样 leader.role_instances.team_id 被设上，leader 被 delete 时 payload 才会带 teamId。
-async function setup(activateLeader: boolean, addLeaderAsMember = false): Promise<{
+// 建 leader + team 公用工具。leader instance 创建时 team.subscriber 会自动建 team
+// 并把 leader 加入 team_members（role_instances.team_id 随之写入）。
+// addLeaderAsMember 参数保留为兼容签名但已无作用 —— leader 必然已是成员。
+async function setup(activateLeader: boolean, _addLeaderAsMember = false): Promise<{
   tpl: string; leaderId: string; teamId: string;
 }> {
   const tpl = uniq('tpl');
   expect((await createTemplate(BASE, tpl)).status).toBe(201);
   const l = await createInstance(BASE, tpl, uniq('leader'), true);
   const leaderId = idOf(l);
+  // subscriber 异步（同 tick 内）建 team；通过 WS team.created 事件拿 teamId。
+  const created = await waitMatch(
+    'team.created',
+    (x) => x.leaderInstanceId === leaderId,
+  );
+  const teamId = created.teamId as string;
   if (activateLeader) expect((await activateInstance(BASE, leaderId)).status).toBe(200);
-  const t = await createTeam(BASE, uniq('team'), leaderId);
-  const teamId = idOf(t);
-  if (addLeaderAsMember) expect((await addMember(BASE, teamId, leaderId)).status).toBe(201);
   return { tpl, leaderId, teamId };
 }
 
@@ -153,12 +157,13 @@ describe('Team 生命周期联动', () => {
     await waitMatch('instance.offline_requested', (x) => x.instanceId === activeId);
   });
 
-  it('Case 6: 创建 team 唯一约束 → 409', async () => {
+  it('Case 6: 创建 team 唯一约束 → 409（subscriber 已自动建 team）', async () => {
     const tpl = uniq('tpl');
     expect((await createTemplate(BASE, tpl)).status).toBe(201);
     const l = await createInstance(BASE, tpl, uniq('leader'), true);
     const leaderId = idOf(l);
-    expect((await createTeam(BASE, uniq('team'), leaderId)).status).toBe(201);
+    await waitMatch('team.created', (x) => x.leaderInstanceId === leaderId);
+    // subscriber 已建了一个 ACTIVE team，手动再建必 409（同一 leader 唯一约束）
     const dup = await createTeam(BASE, uniq('team'), leaderId);
     expect(dup.status).toBe(409);
   });

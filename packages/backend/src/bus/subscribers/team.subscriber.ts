@@ -2,20 +2,18 @@
 //
 // 订阅清单：
 //   - instance.offline_requested
-//       成员 → removeMember + emit team.member_left(offline_requested)
-//       leader → 级联下线所有成员 + disband + emit team.disbanded(leader_gone)
+//       成员 → removeMember + team.member_left(offline_requested)
+//       leader → 级联下线所有成员 + disband + team.disbanded(leader_gone)
 //   - instance.deleted
-//       成员 → removeMember + emit team.member_left(instance_deleted)
-//       leader → 用 role_instances.team_id 反查成员（CASCADE 已清 team_members）
-//                → forceDeleteInstance 每个成员 + emit team.disbanded(leader_gone)
-//   - instance.created（teamId != null）→ addMember + emit team.member_joined
-//   - team.disbanded（reason='manual' 才处理）→ 级联下线所有成员
-//   - team.member_left（reason='manual' 才处理）→ 级联下线被踢的成员
+//       成员 → removeMember + team.member_left(instance_deleted)
+//       leader → 反查 role_instances.team_id 成员 → forceDelete + team.disbanded(leader_gone)
+//   - instance.created
+//       isLeader=true → team.create + addMember(leader) + team.created
+//       teamId != null → addMember + team.member_joined
+//   - team.disbanded（reason='manual'）→ 级联下线所有成员
+//   - team.member_left（reason='manual'）→ 级联下线被踢的成员
 //
-// 防循环：
-//   - findByInstance 过滤 status='ACTIVE'，级联事件再进入时 team 已不活跃，返回 null 终止。
-//   - team.disbanded / team.member_left 按 reason 分流，只处理主动触发的那一种。
-//   - 成员走光不自动解散 —— leader 还在，可以再拉人。
+// 防循环：status='ACTIVE' 过滤 + reason 分流 + 成员走光不自动解散。
 import { Subscription } from 'rxjs';
 import { bus as defaultBus, type EventBus } from '../events.js';
 import { team } from '../../team/team.js';
@@ -24,9 +22,7 @@ import { makeBase } from '../helpers.js';
 import { getDb } from '../../db/connection.js';
 import { cascadeOfflineMember, forceDeleteInstance } from './team-cascade.js';
 
-// leader 被删后，用 role_instances.team_id 反查还活着的成员。
-// 为什么不用 team.listMembers：instance.delete() 的 CASCADE 已清空 team_members 行。
-// role_instances.team_id 是冗余列，不受 CASCADE 影响。
+// leader 被删后反查成员：CASCADE 已清 team_members，但 role_instances.team_id 冗余列仍在。
 function listRemainingMembers(teamId: string, excludeId: string): string[] {
   const rows = getDb()
     .prepare(`SELECT id FROM role_instances WHERE team_id = ? AND id != ?`)
@@ -40,14 +36,10 @@ export function subscribeTeam(eventBus: EventBus = defaultBus): Subscription {
   sub.add(
     eventBus.on('instance.offline_requested').subscribe((e) => {
       try {
-        // 用 RoleInstance 查 teamId/isLeader 而不是 team.findByInstance：
-        // leader 可能没 addMember 到 team_members 里（team.create 不自动加），
-        // 但 role_instances.team_id 在 addMember 之外由 API 层或 leader 创建时已设好。
-        // 注意：如果 role_instances.team_id 也没设（leader create team 时 DAO 不回写），
-        // 这里仍会查不到 — fallback 到 team.findActiveByLeader。
         const inst = RoleInstance.findById(e.instanceId);
         if (!inst) return;
-
+        // leader 建 team 时走 subscriber 自动 addMember，role_instances.team_id 已同步。
+        // fallback findActiveByLeader 保留给遗留数据（手动建的 team）。
         let teamRow = inst.teamId ? team.findById(inst.teamId) : null;
         if (!teamRow && inst.isLeader) {
           teamRow = team.findActiveByLeader(e.instanceId);
@@ -134,17 +126,36 @@ export function subscribeTeam(eventBus: EventBus = defaultBus): Subscription {
 
   sub.add(
     eventBus.on('instance.created').subscribe((e) => {
-      if (!e.teamId) return;
       try {
+        // leader 实例化最后一步：自动建 team + leader 入组。幂等防事件重放。
+        if (e.isLeader) {
+          if (team.findActiveByLeader(e.instanceId)) return;
+          const created = team.create({
+            name: `${e.memberName}'s team`,
+            leaderInstanceId: e.instanceId,
+          });
+          team.addMember(created.id, e.instanceId, null);
+          eventBus.emit({
+            ...makeBase('team.created', 'bus/team.subscriber', e.correlationId),
+            teamId: created.id,
+            name: created.name,
+            leaderInstanceId: e.instanceId,
+          });
+          return;
+        }
+        // 非 leader：若 emit 端带了 teamId（直接创建并入组的旧兼容路径）就 addMember。
+        if (!e.teamId) return;
         team.addMember(e.teamId, e.instanceId, null);
         eventBus.emit({
-          ...makeBase('team.member_joined', 'bus/team.subscriber'),
+          ...makeBase('team.member_joined', 'bus/team.subscriber', e.correlationId),
           teamId: e.teamId,
           instanceId: e.instanceId,
           roleInTeam: null,
         });
-      } catch {
-        // team 可能还不存在（leader 的 team 在 instance 创建后才建），吞掉。
+      } catch (err) {
+        process.stderr.write(
+          `[bus/team] instance.created handler failed for ${e.instanceId}: ${(err as Error).message}\n`,
+        );
       }
     }),
   );
