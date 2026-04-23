@@ -67,8 +67,10 @@ packages/
 - [x] 所有元素带 data-testid（Playwright 就绪）
 
 ### 测试
-- [x] 后端单测 197/197 通过（bun:test）
-- [x] 覆盖：state-machine + role-template + role-instance + roster + API handlers + HTTP server + EventBus + subscriber + 集成
+- [x] 后端单测 301/301 通过（bun:test）
+- [x] 覆盖：state-machine + role-template + role-instance + roster + API handlers + HTTP server + EventBus + subscriber + 集成 + team DAO + team subscriber + team 集成 + 全接口 HTTP 集成测试 + WebSocket 组合测试
+- [x] HTTP 集成测试 6 组（真实 server + fetch，覆盖全部 28 个接口）
+- [x] WebSocket + HTTP 组合测试 8 用例（连 WS 收事件 + HTTP 操作，覆盖 team 生命周期 7 个 Case）
 - [x] Playwright e2e 15/15 通过（模板 3 + 实例 4 + 花名册 4 + MCP Store 4）
 
 ### RxJS 事件总线（Phase 3）
@@ -79,11 +81,26 @@ packages/
 - [x] 旧代码清理（删 EventEmitter + 手动 roster sync）
 - [x] 修复 handleRegisterSession activate 后 roster 未同步的 bug
 
+### Team 模块（Phase 4）
+- [x] team DAO（create/disband/addMember/removeMember/listMembers/findByInstance/findActiveByLeader）
+- [x] team.subscriber（5 个订阅：instance.offline_requested/deleted/created + team.disbanded/member_left）
+- [x] 生命周期联动（leader 下线→成员跟随下线、踢人→成员下线、手动 disband→级联）
+- [x] 防循环（reason 分流 + findByInstance 过滤 ACTIVE）
+- [x] CASCADE 时序处理（event payload 快照 teamId+isLeader + role_instances.team_id 反查）
+- [x] 一个 leader 只能有一个 ACTIVE team（partial unique index + DAO 校验 + API 409）
+- [x] 前端 TeamPanel（创建/展开成员/添加移除/解散）
+- [x] HTTP API 7 端点 /api/teams
+- [x] bus 事件 4 种（team.created/disbanded/member_joined/member_left）+ WS 推送
+
 ### 基础设施
 - [x] better-sqlite3 → bun:sqlite（全栈 bun）
 - [x] 后端 CORS 支持（前端跨域调用）
 - [x] bun --watch 热更新
 - [x] 前端 activate + request-offline 按钮补齐
+- [x] DB 建表外键顺序修复（PRAGMA foreign_keys=OFF/ON 包裹）
+- [x] 默认端口 58580→58590 避免冲突
+- [x] 前端端口 5180（避免与 AionUi 5173 冲突）
+- [x] 一键启动 `bun run dev`（后端+前端）
 
 ### 项目结构改造
 - [x] 旧代码全删（hub.ts/panel/旧 docs）
@@ -101,15 +118,18 @@ packages/
 | 2 | ~~Bug~~ | ~~roster.update 静默失败~~ | ~~低~~ | ✅ 已修（改纯 DB） |
 | 3 | Bug | handleUpdateRoster 非法类型静默丢弃 | 低 | 待修 |
 | 4 | Known Limitation | SqliteError code 字符串依赖 | 极低 | 不动 |
+| 5 | Bug | 删 leader instance 返回 500（pty.subscriber kill 相关） | 中 | 待修 |
+| 6 | Known Limitation | team.create 不自动加 leader 到 team_members，需手动 addMember | 低 | 设计如此，可优化 |
 
 ## 待做
 
 ### 近期
 - [ ] 前端接入 WebSocket 实时推送（useEventBus hook + Jotai atom invalidation）
 - [ ] 端到端联调（启动 server → 创建实例 → agent 用 mteam-mcp 工具完成任务）
-- [ ] Team 模块（纯 DAO 原子模块，只管"谁和谁一组"的关系）— **技术方案已出**（见 `docs/teams/team-manager-design.md`）
+- [ ] mteam MCP 加 team 工具（create_member / list_team 等，让 agent 能管理 team）
 - [ ] Project 模块（更高层业务概念，与 team 解耦）
 - [ ] Bug #3 修复（handleUpdateRoster 非法类型静默丢弃）
+- [ ] Bug: 删 leader instance 500（pty 相关）
 - [ ] comm 跨机（mlink 接入 + remote_peers + system handler）
 
 ### 中期
@@ -142,6 +162,7 @@ packages/
 | 角色模板定义 | docs/role-templates.md |
 | RxJS 事件总线设计 | docs/rxjs-event-bus-design.md |
 | Team 模块技术方案 | docs/teams/team-manager-design.md |
+| Team 生命周期联动方案 | docs/teams/team-lifecycle-sync.md |
 
 ## 关键设计决策
 
@@ -154,3 +175,6 @@ packages/
 7. **成员不能自己下线** — 必须 leader 批准（request_offline → PENDING_OFFLINE → 才能 deactivate）
 8. **RxJS 事件总线** — handler 只做 domain 操作 + emit，副作用由 subscriber 自动触发，模块间零耦合
 9. **WebSocket 推前端** — bus 事件通过 /ws/events 实时推送，前端不再轮询
+10. **Team 是原子 DAO** — 只管"谁和谁一组"，不绑 project，不做业务编排
+11. **Leader 和 team 生死绑定** — leader 下线→team 解散→成员跟随下线；成员走光不解散（leader 可再拉人）
+12. **WebSocket + HTTP 组合测试** — 后续所有功能测试标准：连 WS 收事件 + HTTP 模拟操作 + 验证响应和事件
