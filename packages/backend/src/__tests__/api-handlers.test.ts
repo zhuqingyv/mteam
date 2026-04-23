@@ -28,7 +28,6 @@ import {
   handleSetAlias,
   handleDeleteRoster,
 } from '../api/panel/roster.js';
-import { rosterAddInstance } from '../api/panel/role-instance-roster-sync.js';
 import { RoleTemplate } from '../domain/role-template.js';
 import { RoleInstance } from '../domain/role-instance.js';
 import { roster } from '../roster/roster.js';
@@ -174,14 +173,23 @@ describe('role-instances API handler (不经 PTY)', () => {
     closeDb();
   });
 
-  // 工具：用 domain 层造一个 PENDING 实例并入 roster（跳过 pty）
+  // 工具：用 domain 层造一个 PENDING 实例并入 roster（跳过 pty 和 bus）
   function seedPendingInstance(memberName = 'm', isLeader = false): string {
     const inst = RoleInstance.create({
       templateName: 'tpl',
       memberName,
       isLeader,
     });
-    rosterAddInstance(inst);
+    roster.add({
+      instanceId: inst.id,
+      memberName: inst.memberName,
+      alias: inst.memberName,
+      scope: 'local',
+      status: inst.status,
+      address: `local:${inst.id}`,
+      teamId: inst.teamId,
+      task: inst.task,
+    });
     return inst.id;
   }
 

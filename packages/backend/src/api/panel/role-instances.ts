@@ -1,14 +1,15 @@
-// 角色实例 HTTP 接口。负责实例生命周期（创建/激活/请求下线/删除），并通过 roster-sync 保持名册一致。
+// 角色实例 HTTP 接口。负责实例生命周期（创建/激活/请求下线/删除）。
+// 副作用（roster 同步 / PTY spawn / PTY kill）由 bus subscriber 自动处理：
+//   instance.created → pty.spawn + roster.add + pty.spawned → domain-sync 回写 session_pid
+//   instance.activated → roster.update ACTIVE
+//   instance.offline_requested → roster.update PENDING_OFFLINE
+//   instance.deleted → pty.kill + roster.remove
 import { RoleTemplate } from '../../domain/role-template.js';
 import { RoleInstance } from '../../domain/role-instance.js';
 import type { CreateRoleInstanceInput } from '../../domain/role-instance.js';
 import type { ApiResponse } from './role-templates.js';
-import { ptyManager } from '../../pty/manager.js';
-import {
-  rosterAddInstance,
-  rosterUpdateStatus,
-  rosterRemoveIfPresent,
-} from './role-instance-roster-sync.js';
+import { bus } from '../../bus/index.js';
+import { makeBase, newCorrelationId } from '../../bus/helpers.js';
 
 const errRes = (status: number, error: string): ApiResponse => ({ status, body: { error } });
 
@@ -45,7 +46,8 @@ function validateCreateBody(body: Record<string, unknown>): string | null {
   return null;
 }
 
-// 创建角色实例：校验 → 查模板 → 入库 → spawn PTY → 进 roster。
+// 创建角色实例：校验 → 查模板 → 入库 → 发 instance.created。
+// 副作用（PTY spawn / roster.add / session_pid 回写）由 bus subscriber 自动处理。
 export function handleCreateInstance(body: unknown): ApiResponse {
   if (!isPlainObject(body)) return errRes(400, 'body must be a JSON object');
   const verr = validateCreateBody(body);
@@ -64,24 +66,16 @@ export function handleCreateInstance(body: unknown): ApiResponse {
   };
   const instance = RoleInstance.create(input);
 
-  try {
-    const entry = ptyManager.spawn({
-      instanceId: instance.id,
-      memberName: instance.memberName,
-      isLeader: instance.isLeader,
-      leaderName: instance.leaderName,
-      task: instance.task,
-      persona: template.persona,
-      availableMcps: template.availableMcps,
-    });
-    instance.setSessionPid(entry.pid);
-  } catch (err) {
-    instance.delete();
-    const msg = err instanceof Error ? err.message : 'spawn failed';
-    return errRes(500, `spawn CLI failed: ${msg}`);
-  }
+  bus.emit({
+    ...makeBase('instance.created', 'api/panel/role-instances', newCorrelationId()),
+    instanceId: instance.id,
+    templateName: instance.templateName,
+    memberName: instance.memberName,
+    isLeader: instance.isLeader,
+    teamId: instance.teamId,
+    task: instance.task,
+  });
 
-  rosterAddInstance(instance);
   return { status: 201, body: instance.toJSON() };
 }
 
@@ -92,6 +86,7 @@ export function handleListInstances(): ApiResponse {
 
 // Leader 批准某成员下线：ACTIVE -> PENDING_OFFLINE。
 // callerInstanceId 优先从 header（X-Role-Instance-Id），body 作 fallback，兼容旧调用方。
+// 副作用（roster.update PENDING_OFFLINE）由 bus subscriber 自动处理。
 export function handleRequestOffline(
   id: string,
   body: unknown,
@@ -119,11 +114,17 @@ export function handleRequestOffline(
     return errRes(409, msg);
   }
 
-  rosterUpdateStatus(id, 'PENDING_OFFLINE');
+  bus.emit({
+    ...makeBase('instance.offline_requested', 'api/panel/role-instances'),
+    instanceId: id,
+    requestedBy: caller.id,
+  });
+
   return { status: 200, body: instance.toJSON() };
 }
 
 // 面板或测试走的激活入口：PENDING -> ACTIVE，不依赖 session register。
+// 副作用（roster.update ACTIVE）由 bus subscriber 自动处理。
 export function handleActivate(id: string): ApiResponse {
   const instance = RoleInstance.findById(id);
   if (!instance) return errRes(404, `role instance '${id}' not found`);
@@ -137,7 +138,12 @@ export function handleActivate(id: string): ApiResponse {
     return errRes(409, msg);
   }
 
-  rosterUpdateStatus(id, 'ACTIVE');
+  bus.emit({
+    ...makeBase('instance.activated', 'api/panel/role-instances'),
+    instanceId: id,
+    actor: null,
+  });
+
   return { status: 200, body: instance.toJSON() };
 }
 
@@ -145,6 +151,7 @@ export function handleActivate(id: string): ApiResponse {
 //   PENDING / PENDING_OFFLINE -> 正常删（PENDING 尚未激活可撤销；PENDING_OFFLINE 已批准下线）
 //   ACTIVE                    -> 拒绝 409（必须先 request-offline）
 //   ?force=1                  -> 强制删（crash 语义，用于清理脏数据/僵尸）
+// 副作用（PTY kill / roster.remove）由 bus subscriber 自动处理。
 export function handleDeleteInstance(id: string, force = false): ApiResponse {
   const instance = RoleInstance.findById(id);
   if (!instance) return errRes(404, `role instance '${id}' not found`);
@@ -161,8 +168,15 @@ export function handleDeleteInstance(id: string, force = false): ApiResponse {
     }
   }
 
-  ptyManager.kill(id);
+  const previousStatus = instance.status;
   instance.delete();
-  rosterRemoveIfPresent(id);
+
+  bus.emit({
+    ...makeBase('instance.deleted', 'api/panel/role-instances'),
+    instanceId: id,
+    previousStatus,
+    force,
+  });
+
   return { status: 204, body: null };
 }

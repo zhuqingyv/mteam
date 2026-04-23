@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/connection.js';
 import { RoleStatus, resolveTransition } from './state-machine.js';
-import { EVENTS, roleEvents } from './events.js';
 
 export interface RoleInstanceProps {
   id: string;
@@ -94,10 +93,6 @@ export class RoleInstance {
       ).run(id, now);
     })();
 
-    roleEvents.emit(EVENTS.ROLE_CREATED, {
-      instanceId: id, templateName: input.templateName, memberName: input.memberName, at: now,
-    });
-
     return new RoleInstance({
       id, templateName: input.templateName, memberName: input.memberName, isLeader,
       teamId, projectId, status: 'PENDING',
@@ -119,14 +114,12 @@ export class RoleInstance {
   }
 
   activate(actor: string | null = null): void {
-    const now = this.applyTransition('activate', actor, null);
-    roleEvents.emit(EVENTS.ROLE_ACTIVATED, { instanceId: this.id, actor, at: now });
+    this.applyTransition('activate', actor, null);
   }
 
   registerSession(sessionId: string, pid: number): void {
-    const now = this.applyTransition('register_session', null, { sessionId, pid });
+    this.applyTransition('register_session', null, { sessionId, pid });
     this.sessionId = sessionId; this.sessionPid = pid;
-    roleEvents.emit(EVENTS.ROLE_ACTIVATED, { instanceId: this.id, actor: null, at: now });
   }
 
   requestOffline(actor: string | null = null): void {
@@ -137,7 +130,7 @@ export class RoleInstance {
     event: 'activate' | 'register_session' | 'request_offline',
     actor: string | null,
     sp: { sessionId: string; pid: number } | null,
-  ): string {
+  ): void {
     const from = this.status;
     const to = resolveTransition(event, from);
     if (to === null) throw new Error(`transition '${event}' resolved to null`);
@@ -155,7 +148,6 @@ export class RoleInstance {
       ).run(this.id, from, to, event, actor, now);
     })();
     this.status = to;
-    return now;
   }
 
   delete(): void {
@@ -169,7 +161,6 @@ export class RoleInstance {
       ).run(this.id, from, now);
       db.prepare(`DELETE FROM role_instances WHERE id = ?`).run(this.id);
     })();
-    roleEvents.emit(EVENTS.ROLE_DELETED, { instanceId: this.id, at: now });
   }
 
   private setField(col: string, value: unknown): void {

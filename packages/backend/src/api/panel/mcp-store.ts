@@ -1,5 +1,7 @@
 import type http from 'node:http';
 import * as store from '../../mcp-store/store.js';
+import { bus } from '../../bus/index.js';
+import { makeBase } from '../../bus/helpers.js';
 import type { ApiResponse } from './role-templates.js';
 
 const errRes = (status: number, error: string): ApiResponse => ({ status, body: { error } });
@@ -18,6 +20,7 @@ export function handleListMcpStore(): ApiResponse {
   return { status: 200, body: store.listAll() };
 }
 
+// emit mcp.* 事件，便于前端 WS 推送和未来的审计/缓存失效 subscriber 订阅。
 export function handleInstallMcp(body: unknown): ApiResponse {
   if (!isPlainObject(body)) return errRes(400, 'body must be a JSON object');
 
@@ -55,6 +58,10 @@ export function handleInstallMcp(body: unknown): ApiResponse {
     env: (body.env as Record<string, string> | undefined) ?? {},
     transport: (body.transport as 'stdio' | 'sse' | undefined) ?? 'stdio',
   });
+  bus.emit({
+    ...makeBase('mcp.installed', 'api:mcp-store'),
+    mcpName: name,
+  });
   return { status: 201, body: config };
 }
 
@@ -64,6 +71,10 @@ export function handleUninstallMcp(name: string): ApiResponse {
   if (existing.builtin) return errRes(403, `mcp '${name}' is builtin and cannot be uninstalled`);
   try {
     store.uninstall(name);
+    bus.emit({
+      ...makeBase('mcp.uninstalled', 'api:mcp-store'),
+      mcpName: name,
+    });
     return { status: 204, body: null };
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'uninstall failed';

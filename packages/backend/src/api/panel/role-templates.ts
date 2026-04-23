@@ -1,6 +1,8 @@
 // 迁移到 bun:sqlite 后，错误类从 SqliteError 改为 SQLiteError；code 字段命名一致。
 import { SQLiteError } from 'bun:sqlite';
 import { RoleTemplate } from '../../domain/role-template.js';
+import { bus } from '../../bus/index.js';
+import { makeBase } from '../../bus/helpers.js';
 import type {
   CreateRoleTemplateInput,
   UpdateRoleTemplateInput,
@@ -57,6 +59,7 @@ function validateMcps(v: unknown): string | null {
   return null;
 }
 
+// emit template.* 事件，便于前端 WS 推送和未来的审计/缓存失效 subscriber 订阅。
 export function handleCreateTemplate(body: unknown): ApiResponse {
   if (!isPlainObject(body)) return errRes(400, 'body must be a JSON object');
   const nameErr = validateName(body.name);
@@ -79,6 +82,10 @@ export function handleCreateTemplate(body: unknown): ApiResponse {
   };
   try {
     const tpl = RoleTemplate.create(input);
+    bus.emit({
+      ...makeBase('template.created', 'api:role-templates'),
+      templateName: input.name,
+    });
     return { status: 201, body: tpl.toJSON() };
   } catch (e) {
     if (e instanceof SQLiteError && e.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
@@ -132,6 +139,10 @@ export function handleUpdateTemplate(name: string, body: unknown): ApiResponse {
   if ('availableMcps' in body) patch.availableMcps = body.availableMcps as string[];
 
   const updated = RoleTemplate.update(name, patch);
+  bus.emit({
+    ...makeBase('template.updated', 'api:role-templates'),
+    templateName: name,
+  });
   return { status: 200, body: updated.toJSON() };
 }
 
@@ -140,6 +151,10 @@ export function handleDeleteTemplate(name: string): ApiResponse {
   if (!existing) return errRes(404, `template '${name}' not found`);
   try {
     RoleTemplate.delete(name);
+    bus.emit({
+      ...makeBase('template.deleted', 'api:role-templates'),
+      templateName: name,
+    });
     return { status: 204, body: null };
   } catch (e) {
     if (e instanceof SQLiteError && typeof e.code === 'string' && e.code.startsWith('SQLITE_CONSTRAINT')) {

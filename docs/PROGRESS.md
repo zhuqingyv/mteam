@@ -96,6 +96,7 @@ packages/
 ## 待做
 
 ### 近期
+- [ ] RxJS 事件总线改造（EventEmitter → RxJS Subject，handler 解耦，WS 推送）
 - [ ] Playwright e2e 测试
 - [ ] Bug #3 修复
 - [ ] 端到端联调（启动 server → 创建实例 → agent 用 mteam-mcp 工具完成任务）
@@ -131,6 +132,7 @@ packages/
 | CLI adapter 调研 | packages/backend/docs/cli-adapters/README.md |
 | 旧代码清理方案 | packages/backend/docs/cleanup-plan.md |
 | 角色模板定义 | docs/role-templates.md |
+| RxJS 事件总线设计 | docs/rxjs-event-bus-design.md |
 
 ## 关键设计决策
 

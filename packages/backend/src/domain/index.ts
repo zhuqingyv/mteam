@@ -16,12 +16,3 @@ export type {
   RoleInstanceProps,
   CreateRoleInstanceInput,
 } from './role-instance.js';
-export {
-  EVENTS,
-  roleEvents,
-} from './events.js';
-export type {
-  RoleCreatedEvent,
-  RoleActivatedEvent,
-  RoleDeletedEvent,
-} from './events.js';

@@ -33,6 +33,8 @@ import {
 import { routeMcpStore } from './api/panel/mcp-store.js';
 import { ensureDefaults as ensureMcpDefaults } from './mcp-store/store.js';
 import type { ApiResponse } from './api/panel/role-templates.js';
+import { bootSubscribers, teardownSubscribers } from './bus/index.js';
+import { attachWsUpgrade } from './bus/ws-upgrade.js';
 
 const DEFAULT_PORT = 58580;
 const PREFIX = '/api/role-templates';
@@ -268,18 +270,25 @@ export function startServer(port?: number): http.Server {
     process.stderr.write(`[v2] listening on port ${p}\n`);
   });
 
+  const wss = attachWsUpgrade(server);
+
   const comm = new CommServer();
   const sockPath =
     process.env.TEAM_HUB_COMM_SOCK ||
     join(homedir(), '.claude', 'team-hub', 'comm.sock');
   comm
     .start(sockPath)
-    .then(() => process.stderr.write(`[v2] comm listening at ${sockPath}\n`))
+    .then(() => {
+      process.stderr.write(`[v2] comm listening at ${sockPath}\n`);
+      bootSubscribers({ commRouter: comm.router });
+    })
     .catch((e) =>
       process.stderr.write(`[v2] comm failed to start: ${(e as Error).message}\n`),
     );
 
   const shutdown = (): void => {
+    teardownSubscribers();
+    wss.close();
     comm.stop().finally(() => {
       server.close(() => {
         closeDb();
