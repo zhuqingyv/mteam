@@ -40,7 +40,9 @@ import {
   handleRemoveMember,
 } from './api/panel/teams.js';
 import { routeMcpStore } from './api/panel/mcp-store.js';
+import { handleSearchMcpTools } from './api/panel/mcp-tools.js';
 import { ensureDefaults as ensureMcpDefaults } from './mcp-store/store.js';
+import { mcpManager } from './mcp-store/mcp-manager.js';
 import type { ApiResponse } from './api/panel/role-templates.js';
 import { bootSubscribers, teardownSubscribers } from './bus/index.js';
 import { attachWsUpgrade } from './bus/ws-upgrade.js';
@@ -52,6 +54,7 @@ const SESSIONS_REGISTER = '/api/sessions/register';
 const ROSTER_PREFIX = '/api/roster';
 const ROSTER_SEARCH = '/api/roster/search';
 const TEAMS_PREFIX = '/api/teams';
+const MCP_TOOLS_SEARCH = '/api/mcp-tools/search';
 const PANEL_HTML_PATH = join(dirname(fileURLToPath(import.meta.url)), 'panel.html');
 
 async function readBody(req: http.IncomingMessage): Promise<unknown> {
@@ -105,6 +108,11 @@ async function route(req: http.IncomingMessage): Promise<ApiResponse> {
 
   if (pathname === ROSTER_SEARCH) {
     if (method === 'GET') return handleSearchRoster(query);
+    return { status: 404, body: { error: 'not found' } };
+  }
+
+  if (pathname === MCP_TOOLS_SEARCH) {
+    if (method === 'GET') return handleSearchMcpTools(query);
     return { status: 404, body: { error: 'not found' } };
   }
 
@@ -325,6 +333,7 @@ export function startServer(port?: number): http.Server {
     .start(sockPath)
     .then(() => {
       process.stderr.write(`[v2] comm listening at ${sockPath}\n`);
+      mcpManager.boot();
       bootSubscribers({ commRouter: comm.router });
     })
     .catch((e) =>
@@ -333,6 +342,7 @@ export function startServer(port?: number): http.Server {
 
   const shutdown = (): void => {
     teardownSubscribers();
+    mcpManager.teardown();
     wss.close();
     comm.stop().finally(() => {
       server.close(() => {

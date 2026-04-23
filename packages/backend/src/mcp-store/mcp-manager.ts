@@ -7,15 +7,12 @@ import type { Subscription } from 'rxjs';
 import { bus as defaultBus, type EventBus } from '../bus/index.js';
 import { listAll, findByName } from './store.js';
 import type { McpConfig } from './types.js';
+import type {
+  McpToolVisibility,
+  TemplateMcpConfig,
+} from '../domain/role-template.js';
 
-// Task #4 并行中，类型先本地定义，后续合入共享位置。
-export interface TemplateMcpConfig {
-  name: string;
-  visibility?: {
-    surface?: string[] | '*';
-    search?: string[] | '*';
-  };
-}
+export type { TemplateMcpConfig } from '../domain/role-template.js';
 
 export interface McpManagerContext {
   instanceId: string;
@@ -38,12 +35,14 @@ export interface ResolvedMcpSet {
 }
 
 // __builtin__ command 入口解析：MTEAM_MCP_ENTRY 指向 backend/src/mcp/index.js。
-// 避免和 pty/manager.ts 重复硬编码，这里独立解析一份（同一文件布局）。
+// searchTools 跟 mteam 平级的内置 MCP，由 resolve() 无条件注入，不出现在 store/模板里。
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const MTEAM_MCP_ENTRY = join(__dirname, '..', 'mcp', 'index.js');
+const SEARCHTOOLS_MCP_ENTRY = join(__dirname, '..', 'searchtools', 'index.js');
+const SEARCHTOOLS_MCP_NAME = 'searchTools';
 
 const DEFAULT_VISIBILITY = { surface: '*' as const, search: '*' as const };
 
@@ -94,28 +93,28 @@ export class McpManager {
   }
 
   checkTemplate(
-    mcps: TemplateMcpConfig[],
+    mcps: TemplateMcpConfig,
   ): { name: string; available: boolean }[] {
     return mcps.map((m) => ({ name: m.name, available: this.snapshot.has(m.name) }));
   }
 
   resolve(
-    templateMcps: TemplateMcpConfig[],
+    templateMcps: TemplateMcpConfig,
     ctx: McpManagerContext,
   ): ResolvedMcpSet {
     const mcpServers: McpConfigJson['mcpServers'] = {};
     const visibility: ResolvedMcpSet['visibility'] = {};
     const skipped: string[] = [];
 
-    for (const entry of templateMcps) {
+    for (const entry of templateMcps as McpToolVisibility[]) {
       const cfg = this.snapshot.get(entry.name);
       if (!cfg) {
         skipped.push(entry.name);
         continue;
       }
       const vis = {
-        surface: entry.visibility?.surface ?? DEFAULT_VISIBILITY.surface,
-        search: entry.visibility?.search ?? DEFAULT_VISIBILITY.search,
+        surface: entry.surface ?? DEFAULT_VISIBILITY.surface,
+        search: entry.search ?? DEFAULT_VISIBILITY.search,
       };
       visibility[entry.name] = vis;
 
@@ -139,6 +138,17 @@ export class McpManager {
         };
       }
     }
+
+    // searchTools 无条件注入：每个角色实例都要有一个 search 入口查次屏工具。
+    // 它不是模板可选项，也不走 store；env 仅需 ROLE_INSTANCE_ID + V2_SERVER_URL。
+    mcpServers[SEARCHTOOLS_MCP_NAME] = {
+      command: process.execPath,
+      args: [SEARCHTOOLS_MCP_ENTRY],
+      env: {
+        ROLE_INSTANCE_ID: ctx.instanceId,
+        V2_SERVER_URL: ctx.hubUrl,
+      },
+    };
 
     return { configJson: { mcpServers }, visibility, skipped };
   }

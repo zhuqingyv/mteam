@@ -1,15 +1,10 @@
 import { spawn as ptySpawn, type IPty } from 'node-pty';
 import { writeFileSync, unlinkSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { tmpdir, homedir } from 'node:os';
+import { join } from 'node:path';
 import { assemblePrompt } from './prompt.js';
-import { findByName as findMcp } from '../mcp-store/store.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-// mteam MCP 子进程入口路径（由 mteam-mcp/ 改名为 mcp/）
-const MTEAM_MCP_ENTRY = join(__dirname, '..', 'mcp', 'index.js');
+import { mcpManager } from '../mcp-store/mcp-manager.js';
+import type { TemplateMcpConfig } from '../domain/role-template.js';
 
 const READY_RE = /bypass permissions|shift\+tab/i;
 const DEFAULT_BUFFER_BYTES = 64 * 1024;
@@ -24,12 +19,13 @@ export interface SpawnOptions {
   leaderName: string | null;
   task: string | null;
   persona: string | null;
-  availableMcps?: string[];
+  availableMcps?: TemplateMcpConfig;
   cols?: number;
   rows?: number;
   cwd?: string;
   cliBin?: string;
   hubUrl?: string;
+  commSock?: string;
 }
 
 export interface PtyEntry {
@@ -72,36 +68,23 @@ export class PtyManager {
       persona: opts.persona,
       task: opts.task,
     });
-    const hubUrl = opts.hubUrl ?? `http://localhost:${process.env.V2_PORT ?? '58580'}`;
-    const mcpConfigPath = join(tmpdir(), `mteam-${opts.instanceId}.json`);
-    const mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }> = {};
-    const names = opts.availableMcps ?? [];
-    for (const name of names) {
-      const cfg = findMcp(name);
-      if (!cfg) {
-        process.stderr.write(`[pty] mcp '${name}' not found in store, skip\n`);
-        continue;
-      }
-      if (cfg.command === '__builtin__') {
-        mcpServers[name] = {
-          command: process.execPath,
-          args: [MTEAM_MCP_ENTRY],
-          env: {
-            ROLE_INSTANCE_ID: opts.instanceId,
-            V2_SERVER_URL: hubUrl,
-            TEAM_HUB_COMM_SOCK: process.env.TEAM_HUB_COMM_SOCK ?? '',
-          },
-        };
-      } else {
-        mcpServers[name] = {
-          command: cfg.command,
-          args: cfg.args,
-          env: cfg.env,
-        };
-      }
+    const hubUrl = opts.hubUrl ?? `http://localhost:${process.env.V2_PORT ?? '58590'}`;
+    const commSock =
+      opts.commSock ??
+      process.env.TEAM_HUB_COMM_SOCK ??
+      join(homedir(), '.claude', 'team-hub', 'comm.sock');
+    const resolved = mcpManager.resolve(opts.availableMcps ?? [], {
+      instanceId: opts.instanceId,
+      hubUrl,
+      commSock,
+      isLeader: opts.isLeader,
+    });
+    for (const name of resolved.skipped) {
+      process.stderr.write(`[pty] mcp '${name}' not found in store, skip\n`);
     }
-    const mcpConfig = { mcpServers };
-    writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig), 'utf-8');
+
+    const mcpConfigPath = join(tmpdir(), `mteam-${opts.instanceId}.json`);
+    writeFileSync(mcpConfigPath, JSON.stringify(resolved.configJson), 'utf-8');
 
     const cliBin = opts.cliBin ?? process.env.TEAM_HUB_CLI_BIN ?? 'claude';
     const cliArgs = [

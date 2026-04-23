@@ -2,6 +2,7 @@ export interface MteamEnv {
   instanceId: string;
   hubUrl: string;
   commSock: string;
+  isLeader: boolean;
 }
 
 export function readEnv(): MteamEnv {
@@ -15,5 +16,6 @@ export function readEnv(): MteamEnv {
     process.env.TEAM_HUB_URL ??
     `http://localhost:${port}`;
   const commSock = process.env.TEAM_HUB_COMM_SOCK ?? '';
-  return { instanceId, hubUrl, commSock };
+  const isLeader = process.env.IS_LEADER === '1';
+  return { instanceId, hubUrl, commSock, isLeader };
 }
