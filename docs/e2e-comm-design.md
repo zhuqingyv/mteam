@@ -27,7 +27,8 @@ leader agent 调 add_member(templateName, memberName, task?)
       2. POST /api/role-instances (isLeader: false, leaderName: leaderId)
          → RoleInstance.create(PENDING) + emit instance.created
          → pty.subscriber: spawn member CLI
-         → member CLI 启动 → mteam MCP 启动 → CommClient 立即连 socket → register local:<memberId>
+         → member CLI 启动 → mteam MCP 启动
+         → CommClient 立即连 socket → register local:<memberId>（实例化即注册，不等 activate）
          → roster 写入
       3. POST /api/teams/:teamId/members (instanceId: memberId)
          → team.addMember + emit team.member_joined
@@ -158,7 +159,7 @@ leader agent 调 request_offline(instanceId: memberId)
 
 | # | 缺口 | 影响的 Case | 改动 |
 |---|------|------------|------|
-| 1 | CommClient 懒连接，不是启动即连 | 所有 Case（可能丢消息） | mcp/server.ts 启动时连 |
+| 1 | CommClient 懒连接，不是启动即连 | 所有 Case（实例化后必须立即在 comm 注册地址，否则丢消息） | mcp/server.ts 启动时立即 connect + register |
 | 2 | member activate 不通知 leader | Case 3 | comm-notify.subscriber 加 instance.activated 订阅 |
 | 3 | leader 的 teamId 是否在 env 里 | Case 2 | 确认 McpManager.resolve 注入或 handler 查询 |
 | 4 | leader 实例化时不自动创建 team | Case 1 | instance.created subscriber 检测 isLeader → 自动 team.create |
