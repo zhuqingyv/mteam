@@ -178,9 +178,9 @@ leader 不允许直接清除成员。成员下线走 request_offline 流程（le
 
 | 属性 | 值 |
 |------|-----|
-| 角色 | leader 专属 |
+| 角色 | 公共 |
 | 首屏建议 | 首屏 |
-| leaderOnly | true |
+| leaderOnly | false |
 
 **功能**: 列出当前 team 所有成员及其状态。
 
@@ -198,86 +198,21 @@ leader 不允许直接清除成员。成员下线走 request_offline 流程（le
 
 ---
 
-### 10. disband_team
+### ~~10. disband_team~~ — 暂不实现
 
-| 属性 | 值 |
-|------|-----|
-| 角色 | leader 专属 |
-| 首屏建议 | 次屏 |
-| leaderOnly | true |
-
-**功能**: leader 解散当前 team。所有成员被通知下线。
-
-**inputSchema**:
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "confirm": { "type": "boolean", "description": "确认解散" }
-  },
-  "required": ["confirm"],
-  "additionalProperties": false
-}
-```
-
-**回调 backend API**: `POST /api/teams/:teamId/disband`
+leader 下线 team 自动消失（生命周期联动已实现）。leader 在 team 就在，没有主动解散场景。
 
 ---
 
-### 11. assign_task
+### ~~11. assign_task~~ — 暂不实现
 
-| 属性 | 值 |
-|------|-----|
-| 角色 | leader 专属 |
-| 首屏建议 | 首屏 |
-| leaderOnly | true |
-
-**功能**: leader 给成员分配/更新任务。通过 send_msg 推送任务内容给目标成员。
-
-**inputSchema**:
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "instanceId": { "type": "string", "description": "目标成员 instanceId" },
-    "task":       { "type": "string", "description": "任务描述" }
-  },
-  "required": ["instanceId", "task"],
-  "additionalProperties": false
-}
-```
-
-**回调 backend API**: send_msg 通信通道（comm socket） + 可选 `PATCH /api/role-instances/:id`（如有任务字段更新）
+send_msg 已能覆盖。leader 给成员发消息即分配任务。
 
 ---
 
-### 12. broadcast
+### ~~12. broadcast~~ — 暂不实现
 
-| 属性 | 值 |
-|------|-----|
-| 角色 | leader 专属 |
-| 首屏建议 | 次屏 |
-| leaderOnly | true |
-
-**功能**: leader 向 team 全体成员广播消息。
-
-**inputSchema**:
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "summary": { "type": "string", "maxLength": 200, "description": "摘要" },
-    "content": { "type": "string", "description": "消息体" }
-  },
-  "required": ["summary", "content"],
-  "additionalProperties": false
-}
-```
-
-**回调 backend API**: `GET /api/teams/:teamId/members` 获取成员列表 → 逐个 comm.send
+send_msg 逐个发即可。后续如有需要再加。
 
 ---
 
@@ -285,18 +220,18 @@ leader 不允许直接清除成员。成员下线走 request_offline 流程（le
 
 | # | 工具名 | 角色 | 首屏/次屏 | 状态 | 说明 |
 |---|--------|------|-----------|------|------|
-| 1 | `activate` | member | member 首屏 / leader 隐藏 | 已实现 | 成员自激活 |
+| 1 | `activate` | member | member 首屏 | 已实现 | 成员自激活（leader 配置里不存在） |
 | 2 | `deactivate` | member | 次屏 | 已实现 | 成员下线 |
 | 3 | `send_msg` | 公共 | 首屏 | 已实现 | 点对点消息 |
 | 4 | `check_inbox` | 公共 | 首屏 | 已实现 | 拉取未读消息 |
 | 5 | `lookup` | 公共 | 次屏 | 已实现 | 模糊查找通信目标 |
 | 6 | `request_offline` | leader | 次屏 | 已实现 | 批准成员下线 |
-| 7 | `add_member` | leader | 首屏 | 待实现 | 添加成员到 team |
-| 8 | ~~`remove_member`~~ | — | — | 暂不实现 | leader 不直接清除成员，走 request_offline |
-| 9 | `list_members` | leader | 首屏 | 待实现 | 查看 team 成员列表 |
-| 10 | `disband_team` | leader | 次屏 | 待实现 | 解散 team |
-| 11 | `assign_task` | leader | 首屏 | 待实现 | 分配任务给成员 |
-| 12 | `broadcast` | leader | 次屏 | 待实现 | 全体广播 |
+| 7 | `add_member` | leader | 首屏 | **待实现** | 创建成员 instance + 加入 team |
+| 8 | ~~`remove_member`~~ | — | — | 暂不实现 | 走 request_offline |
+| 9 | `list_members` | 公共 | 首屏 | **待实现** | 查看 team 成员列表 |
+| 10 | ~~`disband_team`~~ | — | — | 暂不实现 | leader 下线 team 自动消失 |
+| 11 | ~~`assign_task`~~ | — | — | 暂不实现 | send_msg 覆盖 |
+| 12 | ~~`broadcast`~~ | — | — | 暂不实现 | send_msg 逐个发 |
 
 ---
 
@@ -310,6 +245,6 @@ leader 实例通过 `POST /api/role-instances`（`isLeader: true`）创建时，
 
 leader 的 agent 进程启动后，pty 输出检测（心跳/首行输出）自动将 leader 从 PENDING -> ACTIVE。**leader 不需要手动调用 `activate`**。
 
-### activate 对 leader 的处理
+### activate 对 leader
 
-`activate` 工具的 `leaderOnly: false` 意味着 leader 技术上能调用它，但 leader 不需要。建议在角色模板的 MCP 工具可见性配置中，将 `activate` 对 leader 角色设为隐藏（不出现在 surface 也不出现在 search），避免误用。member 必须首屏展示，因为这是 member CLI 启动后的第一个必调工具。
+leader 自动激活，`activate` 在 leader 的角色模板 MCP 配置里不存在。member 必须首屏展示。
