@@ -100,12 +100,14 @@ export function handleAddMember(teamId: string, body: unknown): ApiResponse {
 export function handleRemoveMember(teamId: string, instanceId: string): ApiResponse {
   const t = team.findById(teamId);
   if (!t) return errRes(404, `team '${teamId}' not found`);
-  team.removeMember(teamId, instanceId);
-  bus.emit({
-    ...makeBase('team.member_left', 'api/panel/teams'),
-    teamId,
-    instanceId,
-    reason: 'manual',
-  });
+  const removed = team.removeMember(teamId, instanceId);
+  if (removed) {
+    bus.emit({
+      ...makeBase('team.member_left', 'api/panel/teams'),
+      teamId,
+      instanceId,
+      reason: 'manual',
+    });
+  }
   return { status: 204, body: null };
 }

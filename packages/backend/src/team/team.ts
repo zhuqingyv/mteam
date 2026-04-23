@@ -105,33 +105,39 @@ export class Team {
   // 幂等：同 (teamId, instanceId) 已存在则静默返回。
   addMember(teamId: string, instanceId: string, roleInTeam: string | null = null): void {
     const db = getDb();
-    const existed = db
-      .prepare(`SELECT id FROM team_members WHERE team_id=? AND instance_id=?`)
-      .get(teamId, instanceId) as { id: number } | undefined;
-    if (existed) {
-      // 已在此 team，仍同步 team_id 冗余列（防止外部漂移）
+    db.transaction(() => {
+      const existed = db
+        .prepare(`SELECT id FROM team_members WHERE team_id=? AND instance_id=?`)
+        .get(teamId, instanceId) as { id: number } | undefined;
+      if (existed) {
+        db.prepare(`UPDATE role_instances SET team_id=? WHERE id=?`).run(teamId, instanceId);
+        return;
+      }
+      const now = new Date().toISOString();
+      db.prepare(
+        `INSERT INTO team_members (team_id, instance_id, role_in_team, joined_at)
+         VALUES (?, ?, ?, ?)`,
+      ).run(teamId, instanceId, roleInTeam, now);
       db.prepare(`UPDATE role_instances SET team_id=? WHERE id=?`).run(teamId, instanceId);
-      return;
-    }
-    const now = new Date().toISOString();
-    db.prepare(
-      `INSERT INTO team_members (team_id, instance_id, role_in_team, joined_at)
-       VALUES (?, ?, ?, ?)`,
-    ).run(teamId, instanceId, roleInTeam, now);
-    db.prepare(`UPDATE role_instances SET team_id=? WHERE id=?`).run(teamId, instanceId);
+    })();
   }
 
   // removeMember：删 team_members 行 + 清 role_instances.team_id。不存在则 no-op。
   // team_id 同时匹配避免把 instance 已经 re-assigned 后的 team_id 清掉。
-  removeMember(teamId: string, instanceId: string): void {
+  removeMember(teamId: string, instanceId: string): boolean {
     const db = getDb();
-    const res = db
-      .prepare(`DELETE FROM team_members WHERE team_id=? AND instance_id=?`)
-      .run(teamId, instanceId);
-    if ((res.changes as number) > 0) {
-      db.prepare(`UPDATE role_instances SET team_id=NULL WHERE id=? AND team_id=?`)
-        .run(instanceId, teamId);
-    }
+    let changed = false;
+    db.transaction(() => {
+      const res = db
+        .prepare(`DELETE FROM team_members WHERE team_id=? AND instance_id=?`)
+        .run(teamId, instanceId);
+      changed = (res.changes as number) > 0;
+      if (changed) {
+        db.prepare(`UPDATE role_instances SET team_id=NULL WHERE id=? AND team_id=?`)
+          .run(instanceId, teamId);
+      }
+    })();
+    return changed;
   }
 
   // listMembers：返回 team 的成员行，按 joined_at 升序。

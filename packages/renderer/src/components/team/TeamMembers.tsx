@@ -8,7 +8,7 @@ import {
 import type { ApiResult } from '../../api/client';
 
 export interface TeamMemberRow {
-  id: string;
+  id: number;
   teamId: string;
   instanceId: string;
   roleInTeam: string | null;

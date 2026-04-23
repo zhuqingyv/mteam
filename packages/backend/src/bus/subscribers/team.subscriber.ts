@@ -23,13 +23,15 @@ export function subscribeTeam(eventBus: EventBus = defaultBus): Subscription {
 
         const isLeader = t.leaderInstanceId === e.instanceId;
 
-        team.removeMember(t.id, e.instanceId);
-        eventBus.emit({
-          ...makeBase('team.member_left', 'bus/team.subscriber'),
-          teamId: t.id,
-          instanceId: e.instanceId,
-          reason: 'instance_deleted',
-        });
+        const removed = team.removeMember(t.id, e.instanceId);
+        if (removed) {
+          eventBus.emit({
+            ...makeBase('team.member_left', 'bus/team.subscriber'),
+            teamId: t.id,
+            instanceId: e.instanceId,
+            reason: 'instance_deleted',
+          });
+        }
 
         if (isLeader) {
           // leader_instance_id 上的 ON DELETE CASCADE 会物理删 team 行；
