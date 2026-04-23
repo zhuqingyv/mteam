@@ -126,7 +126,10 @@ packages/
 ### 近期
 - [ ] 前端接入 WebSocket 实时推送（useEventBus hook + Jotai atom invalidation）
 - [ ] 端到端联调（启动 server → 创建实例 → agent 用 mteam-mcp 工具完成任务）
-- [ ] mteam MCP 加 team 工具（create_member / list_team 等，让 agent 能管理 team）
+- [ ] mteam MCP 工具分层（方案 E：IS_LEADER 过滤 + searchTools 元工具 + sendToolListChanged 动态注册）— 设计见 docs/mcp-tool-layering-design.md
+  - [ ] Phase 1 基础设施：config.isLeader + tools/registry.ts + tools/search_tools.ts + server.ts 重构 + 单测
+  - [ ] Phase 2 team 工具补全：create_member / list_team / create_team / disband_team / add_member / remove_member / rename_member
+  - [ ] Phase 3 mcp_store 工具组：install_mcp / uninstall_mcp / list_mcp_store
 - [ ] Project 模块（更高层业务概念，与 team 解耦）
 - [ ] Bug #3 修复（handleUpdateRoster 非法类型静默丢弃）
 - [ ] Bug: 删 leader instance 500（pty 相关）
@@ -163,6 +166,8 @@ packages/
 | RxJS 事件总线设计 | docs/rxjs-event-bus-design.md |
 | Team 模块技术方案 | docs/teams/team-manager-design.md |
 | Team 生命周期联动方案 | docs/teams/team-lifecycle-sync.md |
+| MCP 工具分层/懒加载调研 | docs/mcp-tool-layering-research.md |
+| MCP 工具分层技术方案 | docs/mcp-tool-layering-design.md |
 
 ## 关键设计决策
 
