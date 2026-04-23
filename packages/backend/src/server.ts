@@ -45,7 +45,7 @@ import type { ApiResponse } from './api/panel/role-templates.js';
 import { bootSubscribers, teardownSubscribers } from './bus/index.js';
 import { attachWsUpgrade } from './bus/ws-upgrade.js';
 
-const DEFAULT_PORT = 58580;
+const DEFAULT_PORT = 58590;
 const PREFIX = '/api/role-templates';
 const INSTANCES_PREFIX = '/api/role-instances';
 const SESSIONS_REGISTER = '/api/sessions/register';

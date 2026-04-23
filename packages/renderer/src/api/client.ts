@@ -1,7 +1,7 @@
 // 后端 API 封装：统一 base URL + 错误包装。
 // 返回 { ok, status, data } 结构，由面板自行决定如何展示。
 export const API_BASE: string =
-  (import.meta.env.VITE_API_BASE as string | undefined) || 'http://localhost:58580';
+  (import.meta.env.VITE_API_BASE as string | undefined) || 'http://localhost:58590';
 
 // 面板用的响应壳，失败时 data 里会带 error 字段。
 export interface ApiResult<T = unknown> {
