@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "electron:build": "bun build electron-main/main.ts electron-main/backend.ts --outdir dist-electron --target node --format cjs -e electron && node -e \"require('fs').writeFileSync('dist-electron/package.json', JSON.stringify({type:'commonjs'}))\"",
+    "electron:build": "bun build electron-main/main.ts electron-main/backend.ts --outdir dist-electron --target node --format cjs -e electron && node -e \"require('fs').writeFileSync('dist-electron/package.json', JSON.stringify({type:'commonjs'})); require('fs').copyFileSync('electron-main/preload.cjs', 'dist-electron/preload.cjs')\"",
     "electron:dev": "bun run electron:build && VITE_DEV_URL=http://localhost:5180 electron dist-electron/main.js",
     "start": "concurrently -k -n VITE,ELECTRON -c blue,green \"bun run dev\" \"wait-on http://localhost:5180 && bun run electron:dev\"",
     "test:e2e": "playwright test",

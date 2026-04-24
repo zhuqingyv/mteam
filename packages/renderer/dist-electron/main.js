@@ -79,20 +79,25 @@ var import_node_url2 = require("node:url");
 var __dirname3 = import_node_path2.dirname(import_node_url2.fileURLToPath("file:///Users/zhuqingyu/project/mcp-team-hub/packages/renderer/electron-main/main.ts"));
 var VITE_DEV_URL = process.env.VITE_DEV_URL;
 var IS_DEV = !!VITE_DEV_URL;
+var PET_SIZE = { width: 220, height: 96 };
 var mainWindow = null;
 function createWindow() {
   const isMac = process.platform === "darwin";
+  const { width: screenW, height: screenH } = import_electron.screen.getPrimaryDisplay().workAreaSize;
   mainWindow = new import_electron.BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: PET_SIZE.width,
+    height: PET_SIZE.height,
+    x: Math.round(screenW - PET_SIZE.width - 40),
+    y: Math.round(screenH - PET_SIZE.height - 80),
     title: "mteam",
     transparent: true,
     frame: false,
     hasShadow: true,
     backgroundColor: "#00000000",
+    resizable: true,
+    alwaysOnTop: true,
     vibrancy: isMac ? "under-window" : undefined,
     visualEffectState: isMac ? "active" : undefined,
-    titleBarStyle: isMac ? "hiddenInset" : "hidden",
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -109,6 +114,20 @@ function createWindow() {
     mainWindow = null;
   });
 }
+import_electron.ipcMain.on("window:resize", (_e, payload) => {
+  if (!mainWindow)
+    return;
+  const [x, y] = mainWindow.getPosition();
+  const [w, h] = mainWindow.getSize();
+  const { width: screenW, height: screenH } = import_electron.screen.getPrimaryDisplay().workAreaSize;
+  const anchorRight = x + w;
+  const anchorBottom = y + h;
+  let newX = anchorRight - payload.width;
+  let newY = anchorBottom - payload.height;
+  newX = Math.max(8, Math.min(newX, screenW - payload.width - 8));
+  newY = Math.max(8, Math.min(newY, screenH - payload.height - 8));
+  mainWindow.setBounds({ x: newX, y: newY, width: payload.width, height: payload.height }, true);
+});
 import_electron.app.whenReady().then(() => {
   startBackend();
   createWindow();

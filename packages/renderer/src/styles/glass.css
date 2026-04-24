@@ -1,4 +1,4 @@
-/* 玻璃质感基础变量 —— 深色主题，白色壁纸也能保持可读 */
+/* 玻璃质感基础变量 —— 深色主题，适配 macOS under-window vibrancy */
 :root {
   --glass-bg-strong: rgba(30, 32, 48, 0.72);
   --glass-bg-medium: rgba(28, 30, 46, 0.55);
@@ -14,6 +14,9 @@
   --accent: rgba(140, 160, 255, 1);
 }
 
+/* 关键：html / body / #root 必须完全透明。
+   不能画任何 background，否则 Electron transparent:true 会被覆盖，
+   窗口看起来就会是纯色而不是桌面壁纸 + 玻璃。 */
 html,
 body,
 #root {
@@ -33,91 +36,144 @@ body,
   text-rendering: optimizeLegibility;
 }
 
-/* POC 容器 —— 左右分栏演示三种状态 */
-.poc-root {
-  display: flex;
-  gap: 32px;
-  padding: 48px;
+/* ========== 收起态：桌面宠物卡片 ==========
+   整个窗口是一张小玻璃卡，可拖动，点击展开 */
+.pet-root {
+  width: 100%;
   height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
   box-sizing: border-box;
   -webkit-app-region: drag;
 }
 
-.poc-root * {
-  -webkit-app-region: no-drag;
-}
-
-.poc-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
-
-.poc-col h3 {
-  margin: 0 0 4px 0;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-tertiary);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-/* ========== 收起态小卡片（桌面宠物） ========== */
-.pet-card {
-  align-self: flex-start;
+.pet-bubble {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 16px;
+  padding: 12px 16px;
+  min-width: 180px;
+  max-width: 100%;
   background: var(--glass-bg-medium);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: 18px;
-  box-shadow: var(--glass-shadow);
-  color: var(--text-primary);
-  font-size: 14px;
-  transition: transform 0.2s ease, background 0.2s ease;
-}
-
-.pet-card:hover {
-  transform: translateY(-1px);
-  background: var(--glass-bg-strong);
-}
-
-.pet-face {
-  font-size: 18px;
-  line-height: 1;
-}
-
-/* ========== 展开态聊天区 ========== */
-.chat-panel {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  gap: 12px;
-  padding: 16px;
-  background: var(--glass-bg-soft);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
   border-radius: 20px;
   box-shadow: var(--glass-shadow);
-  /* 上方渐隐，贴合设计图聊天区域的过渡 */
+  color: var(--text-primary);
+  font-size: 13.5px;
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  -webkit-app-region: no-drag;
+  animation: pet-breathe 3.6s ease-in-out infinite;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.pet-bubble:hover {
+  background: var(--glass-bg-strong);
+  transform: translateY(-1px) scale(1.02);
+  box-shadow:
+    0 14px 44px rgba(0, 0, 0, 0.4),
+    0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.pet-bubble:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.pet-face {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.pet-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes pet-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.94;
+  }
+  50% {
+    transform: scale(1.015);
+    opacity: 1;
+  }
+}
+
+/* ========== 展开态：聊天窗口 ========== */
+.chat-root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  box-sizing: border-box;
+  position: relative;
+  -webkit-app-region: drag;
+}
+
+.chat-root > * {
+  -webkit-app-region: no-drag;
+}
+
+.collapse-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--glass-bg-medium);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.collapse-btn:hover {
+  background: var(--glass-bg-strong);
+  color: var(--text-primary);
+  transform: translateY(1px);
+}
+
+/* 聊天消息区 */
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 8px 4px;
+  /* 上方渐隐，让消息从顶部淡入，贴合设计图 */
   mask-image: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, 0.6) 6%,
-    rgba(0, 0, 0, 1) 14%
+    rgba(0, 0, 0, 0.6) 4%,
+    rgba(0, 0, 0, 1) 10%
   );
   -webkit-mask-image: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, 0.6) 6%,
-    rgba(0, 0, 0, 1) 14%
+    rgba(0, 0, 0, 0.6) 4%,
+    rgba(0, 0, 0, 1) 10%
   );
 }
 
@@ -151,9 +207,9 @@ body,
 }
 
 .msg-avatar {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -240,7 +296,7 @@ body,
 .input-box {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   padding: 14px 16px;
   background: var(--glass-bg-strong);
   backdrop-filter: var(--glass-blur);
@@ -252,7 +308,7 @@ body,
 
 .input-box textarea {
   width: 100%;
-  min-height: 56px;
+  min-height: 52px;
   resize: none;
   background: transparent;
   border: none;
@@ -328,8 +384,11 @@ body,
   border: 1px solid var(--glass-border);
   color: var(--text-primary);
   font-size: 13px;
+  font-family: inherit;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
 }
 
 .chip:hover {
@@ -346,25 +405,4 @@ body,
   align-items: center;
   justify-content: center;
   font-size: 11px;
-}
-
-/* ========== 背景模拟（开发时能看到效果，vibrancy 下透明） ========== */
-.wallpaper-bg {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background: linear-gradient(
-      135deg,
-      #2a1f4a 0%,
-      #3a2a5e 30%,
-      #7a4a7e 60%,
-      #e8a8a0 100%
-    );
-  /* 当 Electron vibrancy 生效时，这层会被 transparent body 透过 */
-}
-
-/* 纯浏览器预览用 —— 模拟桌面壁纸，方便在 Chrome 里看 */
-body.preview .wallpaper-bg {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="%232a1f4a"/><stop offset="0.3" stop-color="%233a2a5e"/><stop offset="0.6" stop-color="%237a4a7e"/><stop offset="1" stop-color="%23e8a8a0"/></linearGradient></defs><rect width="1200" height="800" fill="url(%23g)"/></svg>');
-  background-size: cover;
 }
