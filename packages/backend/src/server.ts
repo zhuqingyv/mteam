@@ -46,6 +46,13 @@ import { ensureDefaults as ensureMcpDefaults } from './mcp-store/store.js';
 import { mcpManager } from './mcp-store/mcp-manager.js';
 import { cliManager } from './cli-scanner/manager.js';
 import { handleListCli, handleRefreshCli } from './api/panel/cli.js';
+import {
+  handleGetPrimaryAgent,
+  handleConfigurePrimaryAgent,
+  handleStartPrimaryAgent,
+  handleStopPrimaryAgent,
+} from './api/panel/primary-agent.js';
+import { primaryAgent } from './primary-agent/primary-agent.js';
 import type { ApiResponse } from './api/panel/role-templates.js';
 import { bootSubscribers, teardownSubscribers } from './bus/index.js';
 import { attachWsUpgrade } from './bus/ws-upgrade.js';
@@ -60,6 +67,10 @@ const TEAMS_PREFIX = '/api/teams';
 const MCP_TOOLS_SEARCH = '/api/mcp-tools/search';
 const CLI_PREFIX = '/api/cli';
 const CLI_REFRESH = '/api/cli/refresh';
+const PRIMARY_AGENT_PREFIX = '/api/primary-agent';
+const PRIMARY_AGENT_CONFIG = '/api/primary-agent/config';
+const PRIMARY_AGENT_START = '/api/primary-agent/start';
+const PRIMARY_AGENT_STOP = '/api/primary-agent/stop';
 const PANEL_HTML_PATH = join(dirname(fileURLToPath(import.meta.url)), 'panel.html');
 
 async function readBody(req: http.IncomingMessage): Promise<unknown> {
@@ -128,6 +139,29 @@ async function route(req: http.IncomingMessage): Promise<ApiResponse> {
 
   if (pathname === CLI_PREFIX) {
     if (method === 'GET') return handleListCli();
+    return { status: 404, body: { error: 'not found' } };
+  }
+
+  if (pathname === PRIMARY_AGENT_CONFIG) {
+    if (method === 'POST') {
+      const body = await readBody(req);
+      return handleConfigurePrimaryAgent(body);
+    }
+    return { status: 404, body: { error: 'not found' } };
+  }
+
+  if (pathname === PRIMARY_AGENT_START) {
+    if (method === 'POST') return handleStartPrimaryAgent();
+    return { status: 404, body: { error: 'not found' } };
+  }
+
+  if (pathname === PRIMARY_AGENT_STOP) {
+    if (method === 'POST') return handleStopPrimaryAgent();
+    return { status: 404, body: { error: 'not found' } };
+  }
+
+  if (pathname === PRIMARY_AGENT_PREFIX) {
+    if (method === 'GET') return handleGetPrimaryAgent();
     return { status: 404, body: { error: 'not found' } };
   }
 
@@ -354,6 +388,7 @@ export function startServer(port?: number): http.Server {
       process.stderr.write(`[v2] comm listening at ${sockPath}\n`);
       mcpManager.boot();
       cliManager.boot();
+      primaryAgent.boot();
       bootSubscribers({ commRouter: comm.router });
     })
     .catch((e) =>
@@ -364,6 +399,9 @@ export function startServer(port?: number): http.Server {
     teardownSubscribers();
     mcpManager.teardown();
     cliManager.teardown();
+    primaryAgent.teardown().catch((e) =>
+      process.stderr.write(`[v2] primary-agent teardown failed: ${(e as Error).message}\n`),
+    );
     wss.close();
     comm.stop().finally(() => {
       server.close(() => {

@@ -23,7 +23,10 @@ export type BusEventType =
   | 'team.member_joined'
   | 'team.member_left'
   | 'cli.available'
-  | 'cli.unavailable';
+  | 'cli.unavailable'
+  | 'primary_agent.started'
+  | 'primary_agent.stopped'
+  | 'primary_agent.configured';
 
 export interface BusEventBase {
   type: BusEventType;
@@ -173,6 +176,24 @@ export interface CliUnavailableEvent extends BusEventBase {
   cliName: string;
 }
 
+export interface PrimaryAgentStartedEvent extends BusEventBase {
+  type: 'primary_agent.started';
+  agentId: string;
+  cliType: string;
+}
+
+export interface PrimaryAgentStoppedEvent extends BusEventBase {
+  type: 'primary_agent.stopped';
+  agentId: string;
+}
+
+export interface PrimaryAgentConfiguredEvent extends BusEventBase {
+  type: 'primary_agent.configured';
+  agentId: string;
+  cliType: string;
+  name: string;
+}
+
 export type BusEvent =
   | InstanceCreatedEvent
   | InstanceActivatedEvent
@@ -195,4 +216,7 @@ export type BusEvent =
   | TeamMemberJoinedEvent
   | TeamMemberLeftEvent
   | CliAvailableEvent
-  | CliUnavailableEvent;
+  | CliUnavailableEvent
+  | PrimaryAgentStartedEvent
+  | PrimaryAgentStoppedEvent
+  | PrimaryAgentConfiguredEvent;

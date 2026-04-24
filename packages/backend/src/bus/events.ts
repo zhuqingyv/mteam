@@ -32,6 +32,9 @@ export type {
   TeamMemberLeftEvent,
   CliAvailableEvent,
   CliUnavailableEvent,
+  PrimaryAgentStartedEvent,
+  PrimaryAgentStoppedEvent,
+  PrimaryAgentConfiguredEvent,
 } from './types.js';
 
 export class EventBus {
