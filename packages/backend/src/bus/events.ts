@@ -35,6 +35,14 @@ export type {
   PrimaryAgentStartedEvent,
   PrimaryAgentStoppedEvent,
   PrimaryAgentConfiguredEvent,
+  DriverStartedEvent,
+  DriverStoppedEvent,
+  DriverErrorEvent,
+  DriverThinkingEvent,
+  DriverTextEvent,
+  DriverToolCallEvent,
+  DriverToolResultEvent,
+  DriverTurnDoneEvent,
 } from './types.js';
 
 export class EventBus {

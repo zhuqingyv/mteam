@@ -6,7 +6,7 @@ import { filter, map } from 'rxjs/operators';
 import { bus, EventBus } from '../events.js';
 import type { BusEvent, BusEventType } from '../types.js';
 
-// 前端全量订阅：25 种事件都推，前端按需过滤。
+// 前端全量订阅：33 种事件都推，前端按需过滤。
 // 推送前剥离 source 和 correlationId（内部字段，前端无需）。
 const WS_EVENT_TYPES: ReadonlySet<BusEventType> = new Set<BusEventType>([
   'instance.created',
@@ -34,6 +34,14 @@ const WS_EVENT_TYPES: ReadonlySet<BusEventType> = new Set<BusEventType>([
   'primary_agent.started',
   'primary_agent.stopped',
   'primary_agent.configured',
+  'driver.started',
+  'driver.stopped',
+  'driver.error',
+  'driver.thinking',
+  'driver.text',
+  'driver.tool_call',
+  'driver.tool_result',
+  'driver.turn_done',
 ]);
 
 export function toWsPayload(e: BusEvent): Record<string, unknown> {

@@ -26,7 +26,15 @@ export type BusEventType =
   | 'cli.unavailable'
   | 'primary_agent.started'
   | 'primary_agent.stopped'
-  | 'primary_agent.configured';
+  | 'primary_agent.configured'
+  | 'driver.started'
+  | 'driver.stopped'
+  | 'driver.error'
+  | 'driver.thinking'
+  | 'driver.text'
+  | 'driver.tool_call'
+  | 'driver.tool_result'
+  | 'driver.turn_done';
 
 export interface BusEventBase {
   type: BusEventType;
@@ -194,6 +202,53 @@ export interface PrimaryAgentConfiguredEvent extends BusEventBase {
   name: string;
 }
 
+// AgentDriver 事件：ACP agent 驱动层统一输出。driverId 由 driver 实例自带，
+// 上层订阅者按 driverId 过滤分发给对应消费方（主 agent / 角色实例 / 未来场景）。
+export interface DriverStartedEvent extends BusEventBase {
+  type: 'driver.started';
+  driverId: string;
+}
+
+export interface DriverStoppedEvent extends BusEventBase {
+  type: 'driver.stopped';
+  driverId: string;
+}
+
+export interface DriverErrorEvent extends BusEventBase {
+  type: 'driver.error';
+  driverId: string;
+  message: string;
+}
+
+export interface DriverThinkingEvent extends BusEventBase {
+  type: 'driver.thinking';
+  driverId: string;
+  content: string;
+}
+
+export interface DriverTextEvent extends BusEventBase {
+  type: 'driver.text';
+  driverId: string;
+  content: string;
+}
+
+export interface DriverToolCallEvent extends BusEventBase {
+  type: 'driver.tool_call';
+  driverId: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+export interface DriverToolResultEvent extends BusEventBase {
+  type: 'driver.tool_result';
+  driverId: string;
+}
+
+export interface DriverTurnDoneEvent extends BusEventBase {
+  type: 'driver.turn_done';
+  driverId: string;
+}
+
 export type BusEvent =
   | InstanceCreatedEvent
   | InstanceActivatedEvent
@@ -219,4 +274,12 @@ export type BusEvent =
   | CliUnavailableEvent
   | PrimaryAgentStartedEvent
   | PrimaryAgentStoppedEvent
-  | PrimaryAgentConfiguredEvent;
+  | PrimaryAgentConfiguredEvent
+  | DriverStartedEvent
+  | DriverStoppedEvent
+  | DriverErrorEvent
+  | DriverThinkingEvent
+  | DriverTextEvent
+  | DriverToolCallEvent
+  | DriverToolResultEvent
+  | DriverTurnDoneEvent;
