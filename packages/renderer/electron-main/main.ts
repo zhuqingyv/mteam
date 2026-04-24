@@ -11,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const VITE_DEV_URL = process.env.VITE_DEV_URL;
 const IS_DEV = !!VITE_DEV_URL;
 
-const PET_SIZE = { width: 220, height: 96 };
+const PET_SIZE = { width: 500, height: 320 };
 const CHAT_SIZE = { width: 900, height: 680 };
 
 let mainWindow: BrowserWindow | null = null;
@@ -33,8 +33,9 @@ function createWindow(): void {
     backgroundColor: '#00000000',
     resizable: true,
     alwaysOnTop: true,
-    vibrancy: isMac ? 'under-window' : undefined,
-    visualEffectState: isMac ? 'active' : undefined,
+    // vibrancy 关掉 — WebGL 自己渲染玻璃效果，系统毛玻璃会叠白色底
+    // vibrancy: isMac ? 'under-window' : undefined,
+    // visualEffectState: isMac ? 'active' : undefined,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

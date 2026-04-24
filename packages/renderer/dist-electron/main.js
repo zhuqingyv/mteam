@@ -79,7 +79,7 @@ var import_node_url2 = require("node:url");
 var __dirname3 = import_node_path2.dirname(import_node_url2.fileURLToPath("file:///Users/zhuqingyu/project/mcp-team-hub/packages/renderer/electron-main/main.ts"));
 var VITE_DEV_URL = process.env.VITE_DEV_URL;
 var IS_DEV = !!VITE_DEV_URL;
-var PET_SIZE = { width: 220, height: 96 };
+var PET_SIZE = { width: 500, height: 320 };
 var mainWindow = null;
 function createWindow() {
   const isMac = process.platform === "darwin";
@@ -96,8 +96,6 @@ function createWindow() {
     backgroundColor: "#00000000",
     resizable: true,
     alwaysOnTop: true,
-    vibrancy: isMac ? "under-window" : undefined,
-    visualEffectState: isMac ? "active" : undefined,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
