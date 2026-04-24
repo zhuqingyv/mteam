@@ -31,12 +31,12 @@ describe('PrimaryAgent.configure', () => {
     closeDb();
   });
 
-  it('首次 configure：写入一行，id 是 UUID，status=STOPPED', () => {
+  it('首次 configure：写入一行，id 是 UUID，status=STOPPED', async () => {
     const bus = new EventBus();
     const events = collectEvents(bus);
     const agent = new PrimaryAgent(bus);
 
-    const row = agent.configure({ name: 'Alice', cliType: 'claude' });
+    const row = await agent.configure({ name: 'Alice', cliType: 'claude' });
     expect(row.id).toMatch(UUID_RE);
     expect(row.name).toBe('Alice');
     expect(row.cliType).toBe('claude');
@@ -51,11 +51,11 @@ describe('PrimaryAgent.configure', () => {
     expect(events[0].type).toBe('primary_agent.configured');
   });
 
-  it('第二次 configure：id 不变，仅字段更新', () => {
+  it('第二次 configure：id 不变，仅字段更新', async () => {
     const bus = new EventBus();
     const agent = new PrimaryAgent(bus);
-    const first = agent.configure({ name: 'A', cliType: 'claude' });
-    const second = agent.configure({ name: 'B', systemPrompt: 'hi' });
+    const first = await agent.configure({ name: 'A', cliType: 'claude' });
+    const second = await agent.configure({ name: 'B', systemPrompt: 'hi' });
 
     expect(second.id).toBe(first.id);
     expect(second.name).toBe('B');
@@ -66,11 +66,13 @@ describe('PrimaryAgent.configure', () => {
     expect(count).toBe(1);
   });
 
-  it('configure 带 mcpConfig → 持久化', () => {
+  it('configure 带 mcpConfig → 持久化', async () => {
     const bus = new EventBus();
     const agent = new PrimaryAgent(bus);
-    const mcpConfig = [{ serverName: 'mnemo', mode: 'all' as const }];
-    const row = agent.configure({ name: 'A', cliType: 'claude', mcpConfig });
+    const mcpConfig = [
+      { name: 'mnemo', surface: '*' as const, search: '*' as const },
+    ];
+    const row = await agent.configure({ name: 'A', cliType: 'claude', mcpConfig });
     expect(row.mcpConfig).toEqual(mcpConfig);
   });
 });
@@ -85,9 +87,9 @@ describe('PrimaryAgent.getConfig', () => {
     expect(agent.getConfig()).toBeNull();
   });
 
-  it('已配置 → 返回 row 数据', () => {
+  it('已配置 → 返回 row 数据', async () => {
     const agent = new PrimaryAgent(new EventBus());
-    const created = agent.configure({ name: 'X', cliType: 'claude' });
+    const created = await agent.configure({ name: 'X', cliType: 'claude' });
     const got = agent.getConfig();
     expect(got).not.toBeNull();
     expect(got!.id).toBe(created.id);
@@ -118,7 +120,7 @@ describe('PrimaryAgent.isRunning / start / stop', () => {
 
   it('configure 后 stop → 不抛错，status 保持 STOPPED', async () => {
     const agent = new PrimaryAgent(new EventBus());
-    agent.configure({ name: 'A', cliType: 'claude' });
+    await agent.configure({ name: 'A', cliType: 'claude' });
     await expect(agent.stop()).resolves.toBeUndefined();
     expect(agent.getConfig()!.status).toBe('STOPPED');
   });

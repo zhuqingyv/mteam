@@ -1,18 +1,15 @@
-import type { IPty } from 'node-pty';
+import type { Subscription } from 'rxjs';
 import { bus as defaultBus, type EventBus } from '../bus/events.js';
 import { makeBase } from '../bus/helpers.js';
 import { cliManager } from '../cli-scanner/manager.js';
-import { CommClient } from '../mcp/comm-client.js';
+import { AgentDriver } from '../agent-driver/driver.js';
 import { readRow, upsertConfig, setStatus } from './repo.js';
-import { spawnPrimaryCli, removeMcpConfig } from './spawner.js';
+import { buildDriverConfig } from './driver-config.js';
 import type { PrimaryAgentConfig, PrimaryAgentRow } from './types.js';
 
-const KILL_GRACE_MS = 2000;
-
 export class PrimaryAgent {
-  private handle: IPty | null = null;
-  private comm: CommClient | null = null;
-  private mcpConfigPath: string | null = null;
+  private driver: AgentDriver | null = null;
+  private driverSub: Subscription | null = null;
 
   constructor(private readonly eventBus: EventBus = defaultBus) {}
 
@@ -37,7 +34,8 @@ export class PrimaryAgent {
     if (this.isRunning()) await this.stop();
   }
 
-  configure(config: PrimaryAgentConfig): PrimaryAgentRow {
+  async configure(config: PrimaryAgentConfig): Promise<PrimaryAgentRow> {
+    const before = readRow();
     const next = upsertConfig(config);
     this.eventBus.emit({
       ...makeBase('primary_agent.configured', 'primary-agent'),
@@ -45,6 +43,13 @@ export class PrimaryAgent {
       cliType: next.cliType,
       name: next.name,
     });
+
+    // 切换 cliType 时：跑着就先停再按新配置起。
+    const cliChanged = !!before && before.cliType !== next.cliType;
+    if (cliChanged && this.driver) {
+      await this.stop();
+      await this.start();
+    }
     return next;
   }
 
@@ -55,38 +60,29 @@ export class PrimaryAgent {
   async start(): Promise<PrimaryAgentRow> {
     const row = readRow();
     if (!row) throw new Error('primary agent not configured');
-    if (this.handle) return row;
+    if (this.driver) return row;
     if (!cliManager.isAvailable(row.cliType)) {
       throw new Error(`cli '${row.cliType}' is not available`);
     }
 
-    const spawned = spawnPrimaryCli({
-      agentId: row.id,
-      name: row.name,
-      cliType: row.cliType,
-      systemPrompt: row.systemPrompt,
-      mcpConfig: row.mcpConfig,
-    });
-    this.handle = spawned.handle;
-    this.mcpConfigPath = spawned.mcpConfigPath;
-
-    spawned.handle.onExit(({ exitCode, signal }) => {
+    const { config, skipped } = buildDriverConfig({ row });
+    for (const name of skipped) {
       process.stderr.write(
-        `[primary-agent] exited code=${exitCode} signal=${signal ?? 0}\n`,
+        `[primary-agent] mcp '${name}' not found in store, skip\n`,
       );
-      this.onExited(row.id);
-    });
-
-    const comm = new CommClient(spawned.commSock, spawned.selfAddress);
-    try {
-      await comm.ensureReady();
-    } catch (err) {
-      this.killHandle();
-      removeMcpConfig(this.mcpConfigPath);
-      this.mcpConfigPath = null;
-      throw new Error(`comm register failed: ${(err as Error).message}`);
     }
-    this.comm = comm;
+
+    const driver = new AgentDriver(row.id, config);
+    this.driver = driver;
+    this.subscribeDriverEvents(row.id);
+
+    try {
+      await driver.start();
+    } catch (err) {
+      this.unsubscribeDriver();
+      this.driver = null;
+      throw err;
+    }
 
     setStatus(row.id, 'RUNNING');
     this.eventBus.emit({
@@ -99,13 +95,12 @@ export class PrimaryAgent {
 
   async stop(): Promise<void> {
     const row = readRow();
-    this.killHandle();
-    if (this.comm) {
-      try { this.comm.close(); } catch { /* ignore */ }
-      this.comm = null;
+    const driver = this.driver;
+    this.unsubscribeDriver();
+    this.driver = null;
+    if (driver) {
+      try { await driver.stop(); } catch { /* ignore */ }
     }
-    removeMcpConfig(this.mcpConfigPath);
-    this.mcpConfigPath = null;
     if (row) {
       setStatus(row.id, 'STOPPED');
       this.eventBus.emit({
@@ -116,17 +111,40 @@ export class PrimaryAgent {
   }
 
   isRunning(): boolean {
-    return this.handle !== null;
+    return this.driver !== null;
   }
 
-  private onExited(agentId: string): void {
-    this.handle = null;
-    if (this.comm) {
-      try { this.comm.close(); } catch { /* ignore */ }
-      this.comm = null;
+  private subscribeDriverEvents(agentId: string): void {
+    // AgentDriver 事件走全局 bus（driver 模块硬编码）。
+    // 只订阅自己这个 driverId，防止多实例交叉触发。
+    const sub = defaultBus.events$.subscribe((ev) => {
+      if (ev.type === 'driver.error') {
+        if (ev.driverId !== agentId) return;
+        process.stderr.write(
+          `[primary-agent] driver error: ${ev.message}\n`,
+        );
+        void this.handleDriverFailure(agentId);
+      } else if (ev.type === 'driver.stopped') {
+        if (ev.driverId !== agentId) return;
+        this.handleDriverStopped(agentId);
+      }
+    });
+    this.driverSub = sub;
+  }
+
+  private unsubscribeDriver(): void {
+    if (this.driverSub) {
+      this.driverSub.unsubscribe();
+      this.driverSub = null;
     }
-    removeMcpConfig(this.mcpConfigPath);
-    this.mcpConfigPath = null;
+  }
+
+  private async handleDriverFailure(agentId: string): Promise<void> {
+    if (!this.driver) return;
+    const d = this.driver;
+    this.unsubscribeDriver();
+    this.driver = null;
+    try { await d.stop(); } catch { /* ignore */ }
     setStatus(agentId, 'STOPPED');
     this.eventBus.emit({
       ...makeBase('primary_agent.stopped', 'primary-agent'),
@@ -134,15 +152,16 @@ export class PrimaryAgent {
     });
   }
 
-  private killHandle(): void {
-    if (!this.handle) return;
-    const h = this.handle;
-    try { h.kill('SIGTERM'); } catch { /* already exited */ }
-    const pid = h.pid;
-    setTimeout(() => {
-      try { process.kill(pid, 'SIGKILL'); } catch { /* already exited */ }
-    }, KILL_GRACE_MS);
-    this.handle = null;
+  private handleDriverStopped(agentId: string): void {
+    if (!this.driver) return;
+    // driver 自己发的 stopped 事件：子进程挂了，同步 DB 状态。
+    this.unsubscribeDriver();
+    this.driver = null;
+    setStatus(agentId, 'STOPPED');
+    this.eventBus.emit({
+      ...makeBase('primary_agent.stopped', 'primary-agent'),
+      agentId,
+    });
   }
 }
 

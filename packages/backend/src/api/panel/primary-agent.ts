@@ -40,7 +40,7 @@ export function handleGetPrimaryAgent(): ApiResponse {
   return { status: 200, body: row };
 }
 
-export function handleConfigurePrimaryAgent(body: unknown): ApiResponse {
+export async function handleConfigurePrimaryAgent(body: unknown): Promise<ApiResponse> {
   if (!isPlainObject(body)) return errRes(400, 'body must be a JSON object');
 
   const config: PrimaryAgentConfig = {};
@@ -73,7 +73,7 @@ export function handleConfigurePrimaryAgent(body: unknown): ApiResponse {
   }
 
   try {
-    const row = primaryAgent.configure(config);
+    const row = await primaryAgent.configure(config);
     return { status: 200, body: row };
   } catch (e) {
     return errRes(400, (e as Error).message);
