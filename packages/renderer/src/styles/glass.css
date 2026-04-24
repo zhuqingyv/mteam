@@ -1,0 +1,370 @@
+/* 玻璃质感基础变量 —— 深色主题，白色壁纸也能保持可读 */
+:root {
+  --glass-bg-strong: rgba(30, 32, 48, 0.72);
+  --glass-bg-medium: rgba(28, 30, 46, 0.55);
+  --glass-bg-soft: rgba(34, 36, 52, 0.38);
+  --glass-bg-user: rgba(118, 130, 220, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-border-strong: rgba(255, 255, 255, 0.2);
+  --glass-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.2);
+  --glass-blur: blur(24px) saturate(180%);
+  --text-primary: rgba(255, 255, 255, 0.96);
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  --text-tertiary: rgba(255, 255, 255, 0.5);
+  --accent: rgba(140, 160, 255, 1);
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
+  color: var(--text-primary);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC',
+    'Helvetica Neue', sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* POC 容器 —— 左右分栏演示三种状态 */
+.poc-root {
+  display: flex;
+  gap: 32px;
+  padding: 48px;
+  height: 100%;
+  box-sizing: border-box;
+  -webkit-app-region: drag;
+}
+
+.poc-root * {
+  -webkit-app-region: no-drag;
+}
+
+.poc-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.poc-col h3 {
+  margin: 0 0 4px 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* ========== 收起态小卡片（桌面宠物） ========== */
+.pet-card {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--glass-bg-medium);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  box-shadow: var(--glass-shadow);
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.pet-card:hover {
+  transform: translateY(-1px);
+  background: var(--glass-bg-strong);
+}
+
+.pet-face {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* ========== 展开态聊天区 ========== */
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 12px;
+  padding: 16px;
+  background: var(--glass-bg-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--glass-shadow);
+  /* 上方渐隐，贴合设计图聊天区域的过渡 */
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.6) 6%,
+    rgba(0, 0, 0, 1) 14%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.6) 6%,
+    rgba(0, 0, 0, 1) 14%
+  );
+}
+
+.chat-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px 4px 4px 4px;
+}
+
+.chat-scroll::-webkit-scrollbar {
+  width: 0;
+}
+
+.msg-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  max-width: 85%;
+}
+
+.msg-row.agent {
+  align-self: flex-start;
+}
+
+.msg-row.user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.msg-avatar {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  background: rgba(140, 160, 255, 0.3);
+  color: var(--text-primary);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+}
+
+.msg-meta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+
+.msg-bubble {
+  padding: 10px 14px;
+  border-radius: 14px;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  color: var(--text-primary);
+  font-size: 13.5px;
+  line-height: 1.55;
+  word-break: break-word;
+  max-width: 420px;
+}
+
+.msg-bubble.agent {
+  background: var(--glass-bg-medium);
+  border-top-left-radius: 4px;
+}
+
+.msg-bubble.user {
+  background: var(--glass-bg-user);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-top-right-radius: 4px;
+}
+
+.msg-bubble .attachment {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.msg-bubble .attachment-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.msg-bubble .attachment-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.msg-bubble .attachment-title {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.msg-bubble .attachment-sub {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+/* ========== 输入框 ========== */
+.input-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 18px;
+  box-shadow: var(--glass-shadow);
+}
+
+.input-box textarea {
+  width: 100%;
+  min-height: 56px;
+  resize: none;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.input-box textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+.input-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.input-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+}
+
+.send-btn {
+  background: rgba(140, 160, 255, 0.85);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.send-btn:hover {
+  background: rgba(140, 160, 255, 1);
+}
+
+/* ========== CLI 芯片按钮 ========== */
+.chip-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: var(--glass-bg-medium);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.chip:hover {
+  background: var(--glass-bg-strong);
+  transform: translateY(-1px);
+}
+
+.chip-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+
+/* ========== 背景模拟（开发时能看到效果，vibrancy 下透明） ========== */
+.wallpaper-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+      135deg,
+      #2a1f4a 0%,
+      #3a2a5e 30%,
+      #7a4a7e 60%,
+      #e8a8a0 100%
+    );
+  /* 当 Electron vibrancy 生效时，这层会被 transparent body 透过 */
+}
+
+/* 纯浏览器预览用 —— 模拟桌面壁纸，方便在 Chrome 里看 */
+body.preview .wallpaper-bg {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="%232a1f4a"/><stop offset="0.3" stop-color="%233a2a5e"/><stop offset="0.6" stop-color="%237a4a7e"/><stop offset="1" stop-color="%23e8a8a0"/></linearGradient></defs><rect width="1200" height="800" fill="url(%23g)"/></svg>');
+  background-size: cover;
+}

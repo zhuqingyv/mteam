@@ -81,10 +81,18 @@ var VITE_DEV_URL = process.env.VITE_DEV_URL;
 var IS_DEV = !!VITE_DEV_URL;
 var mainWindow = null;
 function createWindow() {
+  const isMac = process.platform === "darwin";
   mainWindow = new import_electron.BrowserWindow({
     width: 1200,
     height: 800,
     title: "mteam",
+    transparent: true,
+    frame: false,
+    hasShadow: true,
+    backgroundColor: "#00000000",
+    vibrancy: isMac ? "under-window" : undefined,
+    visualEffectState: isMac ? "active" : undefined,
+    titleBarStyle: isMac ? "hiddenInset" : "hidden",
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

@@ -14,10 +14,19 @@ const IS_DEV = !!VITE_DEV_URL;
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
+  const isMac = process.platform === 'darwin';
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     title: 'mteam',
+    transparent: true,
+    frame: false,
+    hasShadow: true,
+    backgroundColor: '#00000000',
+    vibrancy: isMac ? 'under-window' : undefined,
+    visualEffectState: isMac ? 'active' : undefined,
+    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -29,7 +38,6 @@ function createWindow(): void {
     void mainWindow.loadURL(VITE_DEV_URL!);
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    // 生产：renderer/dist/index.html
     void mainWindow.loadFile(resolve(__dirname, '..', 'dist', 'index.html'));
   }
 
