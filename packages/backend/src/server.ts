@@ -44,6 +44,8 @@ import { routeMcpStore } from './api/panel/mcp-store.js';
 import { handleSearchMcpTools } from './api/panel/mcp-tools.js';
 import { ensureDefaults as ensureMcpDefaults } from './mcp-store/store.js';
 import { mcpManager } from './mcp-store/mcp-manager.js';
+import { cliManager } from './cli-scanner/manager.js';
+import { handleListCli, handleRefreshCli } from './api/panel/cli.js';
 import type { ApiResponse } from './api/panel/role-templates.js';
 import { bootSubscribers, teardownSubscribers } from './bus/index.js';
 import { attachWsUpgrade } from './bus/ws-upgrade.js';
@@ -56,6 +58,8 @@ const ROSTER_PREFIX = '/api/roster';
 const ROSTER_SEARCH = '/api/roster/search';
 const TEAMS_PREFIX = '/api/teams';
 const MCP_TOOLS_SEARCH = '/api/mcp-tools/search';
+const CLI_PREFIX = '/api/cli';
+const CLI_REFRESH = '/api/cli/refresh';
 const PANEL_HTML_PATH = join(dirname(fileURLToPath(import.meta.url)), 'panel.html');
 
 async function readBody(req: http.IncomingMessage): Promise<unknown> {
@@ -114,6 +118,16 @@ async function route(req: http.IncomingMessage): Promise<ApiResponse> {
 
   if (pathname === MCP_TOOLS_SEARCH) {
     if (method === 'GET') return handleSearchMcpTools(query);
+    return { status: 404, body: { error: 'not found' } };
+  }
+
+  if (pathname === CLI_REFRESH) {
+    if (method === 'POST') return handleRefreshCli();
+    return { status: 404, body: { error: 'not found' } };
+  }
+
+  if (pathname === CLI_PREFIX) {
+    if (method === 'GET') return handleListCli();
     return { status: 404, body: { error: 'not found' } };
   }
 
@@ -339,6 +353,7 @@ export function startServer(port?: number): http.Server {
     .then(() => {
       process.stderr.write(`[v2] comm listening at ${sockPath}\n`);
       mcpManager.boot();
+      cliManager.boot();
       bootSubscribers({ commRouter: comm.router });
     })
     .catch((e) =>
@@ -348,6 +363,7 @@ export function startServer(port?: number): http.Server {
   const shutdown = (): void => {
     teardownSubscribers();
     mcpManager.teardown();
+    cliManager.teardown();
     wss.close();
     comm.stop().finally(() => {
       server.close(() => {

@@ -30,6 +30,8 @@ export type {
   TeamDisbandedEvent,
   TeamMemberJoinedEvent,
   TeamMemberLeftEvent,
+  CliAvailableEvent,
+  CliUnavailableEvent,
 } from './types.js';
 
 export class EventBus {

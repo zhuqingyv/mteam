@@ -21,7 +21,9 @@ export type BusEventType =
   | 'team.created'
   | 'team.disbanded'
   | 'team.member_joined'
-  | 'team.member_left';
+  | 'team.member_left'
+  | 'cli.available'
+  | 'cli.unavailable';
 
 export interface BusEventBase {
   type: BusEventType;
@@ -159,6 +161,18 @@ export interface TeamMemberLeftEvent extends BusEventBase {
   reason: 'manual' | 'instance_deleted' | 'offline_requested';
 }
 
+export interface CliAvailableEvent extends BusEventBase {
+  type: 'cli.available';
+  cliName: string;
+  path: string;
+  version: string | null;
+}
+
+export interface CliUnavailableEvent extends BusEventBase {
+  type: 'cli.unavailable';
+  cliName: string;
+}
+
 export type BusEvent =
   | InstanceCreatedEvent
   | InstanceActivatedEvent
@@ -179,4 +193,6 @@ export type BusEvent =
   | TeamCreatedEvent
   | TeamDisbandedEvent
   | TeamMemberJoinedEvent
-  | TeamMemberLeftEvent;
+  | TeamMemberLeftEvent
+  | CliAvailableEvent
+  | CliUnavailableEvent;
