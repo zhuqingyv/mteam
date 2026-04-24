@@ -1,10 +1,10 @@
-# Agent CLI 扫描器设计
+# Agent CLI 管理器设计
 
 ---
 
-## 功能
+## 定位
 
-backend 启动时扫描本地已安装的 agent CLI，以白名单控制支持的 CLI 类型。扫描结果供角色模板和 PTY spawn 使用 — 只有本机装了的 CLI 才能创建实例。
+独立原子模块，负责实时维护本地 agent CLI 的可用状态。跟 roster、team 平级。本身可被订阅 — 状态变更通过 bus 事件通知，前端通过 WebSocket 自动收到。
 
 ---
 
@@ -15,25 +15,19 @@ claude  — Claude Code CLI
 codex   — OpenAI Codex CLI
 ```
 
-后续扩展直接加白名单条目，不改扫描逻辑。
+后续扩展加条目，不改模块逻辑。
 
 ---
 
-## 扫描逻辑
+## 职责
 
-对白名单中每个 CLI：
-
-1. `which <name>` 或 `command -v <name>` 检测是否在 PATH 中
-2. 在 → 记录路径 + 尝试取版本（`<name> --version` 或 `<name> -v`，超时 3 秒）
-3. 不在 → 标记不可用
-
-```
-扫描结果：
-{
-  claude: { available: true, path: '/usr/local/bin/claude', version: '2.1.118' },
-  codex:  { available: false, path: null, version: null }
-}
-```
+| 职责 | 说明 |
+|------|------|
+| 启动扫描 | 启动时全量扫描白名单 CLI |
+| 内存状态 | 维护 Map<name, CliInfo> 快照 |
+| 变更检测 | 定时轮询（间隔可配，默认 30s）重新扫描，对比差异 |
+| 事件通知 | CLI 新装/卸载 → emit bus 事件（cli.available / cli.unavailable） |
+| 查询接口 | getAll() / isAvailable(name) / getInfo(name) 读内存 |
 
 ---
 
@@ -41,39 +35,48 @@ codex   — OpenAI Codex CLI
 
 ```ts
 interface CliInfo {
-  name: string;           // 白名单名称：'claude' | 'codex'
-  available: boolean;     // 本机是否可用
-  path: string | null;    // 可执行文件绝对路径
-  version: string | null; // 版本号（取不到为 null）
-}
-
-interface CliScanResult {
-  scannedAt: string;      // ISO 时间戳
-  clis: CliInfo[];
+  name: string;           // 'claude' | 'codex'
+  available: boolean;
+  path: string | null;    // 绝对路径
+  version: string | null;
 }
 ```
 
 ---
 
-## 执行时机
+## 模块接口
 
-- **server 启动时**：startServer() 里调一次，结果缓存在内存
-- **提供 HTTP 接口**：`GET /api/cli-scan` 返回扫描结果（供前端展示）
-- **提供刷新接口**：`POST /api/cli-scan/refresh` 重新扫描（CLI 可能后来装了）
+```ts
+class CliManager {
+  boot(): void           // 全量扫描 + 启动轮询
+  teardown(): void       // 停止轮询
+  getAll(): CliInfo[]
+  isAvailable(name: string): boolean
+  getInfo(name: string): CliInfo | null
+}
+```
 
 ---
 
-## 与现有模块的关系
+## 与其他模块的关系
 
 ```
-CLI 扫描器（新模块）
-  → 启动时扫描，缓存结果
-  → PTY spawn 时校验：要用的 CLI 是否 available，不 available 直接拒绝
-  → 前端展示：哪些 CLI 可用
-  → 角色模板：可选的 CLI 类型受扫描结果约束
+CliManager（内存快照 + 轮询 + bus 事件）
+  │
+  ├→ pty/manager.ts: spawn 时 isAvailable(cli) 校验
+  ├→ 角色模板: 可选 CLI 类型受约束
+  ├→ 前端: GET /api/cli 展示可用 CLI
+  └→ bus: emit cli.available / cli.unavailable
 ```
 
-当前 pty/manager.ts 里 CLI 命令硬编码为 `TEAM_HUB_CLI_BIN` env 或默认 `claude`。改造后从扫描结果取 path。
+---
+
+## HTTP 接口
+
+```
+GET /api/cli          → CliInfo[]（读内存，不重新扫描）
+POST /api/cli/refresh → CliInfo[]（立即重新扫描一次）
+```
 
 ---
 
@@ -81,8 +84,8 @@ CLI 扫描器（新模块）
 
 ```
 packages/backend/src/cli-scanner/
-├── scanner.ts    — 扫描逻辑 + 缓存
-└── types.ts      — CliInfo / CliScanResult
+├── manager.ts    — CliManager 类
+└── types.ts      — CliInfo 类型
 ```
 
 ---
@@ -91,19 +94,9 @@ packages/backend/src/cli-scanner/
 
 | 类型 | 文件 | 说明 |
 |------|------|------|
-| 新增 | cli-scanner/scanner.ts | 扫描 + 缓存 + refresh |
-| 新增 | cli-scanner/types.ts | 类型定义 |
-| 新增 | api/panel/cli-scan.ts | HTTP 接口 |
-| 修改 | server.ts | 启动时调扫描 + 挂路由 |
-| 修改 | pty/manager.ts | spawn 时从扫描结果取 CLI path |
-
----
-
-## 实施计划
-
-| 步骤 | 内容 |
-|------|------|
-| 1 | scanner.ts + types.ts（扫描逻辑） |
-| 2 | api/panel/cli-scan.ts + server.ts 路由 |
-| 3 | pty/manager.ts 集成 |
-| 4 | 测试 |
+| 新增 | cli-scanner/manager.ts | CliManager |
+| 新增 | cli-scanner/types.ts | 类型 |
+| 新增 | api/panel/cli.ts | HTTP 接口 |
+| 修改 | server.ts | 启动 boot + 挂路由 + shutdown teardown |
+| 修改 | pty/manager.ts | spawn 时从 CliManager 取 path |
+| 修改 | bus/types.ts | 新增 cli.available / cli.unavailable 事件 |
