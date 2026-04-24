@@ -1,24 +1,16 @@
-// Electron 主进程入口：启动 backend 子进程 + 创建 BrowserWindow +
-// 读桌面壁纸文件（而非截屏）+ 推送 winRect 给 renderer 做折射。
-// 开发模式：loadURL(VITE_DEV_URL)，配合 Vite HMR。
-// 生产模式：loadFile(dist/index.html)。
+// Electron 主进程：透明无边框窗口 + CSS 毛玻璃。
+// 初始 250x100（收起态小卡片），展开态 renderer 通过 window:resize IPC 请求。
 import { app, BrowserWindow, ipcMain, screen } from 'electron';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startBackend, stopBackend } from './backend.js';
-import {
-  getWallpaperPath,
-  getWinRect,
-  loadWallpaperDataUrl,
-  throttle,
-} from './wallpaper.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const VITE_DEV_URL = process.env.VITE_DEV_URL;
 const IS_DEV = !!VITE_DEV_URL;
 
-const PET_SIZE = { width: 500, height: 320 };
+const PET_SIZE = { width: 250, height: 100 };
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -38,7 +30,6 @@ function createWindow(): void {
     backgroundColor: '#00000000',
     resizable: true,
     alwaysOnTop: true,
-    // vibrancy 关掉 — WebGL 自己渲染玻璃，系统毛玻璃会叠白色底
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -48,67 +39,13 @@ function createWindow(): void {
 
   if (IS_DEV) {
     void mainWindow.loadURL(VITE_DEV_URL!);
-    // mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     void mainWindow.loadFile(resolve(__dirname, '..', 'dist', 'index.html'));
   }
 
-  // 拖动/缩放：只推 bounds。renderer 拿新 bounds 算 UV 偏移，折射跟着位置走。
-  // 16ms ≈ 60fps 节流，非常便宜（只是几个 float）。
-  const pushRect = () => {
-    const rect = getWinRect(mainWindow);
-    if (rect && mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('window-rect', rect);
-    }
-  };
-  const throttledRect = throttle(pushRect, 16);
-  mainWindow.on('move', throttledRect);
-  mainWindow.on('resize', throttledRect);
-
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
-}
-
-// 当前壁纸路径 + 已推送的 dataURL。路径没变就不重复解码/推送。
-let currentWallpaperPath: string | null = null;
-
-function refreshWallpaper(force = false): void {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  const path = getWallpaperPath();
-  if (!path) return;
-  if (!force && path === currentWallpaperPath) return;
-  const frame = loadWallpaperDataUrl(path);
-  if (!frame) return;
-  currentWallpaperPath = path;
-  mainWindow.webContents.send('wallpaper-update', frame);
-}
-
-// renderer 启动时主动拉一次：返回 {dataUrl, width, height} + 当前 rect
-ipcMain.handle('get-initial-frame', () => {
-  const path = getWallpaperPath();
-  console.log('[wallpaper] path:', path);
-  const frame = path ? loadWallpaperDataUrl(path) : null;
-  console.log(
-    '[wallpaper] size:',
-    frame ? `${frame.width}x${frame.height}` : 'null',
-  );
-  if (frame) currentWallpaperPath = path;
-  const rect = getWinRect(mainWindow);
-  return { frame, rect };
-});
-
-// 30 秒查一次壁纸路径；变了就解码新图推给 renderer
-let wallpaperTimer: NodeJS.Timeout | null = null;
-function startWallpaperLoop(): void {
-  if (wallpaperTimer) return;
-  wallpaperTimer = setInterval(() => refreshWallpaper(), 30_000);
-}
-function stopWallpaperLoop(): void {
-  if (wallpaperTimer) {
-    clearInterval(wallpaperTimer);
-    wallpaperTimer = null;
-  }
 }
 
 ipcMain.on(
@@ -136,7 +73,6 @@ ipcMain.on(
 app.whenReady().then(() => {
   startBackend();
   createWindow();
-  startWallpaperLoop();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -144,12 +80,10 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  stopWallpaperLoop();
   stopBackend();
   if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('before-quit', () => {
-  stopWallpaperLoop();
   stopBackend();
 });
