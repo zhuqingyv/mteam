@@ -3,6 +3,7 @@ import CapsuleCard from './organisms/CapsuleCard';
 import ExpandedView from './organisms/ExpandedView';
 import TeamMonitorPanel from './organisms/TeamMonitorPanel';
 import { useWindowStore, selectExpanded, selectSetExpanded } from './store';
+import { useWsEvents } from './hooks/useWsEvents';
 
 const CAPSULE = { width: 380, height: 120 };
 const EXPANDED = { width: 640, height: 620 };
@@ -23,6 +24,8 @@ const DEMO_AGENTS = [
 ];
 
 export default function App() {
+  useWsEvents();
+
   if (WINDOW_TYPE === 'team') {
     return <div className="app"><TeamMonitorPanel teams={DEMO_TEAMS} agents={DEMO_AGENTS} /></div>;
   }
