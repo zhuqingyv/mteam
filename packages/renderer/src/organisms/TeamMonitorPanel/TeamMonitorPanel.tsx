@@ -14,11 +14,12 @@ interface TeamMonitorPanelProps {
   agents: Agent[];
   activeTeamId?: string;
   onSelectTeam?: (id: string) => void;
+  onCreateTeam?: () => void;
   onAgentDragEnd?: (id: string, x: number, y: number) => void;
 }
 
 export default function TeamMonitorPanel({
-  teams, agents, activeTeamId, onSelectTeam, onAgentDragEnd,
+  teams, agents, activeTeamId, onSelectTeam, onCreateTeam, onAgentDragEnd,
 }: TeamMonitorPanelProps) {
   const [active, setActive] = useState(activeTeamId ?? teams[0]?.id);
   const handleSelect = (id: string) => {
@@ -31,6 +32,7 @@ export default function TeamMonitorPanel({
         teams={teams}
         activeTeamId={activeTeamId ?? active}
         onSelectTeam={handleSelect}
+        onCreateTeam={onCreateTeam}
       />
       <TeamCanvas agents={agents} onAgentDragEnd={onAgentDragEnd} />
     </div>

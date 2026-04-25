@@ -21,7 +21,12 @@ export default function CliList({ clis, onRefresh }: CliListProps) {
         <Button variant="ghost" size="sm" onClick={onRefresh}>Refresh</Button>
       </div>
       {clis.length === 0 ? (
-        <div className="cli-list__empty">No CLI detected</div>
+        <div className="cli-list__empty">
+          <div className="cli-list__empty-title">未检测到任何 CLI</div>
+          <div className="cli-list__empty-hint">
+            安装 <code>claude</code> / <code>codex</code> / <code>gemini</code> 后点右上角 Refresh
+          </div>
+        </div>
       ) : (
         <ul className="cli-list__items">
           {clis.map((c) => (

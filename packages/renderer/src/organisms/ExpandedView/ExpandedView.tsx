@@ -60,7 +60,7 @@ export default function ExpandedView() {
       msgState.addMessage({
         id: 'welcome',
         role: 'agent',
-        content: '你好！我是 MTEAM，你的智能开发助手。有什么可以帮你的吗？😊',
+        content: '你好，我是 MTEAM。告诉我你想做什么，我会帮你把任务派给合适的 agent。',
         agentName: 'Claude',
         time: '20:48',
       });

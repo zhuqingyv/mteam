@@ -7,11 +7,12 @@ interface TeamSidebarProps {
   teams: Team[];
   activeTeamId?: string;
   onSelectTeam?: (id: string) => void;
+  onCreateTeam?: () => void;
   defaultCollapsed?: boolean;
 }
 
 export default function TeamSidebar({
-  teams, activeTeamId, onSelectTeam, defaultCollapsed = false,
+  teams, activeTeamId, onSelectTeam, onCreateTeam, defaultCollapsed = false,
 }: TeamSidebarProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const cls = ['tsb'];
@@ -32,6 +33,15 @@ export default function TeamSidebar({
             onClick={() => onSelectTeam?.(t.id)}
           />
         ))}
+        <button
+          type="button"
+          className="tsb__new"
+          onClick={() => onCreateTeam?.()}
+          title="新建团队"
+        >
+          <span className="tsb__new-icon">+</span>
+          {!collapsed && <span className="tsb__new-label">新建团队</span>}
+        </button>
       </div>
     </aside>
   );
