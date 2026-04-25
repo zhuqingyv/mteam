@@ -1,7 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import CapsuleCard from './organisms/CapsuleCard';
 import ExpandedView from './organisms/ExpandedView';
 import TeamMonitorPanel from './organisms/TeamMonitorPanel';
+import { useWindowStore, selectExpanded, selectSetExpanded } from './store';
 
 const CAPSULE = { width: 380, height: 120 };
 const EXPANDED = { width: 640, height: 620 };
@@ -26,18 +27,39 @@ export default function App() {
     return <div className="app"><TeamMonitorPanel teams={DEMO_TEAMS} agents={DEMO_AGENTS} /></div>;
   }
 
-  const [expanded, setExpanded] = useState(INITIAL_EXPANDED);
+  const expanded = useWindowStore(selectExpanded);
+  const setExpanded = useWindowStore(selectSetExpanded);
   const [animating, setAnimating] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    if (INITIAL_EXPANDED) setExpanded(true);
+  }, [setExpanded]);
+
+  const clearTimers = () => {
+    for (const t of timersRef.current) clearTimeout(t);
+    timersRef.current = [];
+  };
+  const schedule = (fn: () => void, ms: number) => {
+    const t = setTimeout(fn, ms);
+    timersRef.current.push(t);
+  };
 
   const toggle = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
+    clearTimers();
     const next = !expanded;
-    setExpanded(next);
     setAnimating(true);
-    const target = next ? EXPANDED : CAPSULE;
-    window.electronAPI?.resize(target.width, target.height, 'bottom-right', true);
-    timerRef.current = setTimeout(() => setAnimating(false), ANIM_MS);
+    if (next) {
+      window.electronAPI?.resize(EXPANDED.width, EXPANDED.height, 'bottom-right', true);
+      requestAnimationFrame(() => setExpanded(true));
+      schedule(() => setAnimating(false), ANIM_MS);
+    } else {
+      setExpanded(false);
+      schedule(() => {
+        window.electronAPI?.resize(CAPSULE.width, CAPSULE.height, 'bottom-right', true);
+      }, ANIM_MS);
+      schedule(() => setAnimating(false), ANIM_MS * 2);
+    }
   };
 
   return (

@@ -11,3 +11,7 @@ export const useInputStore = create<InputState>()((set) => ({
   setText: (v) => set({ text: v }),
   clear: () => set({ text: '' }),
 }));
+
+export const selectInputText = (s: InputState) => s.text;
+export const selectSetInputText = (s: InputState) => s.setText;
+export const selectClearInput = (s: InputState) => s.clear;

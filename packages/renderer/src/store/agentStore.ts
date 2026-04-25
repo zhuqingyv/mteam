@@ -15,9 +15,21 @@ interface AgentState {
   setActive: (id: string) => void;
 }
 
+const INITIAL_AGENTS: Agent[] = [
+  { id: 'claude', name: 'Claude', active: true },
+  { id: 'codex', name: 'Codex' },
+  { id: 'qwen', name: 'Qwen' },
+  { id: 'deepseek', name: 'DeepSeek' },
+];
+
 export const useAgentStore = create<AgentState>()((set) => ({
-  agents: [],
-  activeId: undefined,
+  agents: INITIAL_AGENTS,
+  activeId: 'claude',
   setAgents: (list) => set({ agents: list }),
   setActive: (id) => set({ activeId: id }),
 }));
+
+export const selectAgents = (s: AgentState) => s.agents;
+export const selectActiveAgentId = (s: AgentState) => s.activeId;
+export const selectSetAgents = (s: AgentState) => s.setAgents;
+export const selectSetActiveAgent = (s: AgentState) => s.setActive;

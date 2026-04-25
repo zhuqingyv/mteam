@@ -140,14 +140,14 @@
 
 .card__close {
   position: absolute;
-  right: 16px;
-  top: 22px;
-  width: 28px;
-  height: 28px;
+  right: 14px;
+  top: 20px;
+  width: 32px;
+  height: 32px;
   border: none;
   background: rgba(255,255,255,0.08);
   color: rgba(255,255,255,0.6);
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
   border-radius: 50%;
   cursor: pointer;
@@ -155,6 +155,9 @@
   opacity: 0;
   pointer-events: none;
   transition: background 150ms ease, color 150ms ease, opacity 150ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .card--expanded .card__close {
   opacity: 1;

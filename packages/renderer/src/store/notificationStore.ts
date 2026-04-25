@@ -27,3 +27,9 @@ export const useNotificationStore = create<NotificationState>()((set) => ({
       acknowledgedIds: s.acknowledgedIds.filter((x) => x !== id),
     })),
 }));
+
+export const selectNotifications = (s: NotificationState) => s.notifications;
+export const selectAcknowledgedIds = (s: NotificationState) => s.acknowledgedIds;
+export const selectPushNotification = (s: NotificationState) => s.push;
+export const selectAcknowledgeNotification = (s: NotificationState) => s.acknowledge;
+export const selectRemoveNotification = (s: NotificationState) => s.remove;

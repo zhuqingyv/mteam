@@ -7,21 +7,26 @@
   min-height: 0;
 }
 
+/* 作为消息区右上角的轻量"团队面板"入口；ExpandedView 在 card__body 内，起点已让开顶部栏，
+   不与 card__close(×) 重叠；胶囊风格弱化视觉权重 */
 .open-team-panel-btn {
   position: absolute;
-  top: 8px;
-  right: 12px;
+  top: 6px;
+  right: 16px;
   z-index: 10;
-  padding: 4px 10px;
-  font-size: 12px;
-  color: var(--color-text-primary, #fff);
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
   cursor: pointer;
-  backdrop-filter: blur(8px);
-  transition: background 0.15s ease;
+  -webkit-app-region: no-drag;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 .open-team-panel-btn:hover {
-  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
 }
