@@ -1,6 +1,6 @@
-// Teams 领域 —— /api/panel/teams* facade；add/remove member 暂无 facade 占位。
+// Teams 领域 —— /api/panel/teams* facade。
 
-import { panelGet, panelPost, panelDelete, panelPending, type ApiResult } from './client';
+import { panelGet, panelPost, panelDelete, type ApiResult } from './client';
 
 export interface Team {
   id: string;
@@ -45,15 +45,17 @@ export function listTeamMembers(teamId: string): Promise<ApiResult<TeamMember[]>
 }
 
 export function addTeamMember(
-  _teamId: string,
-  _body: { instanceId: string; roleInTeam?: string },
+  teamId: string,
+  body: { instanceId: string; roleInTeam?: string },
 ): Promise<ApiResult<TeamMember>> {
-  return panelPending<TeamMember>('teams.addMember');
+  return panelPost<TeamMember>(`/teams/${encodeURIComponent(teamId)}/members`, body);
 }
 
 export function removeTeamMember(
-  _teamId: string,
-  _instanceId: string,
+  teamId: string,
+  instanceId: string,
 ): Promise<ApiResult<null>> {
-  return panelPending<null>('teams.removeMember');
+  return panelDelete<null>(
+    `/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(instanceId)}`,
+  );
 }

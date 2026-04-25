@@ -21,4 +21,5 @@ export * from './teams';
 export * from './instances';
 export * from './sessions';
 export * from './mcp';
+export * from './primaryAgent';
 export * from './ws';

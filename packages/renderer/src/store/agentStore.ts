@@ -6,30 +6,24 @@ export interface Agent {
   icon?: string;
   online?: boolean;
   active?: boolean;
+  status?: 'idle' | 'running' | 'offline';
 }
 
 interface AgentState {
   agents: Agent[];
   activeId?: string;
   setAgents: (list: Agent[]) => void;
-  setActive: (id: string) => void;
+  setActiveAgent: (id: string) => void;
 }
 
-const INITIAL_AGENTS: Agent[] = [
-  { id: 'claude', name: 'Claude', active: true },
-  { id: 'codex', name: 'Codex' },
-  { id: 'qwen', name: 'Qwen' },
-  { id: 'deepseek', name: 'DeepSeek' },
-];
-
 export const useAgentStore = create<AgentState>()((set) => ({
-  agents: INITIAL_AGENTS,
-  activeId: 'claude',
+  agents: [],
+  activeId: undefined,
   setAgents: (list) => set({ agents: list }),
-  setActive: (id) => set({ activeId: id }),
+  setActiveAgent: (id) => set({ activeId: id }),
 }));
 
 export const selectAgents = (s: AgentState) => s.agents;
 export const selectActiveAgentId = (s: AgentState) => s.activeId;
 export const selectSetAgents = (s: AgentState) => s.setAgents;
-export const selectSetActiveAgent = (s: AgentState) => s.setActive;
+export const selectSetActiveAgent = (s: AgentState) => s.setActiveAgent;

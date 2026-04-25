@@ -38,10 +38,7 @@ export function getSession(_sessionId: string): Promise<ApiResult<SessionDetail>
   return panelPending<SessionDetail>('sessions.get');
 }
 
-export function sendMessage(
-  _sessionId: string,
-  body: SendMessageBody,
-): Promise<ApiResult<SendMessageResult>> {
+export function sendMessage(body: SendMessageBody): Promise<ApiResult<SendMessageResult>> {
   return panelPost<SendMessageResult>('/messages', body);
 }
 

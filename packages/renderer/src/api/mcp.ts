@@ -1,7 +1,6 @@
-// MCP 工具搜索 + 商店列表。install/uninstall facade 未暴露，保留占位。
-// listMcpTools 的 query 必须自带 '?'，后端强校验 instanceId 和 q。
+// MCP 工具搜索 + 商店。全部走 /api/panel/* facade。
 
-import { panelGet, panelPending, type ApiResult } from './client';
+import { panelGet, panelPost, panelDelete, type ApiResult } from './client';
 
 export interface McpTool {
   name: string;
@@ -37,9 +36,14 @@ export interface InstallMcpBody {
 }
 
 export function listMcpTools(
-  query?: string,
+  instanceId?: string,
+  q?: string,
 ): Promise<ApiResult<{ hits: McpSearchHit[] }>> {
-  return panelGet<{ hits: McpSearchHit[] }>(`/mcp-tools${query ?? ''}`);
+  const params = new URLSearchParams();
+  if (instanceId) params.set('instanceId', instanceId);
+  if (q) params.set('q', q);
+  const qs = params.toString();
+  return panelGet<{ hits: McpSearchHit[] }>(`/mcp/tools${qs ? `?${qs}` : ''}`);
 }
 
 export function listMcpStore(): Promise<ApiResult<McpServer[]>> {
@@ -48,10 +52,10 @@ export function listMcpStore(): Promise<ApiResult<McpServer[]>> {
 
 export const listMcpServers = listMcpStore;
 
-export function installMcpServer(_body: InstallMcpBody): Promise<ApiResult<McpServer>> {
-  return panelPending<McpServer>('mcp.install');
+export function installMcpServer(body: InstallMcpBody): Promise<ApiResult<McpServer>> {
+  return panelPost<McpServer>('/mcp-store/install', body);
 }
 
-export function uninstallMcpServer(_name: string): Promise<ApiResult<null>> {
-  return panelPending<null>('mcp.uninstall');
+export function uninstallMcpServer(name: string): Promise<ApiResult<null>> {
+  return panelDelete<null>(`/mcp-store/${encodeURIComponent(name)}`);
 }

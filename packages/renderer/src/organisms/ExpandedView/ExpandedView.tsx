@@ -1,10 +1,10 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import ChatPanel from '../ChatPanel/ChatPanel';
 import {
   useMessageStore,
   selectMessages,
-  selectAppendMessage,
-  selectSetMessages,
+  selectAddMessage,
+  selectReplaceMessage,
   useAgentStore,
   selectAgents,
   selectActiveAgentId,
@@ -31,8 +31,8 @@ const fmtTime = () => {
 
 export default function ExpandedView() {
   const messages = useMessageStore(selectMessages);
-  const appendMessage = useMessageStore(selectAppendMessage);
-  const setMessages = useMessageStore(selectSetMessages);
+  const addMessage = useMessageStore(selectAddMessage);
+  const replaceMessage = useMessageStore(selectReplaceMessage);
 
   const agents = useAgentStore(selectAgents);
   const activeId = useAgentStore(selectActiveAgentId);
@@ -40,33 +40,54 @@ export default function ExpandedView() {
 
   const inputText = useInputStore(selectInputText);
   const setInputText = useInputStore(selectSetInputText);
-  const clearInput = useInputStore(selectClearInput);
+  const clearText = useInputStore(selectClearInput);
 
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    const agentState = useAgentStore.getState();
+    if (agentState.agents.length === 0) {
+      agentState.setAgents([
+        { id: 'claude', name: 'Claude', status: 'idle' },
+        { id: 'codex', name: 'Codex', status: 'idle' },
+        { id: 'qwen', name: 'Qwen', status: 'idle' },
+        { id: 'deepseek', name: 'DeepSeek', status: 'idle' },
+      ]);
+      agentState.setActiveAgent('claude');
+    }
+    const msgState = useMessageStore.getState();
+    if (msgState.messages.length === 0) {
+      msgState.addMessage({
+        id: 'welcome',
+        role: 'agent',
+        content: '你好！我是 MTEAM，你的智能开发助手。有什么可以帮你的吗？😊',
+        agentName: 'Claude',
+        time: '20:48',
+      });
+    }
+  }, []);
 
   const agentList = agents.map((a) => ({ id: a.id, name: a.name, active: a.id === activeId }));
 
   const handleSend = useCallback(() => {
     const text = useInputStore.getState().text.trim();
     if (!text) return;
-    const now = fmtTime();
     const userMsg: Message = {
       id: `u-${Date.now()}`,
       role: 'user',
       content: text,
-      time: now,
+      time: fmtTime(),
       read: true,
     };
-    appendMessage(userMsg);
-    clearInput();
+    addMessage(userMsg);
+    clearText();
 
     const thinkingId = `t-${Date.now()}`;
-    const activeAgent = useAgentStore.getState();
-    const activeAgentName =
-      activeAgent.agents.find((a) => a.id === activeAgent.activeId)?.name ?? 'Agent';
+    const { agents: allAgents, activeId: curId } = useAgentStore.getState();
+    const activeAgentName = allAgents.find((a) => a.id === curId)?.name ?? 'Agent';
 
     const t1 = setTimeout(() => {
-      appendMessage({
+      addMessage({
         id: thinkingId,
         role: 'agent',
         content: '',
@@ -78,23 +99,17 @@ export default function ExpandedView() {
 
     const t2 = setTimeout(() => {
       const reply = MOCK_REPLIES[Math.floor(Math.random() * MOCK_REPLIES.length)];
-      const next = useMessageStore
-        .getState()
-        .messages.filter((m) => m.id !== thinkingId);
-      setMessages([
-        ...next,
-        {
-          id: `a-${Date.now()}`,
-          role: 'agent',
-          content: reply,
-          time: fmtTime(),
-          agentName: activeAgentName,
-        },
-      ]);
+      replaceMessage(thinkingId, {
+        id: thinkingId,
+        role: 'agent',
+        content: reply,
+        time: fmtTime(),
+        agentName: activeAgentName,
+      });
     }, 2000);
 
     timersRef.current.push(t1, t2);
-  }, [appendMessage, clearInput, setMessages]);
+  }, [addMessage, replaceMessage, clearText]);
 
   return (
     <div className="expanded-view">
