@@ -20,6 +20,10 @@
 
 ## 0. 文件清单与定位
 
+> **本文件不涵盖的范围**：
+> - 通知 UI（设计稿 31~43 未涉及）。通知模型见 D-5：**无用户 dismiss 按钮**，签收由 agent 触发；前端只显示与点开跳转。具体视觉待设计稿补充。
+> - 设置面板 / 桌宠 / 多窗口动画细节（本期非 P0）。
+
 | 文件 | 内容 | 对应前端层 |
 |---|---|---|
 | `31.png` | 胶囊主态（团队名 + 数据 + 未读 + 菜单点） | organism / `CapsuleCard` |
@@ -166,7 +170,7 @@
 | Agent 名（蓝色） | `#6BA5FF` 左右 | 应走 `--color-accent-primary`（当前 #4aa3ff，接近） |
 | 用户气泡底 | 蓝色 rgba(74,163,255,0.35) 左右 | **新 token** `--bubble-accent-fill` ✗ 未落 |
 | Agent 气泡底 | 深玻璃 rgba(34,36,47,0.85) | `--surface-glass-dark` ✓ |
-| 在线 dot | 亮绿 #23C55E | `--color-accent-success` ✓ |
+| 在线 dot | 亮绿 #23C55E | `--color-accent-success` ✓（⚠️ 按 D-4 **不用于 Logo 角标**；可用于 Agent 列表行等其他 StatusDot 场景） |
 | 未读 dot（蓝） | `--color-accent-primary` | ✓ |
 
 **tokens.css 仍缺的**（CHAT-UI-RESEARCH §4.3 提出过）：
