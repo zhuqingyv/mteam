@@ -10,7 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const VITE_DEV_URL = process.env.VITE_DEV_URL;
 const IS_DEV = !!VITE_DEV_URL;
 
-const PET_SIZE = { width: 250, height: 100 };
+const PET_SIZE = { width: 300, height: 200 };
 
 let mainWindow: BrowserWindow | null = null;
 

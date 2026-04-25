@@ -79,7 +79,7 @@ var import_node_url2 = require("node:url");
 var __dirname3 = import_node_path2.dirname(import_node_url2.fileURLToPath("file:///Users/zhuqingyu/project/mcp-team-hub/packages/renderer/electron-main/main.ts"));
 var VITE_DEV_URL = process.env.VITE_DEV_URL;
 var IS_DEV = !!VITE_DEV_URL;
-var PET_SIZE = { width: 250, height: 100 };
+var PET_SIZE = { width: 300, height: 200 };
 var mainWindow = null;
 function createWindow() {
   const { width: screenW, height: screenH } = import_electron.screen.getPrimaryDisplay().workAreaSize;
