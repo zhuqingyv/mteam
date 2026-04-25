@@ -9,7 +9,19 @@
 .chat-panel__messages {
   flex: 1;
   min-height: 0;
-  padding: 36px 16px 4px;
+  padding: 28px 16px 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 让 VirtualList 内容在内容不足时贴底、超出时从顶部滚出。
+   作用于 VirtualList 的内部 wrapper（scrollRef 的直接子），不影响 scrollRef 本身的 overflow 行为。 */
+.chat-panel__messages .virtual-list > div {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  box-sizing: border-box;
 }
 
 .chat-panel__messages::-webkit-scrollbar {
@@ -43,10 +55,16 @@
 }
 
 .chat-panel__footer {
-  padding: 10px 16px 14px;
+  padding: 8px 16px 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.15));
+}
+
+/* AgentSwitcher 内部 chip 自带 padding，把容器左侧拉一点让高亮视觉与输入框左缘对齐 */
+.chat-panel__footer .agent-switcher {
+  margin-left: -6px;
+  margin-right: -6px;
 }
