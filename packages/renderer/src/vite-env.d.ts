@@ -15,5 +15,6 @@ interface Window {
     resize: (w: number, h: number, anchor?: string, animate?: boolean) => void;
     startResize: (direction: string) => void;
     openTeamPanel: () => void;
+    openSettings: () => void;
   };
 }

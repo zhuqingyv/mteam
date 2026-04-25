@@ -1,4 +1,4 @@
-// Electron 主进程：桌宠主窗口 + 团队面板副窗口（query param 区分）。
+// Electron 主进程：桌宠主窗口 + 团队面板/设置副窗口（query param 区分）。
 import { app, BrowserWindow, ipcMain, screen, nativeImage } from 'electron';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,10 +9,10 @@ const ICON_PATH = resolve(__dirname, '..', 'build', 'icon.png');
 const VITE_DEV_URL = process.env.VITE_DEV_URL;
 const IS_DEV = !!VITE_DEV_URL;
 const PET_SIZE = { width: 380, height: 120 };
-const TEAM_PANEL_SIZE = { width: 1200, height: 800 };
 
 let mainWindow: BrowserWindow | null = null;
 let teamPanelWindow: BrowserWindow | null = null;
+let settingsWindow: BrowserWindow | null = null;
 
 const baseGlassOptions = {
   transparent: true,
@@ -53,14 +53,18 @@ function createWindow(): void {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-function openTeamPanel(): void {
-  if (teamPanelWindow && !teamPanelWindow.isDestroyed()) { teamPanelWindow.focus(); return; }
-  teamPanelWindow = new BrowserWindow({ ...baseGlassOptions, ...TEAM_PANEL_SIZE, title: 'mteam — 团队面板' });
-  loadRenderer(teamPanelWindow, '?window=team');
-  teamPanelWindow.on('closed', () => { teamPanelWindow = null; });
+function openPanel(key: 'team' | 'settings'): void {
+  const cfg = key === 'team'
+    ? { ref: teamPanelWindow, w: 1200, h: 800, title: 'mteam — 团队面板', q: '?window=team' }
+    : { ref: settingsWindow, w: 600, h: 500, title: 'mteam — 设置', q: '?window=settings' };
+  if (cfg.ref && !cfg.ref.isDestroyed()) { cfg.ref.focus(); return; }
+  const win = new BrowserWindow({ ...baseGlassOptions, width: cfg.w, height: cfg.h, title: cfg.title });
+  if (key === 'team') teamPanelWindow = win; else settingsWindow = win;
+  loadRenderer(win, cfg.q);
+  win.on('closed', () => { if (key === 'team') teamPanelWindow = null; else settingsWindow = null; });
 }
-
-ipcMain.on('window:open-team-panel', () => openTeamPanel());
+ipcMain.on('window:open-team-panel', () => openPanel('team'));
+ipcMain.on('window:open-settings', () => openPanel('settings'));
 
 const RESIZE_DIR_MAP: Record<string, string> = {
   top: 'top', bottom: 'bottom', left: 'left', right: 'right',

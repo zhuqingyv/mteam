@@ -115,6 +115,15 @@ export default function ExpandedView() {
     <div className="expanded-view">
       <button
         type="button"
+        className="open-settings-btn"
+        aria-label="打开设置"
+        title="设置"
+        onClick={() => window.electronAPI?.openSettings()}
+      >
+        ⚙
+      </button>
+      <button
+        type="button"
         className="open-team-panel-btn"
         onClick={() => window.electronAPI?.openTeamPanel()}
       >
