@@ -10,4 +10,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }),
   startResize: (direction) =>
     ipcRenderer.send('window:start-resize', direction),
+  openTeamPanel: () => ipcRenderer.send('window:open-team-panel'),
 });

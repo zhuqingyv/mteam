@@ -76,60 +76,81 @@ function stopBackend() {
 var import_electron = require("electron");
 var import_node_path2 = require("node:path");
 var import_node_url2 = require("node:url");
-var ICON_PATH = import_node_path2.resolve(import_node_path2.dirname(import_node_url2.fileURLToPath("file:///Users/zhuqingyu/project/mcp-team-hub/packages/renderer/electron-main/main.ts")), "..", "build", "icon.png");
 var __dirname3 = import_node_path2.dirname(import_node_url2.fileURLToPath("file:///Users/zhuqingyu/project/mcp-team-hub/packages/renderer/electron-main/main.ts"));
+var ICON_PATH = import_node_path2.resolve(__dirname3, "..", "build", "icon.png");
 var VITE_DEV_URL = process.env.VITE_DEV_URL;
 var IS_DEV = !!VITE_DEV_URL;
 var PET_SIZE = { width: 380, height: 120 };
+var TEAM_PANEL_SIZE = { width: 1200, height: 800 };
 var mainWindow = null;
+var teamPanelWindow = null;
+var baseGlassOptions = {
+  transparent: true,
+  frame: false,
+  hasShadow: false,
+  backgroundColor: "#00000000",
+  resizable: true,
+  icon: import_electron.nativeImage.createFromPath(ICON_PATH),
+  webPreferences: {
+    contextIsolation: true,
+    nodeIntegration: false,
+    preload: import_node_path2.resolve(__dirname3, "preload.cjs")
+  }
+};
+function loadRenderer(win, query = "") {
+  if (IS_DEV) {
+    win.loadURL(VITE_DEV_URL + query);
+  } else {
+    win.loadFile(import_node_path2.resolve(__dirname3, "..", "dist", "index.html"), {
+      search: query.replace(/^\?/, "")
+    });
+  }
+}
 function createWindow() {
   const { width: screenW, height: screenH } = import_electron.screen.getPrimaryDisplay().workAreaSize;
   mainWindow = new import_electron.BrowserWindow({
+    ...baseGlassOptions,
     width: PET_SIZE.width,
     height: PET_SIZE.height,
     x: Math.round(screenW - PET_SIZE.width - 40),
     y: Math.round(screenH - PET_SIZE.height - 80),
     title: "mteam",
-    icon: import_electron.nativeImage.createFromPath(ICON_PATH),
-    transparent: true,
-    frame: false,
-    hasShadow: false,
-    backgroundColor: "#00000000",
-    resizable: true,
-    alwaysOnTop: true,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      preload: import_node_path2.resolve(__dirname3, "preload.cjs")
-    }
+    alwaysOnTop: true
   });
-  if (IS_DEV) {
-    mainWindow.loadURL(VITE_DEV_URL);
-  } else {
-    mainWindow.loadFile(import_node_path2.resolve(__dirname3, "..", "dist", "index.html"));
-  }
+  loadRenderer(mainWindow);
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
 }
+function openTeamPanel() {
+  if (teamPanelWindow && !teamPanelWindow.isDestroyed()) {
+    teamPanelWindow.focus();
+    return;
+  }
+  teamPanelWindow = new import_electron.BrowserWindow({ ...baseGlassOptions, ...TEAM_PANEL_SIZE, title: "mteam — 团队面板" });
+  loadRenderer(teamPanelWindow, "?window=team");
+  teamPanelWindow.on("closed", () => {
+    teamPanelWindow = null;
+  });
+}
+import_electron.ipcMain.on("window:open-team-panel", () => openTeamPanel());
+var RESIZE_DIR_MAP = {
+  top: "top",
+  bottom: "bottom",
+  left: "left",
+  right: "right",
+  tl: "top-left",
+  tr: "top-right",
+  bl: "bottom-left",
+  br: "bottom-right"
+};
 import_electron.ipcMain.on("window:start-resize", (_e, direction) => {
   if (!mainWindow)
     return;
   mainWindow.webContents.send("resize-started");
-  const dirMap = {
-    top: "top",
-    bottom: "bottom",
-    left: "left",
-    right: "right",
-    tl: "top-left",
-    tr: "top-right",
-    bl: "bottom-left",
-    br: "bottom-right"
-  };
-  const mapped = dirMap[direction];
-  if (mapped) {
+  const mapped = RESIZE_DIR_MAP[direction];
+  if (mapped)
     mainWindow.startResizing?.(mapped);
-  }
 });
 import_electron.ipcMain.on("window:resize", (_e, payload) => {
   if (!mainWindow)

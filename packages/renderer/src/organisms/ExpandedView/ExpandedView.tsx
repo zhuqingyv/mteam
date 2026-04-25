@@ -25,6 +25,13 @@ const agents = [
 export default function ExpandedView() {
   return (
     <div className="expanded-view">
+      <button
+        type="button"
+        className="open-team-panel-btn"
+        onClick={() => window.electronAPI?.openTeamPanel()}
+      >
+        打开团队面板
+      </button>
       <ChatPanel messages={messages} agents={agents} />
     </div>
   );
