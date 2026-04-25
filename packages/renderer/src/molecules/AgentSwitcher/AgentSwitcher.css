@@ -1,0 +1,54 @@
+.agent-switcher {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font: 500 13px/1.2 var(--font-family-ui);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard);
+}
+
+.agent-chip:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.agent-chip--active {
+  background: rgba(var(--color-accent-primary-rgb), 0.16);
+  color: #fff;
+  border-color: rgba(var(--color-accent-primary-rgb), 0.3);
+  box-shadow: 0 2px 8px rgba(var(--color-accent-primary-rgb), 0.22);
+}
+
+.agent-chip--active:hover {
+  background: rgba(var(--color-accent-primary-rgb), 0.24);
+}
+
+.agent-chip__icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.agent-chip__name {
+  white-space: nowrap;
+}
+
+.agent-chip--add {
+  padding: 6px 12px;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.55);
+}

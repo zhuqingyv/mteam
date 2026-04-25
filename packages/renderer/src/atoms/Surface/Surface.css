@@ -1,0 +1,71 @@
+.surface {
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  -webkit-app-region: drag;
+  user-select: none;
+  transition:
+    transform var(--duration-base) var(--easing-standard),
+    box-shadow var(--duration-base) var(--easing-standard);
+  cursor: default;
+}
+
+.surface--capsule {
+  border-radius: 44px;
+  background: linear-gradient(
+    135deg,
+    rgba(40, 44, 56, 0.55) 0%,
+    rgba(28, 30, 38, 0.6) 100%
+  );
+  backdrop-filter: blur(50px) saturate(150%);
+  -webkit-backdrop-filter: blur(50px) saturate(150%);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.3),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.25),
+    inset 0 0 18px rgba(180, 190, 220, 0.28),
+    inset 0 0 40px rgba(150, 160, 200, 0.15),
+    0 0 6px rgba(160, 170, 200, 0.3),
+    0 0 16px rgba(140, 150, 180, 0.2),
+    0 0 30px rgba(120, 130, 170, 0.12);
+}
+
+.surface--capsule:hover {
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.35),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.25),
+    inset 0 0 22px rgba(180, 190, 220, 0.32),
+    inset 0 0 44px rgba(150, 160, 200, 0.18),
+    0 0 8px rgba(160, 170, 200, 0.35),
+    0 0 20px rgba(140, 150, 180, 0.22),
+    0 0 36px rgba(120, 130, 170, 0.13);
+  transform: translateY(-1px);
+}
+
+.surface--panel {
+  border-radius: 20px;
+  background: linear-gradient(
+    135deg,
+    rgba(40, 44, 56, 0.6) 0%,
+    rgba(28, 30, 38, 0.65) 100%
+  );
+  backdrop-filter: blur(50px) saturate(150%);
+  -webkit-backdrop-filter: blur(50px) saturate(150%);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.28),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.25),
+    inset 0 0 18px rgba(180, 190, 220, 0.24),
+    inset 0 0 40px rgba(150, 160, 200, 0.14),
+    0 0 6px rgba(160, 170, 200, 0.28),
+    0 0 16px rgba(140, 150, 180, 0.18),
+    0 0 30px rgba(120, 130, 170, 0.1);
+}
+
+.surface--panel:hover {
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.32),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.25),
+    inset 0 0 22px rgba(180, 190, 220, 0.28),
+    inset 0 0 44px rgba(150, 160, 200, 0.16),
+    0 0 8px rgba(160, 170, 200, 0.32),
+    0 0 20px rgba(140, 150, 180, 0.2),
+    0 0 36px rgba(120, 130, 170, 0.12);
+  transform: translateY(-1px);
+}

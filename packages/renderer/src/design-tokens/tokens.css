@@ -1,0 +1,56 @@
+:root {
+  /* 强调色 */
+  --color-accent-primary: #4aa3ff;
+  --color-accent-primary-rgb: 74, 163, 255;
+  --color-accent-success: #23c55e;
+  --color-accent-warning: #f5a623;
+  --color-accent-danger: #ff5b5b;
+
+  /* 文本 */
+  --color-text-primary: rgba(255, 255, 255, 0.92);
+  --color-text-secondary: rgba(255, 255, 255, 0.62);
+  --color-text-tertiary: rgba(255, 255, 255, 0.45);
+  --color-text-inverse: rgba(20, 24, 32, 0.92);
+
+  /* 表面 */
+  --surface-glass-dark: rgba(34, 36, 47, 0.85);
+  --surface-glass-light: rgba(255, 255, 255, 0.18);
+  --surface-overlay: rgba(0, 0, 0, 0.35);
+
+  /* 间距 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* 圆角 */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  /* 字体 */
+  --font-family-ui: "SF Pro Display", -apple-system, system-ui, sans-serif;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 14px;
+  --font-size-lg: 15px;
+  --font-size-xl: 22px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  /* 阴影 */
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.18);
+  --shadow-glass: 0 8px 24px rgba(0, 0, 0, 0.28);
+  --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.36);
+
+  /* 动效 */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --easing-standard: cubic-bezier(0.2, 0, 0, 1);
+}

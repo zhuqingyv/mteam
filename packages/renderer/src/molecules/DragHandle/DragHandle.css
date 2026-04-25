@@ -1,0 +1,19 @@
+.drag-handle {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 4px;
+  -webkit-app-region: drag;
+  transition: opacity 180ms ease;
+}
+
+.drag-handle__pill {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.drag-handle--hidden {
+  opacity: 0;
+  pointer-events: none;
+}

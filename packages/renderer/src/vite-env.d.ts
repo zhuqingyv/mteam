@@ -9,3 +9,10 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+interface Window {
+  electronAPI?: {
+    resize: (w: number, h: number, anchor?: string) => void;
+    startResize: (direction: string) => void;
+  };
+}

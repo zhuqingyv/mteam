@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// renderer 包下 electron/ → 解析到 packages/backend/src/server.ts
-const BACKEND_ENTRY = resolve(__dirname, '..', '..', 'backend', 'src', 'server.ts');
+// renderer 包下 electron/ → 解析到 packages/backend/src/http/server.ts
+const BACKEND_ENTRY = resolve(__dirname, '..', '..', 'backend', 'src', 'http', 'server.ts');
 
 let child: ChildProcess | null = null;
 

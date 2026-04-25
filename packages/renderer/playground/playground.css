@@ -1,0 +1,362 @@
+/* 覆盖 Electron 拖拽区，Playground 里所有交互都要可点 */
+.playground,
+.playground * {
+  -webkit-app-region: no-drag !important;
+}
+
+html, body, #root {
+  background: #0d0f14 !important;
+  min-height: 100vh;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.playground {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 48px 32px 96px;
+  box-sizing: border-box;
+}
+
+.playground__header {
+  margin-bottom: 48px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.playground__title {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.playground__subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.playground__section {
+  margin-bottom: 56px;
+}
+
+.playground__section-title {
+  margin: 0 0 20px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.playground__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 20px;
+}
+
+/* 组件卡 */
+.comp-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: linear-gradient(
+    180deg,
+    rgba(36, 40, 52, 0.55) 0%,
+    rgba(22, 24, 32, 0.55) 100%
+  );
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.06),
+    0 12px 32px rgba(0, 0, 0, 0.32);
+  overflow: hidden;
+}
+
+.comp-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.comp-card__name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.comp-card__layer {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.55);
+}
+.comp-card__layer--atoms { color: #74c0ff; background: rgba(74, 163, 255, 0.12); }
+.comp-card__layer--molecules { color: #b3f0c7; background: rgba(35, 197, 94, 0.12); }
+.comp-card__layer--organisms { color: #fbd38d; background: rgba(245, 166, 35, 0.12); }
+
+.comp-card__stage {
+  position: relative;
+  min-height: 140px;
+  padding: 24px 16px;
+  background:
+    radial-gradient(ellipse at top, rgba(60, 70, 100, 0.18) 0%, transparent 60%),
+    linear-gradient(180deg, #0f1218 0%, #090b10 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.comp-card__stage-inner {
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.comp-card__note {
+  padding: 8px 16px;
+  font-size: 11px;
+  color: rgba(245, 166, 35, 0.75);
+  background: rgba(245, 166, 35, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.comp-card__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.comp-card__col {
+  background: rgba(14, 16, 22, 0.6);
+  padding: 12px 14px;
+  min-height: 80px;
+}
+
+.comp-card__col-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 10px;
+}
+
+/* props panel */
+.props-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.props-panel--empty,
+.api-table--empty {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+}
+
+.props-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.props-panel__label {
+  color: rgba(255, 255, 255, 0.65);
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.props-panel__control {
+  flex: 0 0 56%;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11px;
+  font-family: "SF Mono", ui-monospace, monospace;
+  outline: none;
+}
+.props-panel__control:focus {
+  border-color: rgba(74, 163, 255, 0.55);
+  background: rgba(255, 255, 255, 0.08);
+}
+.props-panel__checkbox {
+  width: 14px;
+  height: 14px;
+  accent-color: #4aa3ff;
+}
+
+/* api table */
+.api-table {
+  display: flex;
+  flex-direction: column;
+  font-size: 10.5px;
+  font-family: "SF Mono", ui-monospace, monospace;
+  gap: 4px;
+}
+
+.api-table__row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 0.7fr 1.4fr;
+  gap: 6px;
+  padding: 3px 0;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.api-table__row--head {
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+}
+
+/* events log */
+.comp-card__events {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(10, 12, 16, 0.55);
+  padding: 10px 14px 12px;
+}
+
+.comp-card__events-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 8px;
+}
+
+.comp-card__events-empty {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+  font-style: italic;
+}
+
+.comp-card__events-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 96px;
+  overflow-y: auto;
+}
+
+.comp-card__events-row {
+  display: grid;
+  grid-template-columns: 62px 88px 1fr;
+  gap: 8px;
+  font-size: 10.5px;
+  font-family: "SF Mono", ui-monospace, monospace;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.comp-card__events-time {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.comp-card__events-label {
+  color: #74c0ff;
+}
+
+.comp-card__events-detail {
+  color: rgba(181, 252, 178, 0.75);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* scenes */
+.scenes {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.scenes__item {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scenes__label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.scenes__stage {
+  padding: 32px;
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse at top, rgba(60, 70, 100, 0.22) 0%, transparent 60%),
+    linear-gradient(180deg, #0f1218 0%, #090b10 100%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scenes__stage--capsule {
+  min-width: 420px;
+  min-height: 180px;
+}
+
+.scenes__stage--expanded {
+  min-height: 540px;
+}
+
+.scenes__panel {
+  width: 600px;
+  height: 500px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(24, 26, 34, 0.92) 0%, rgba(16, 18, 24, 0.92) 100%);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.06),
+    0 24px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.scenes__panel .chat-panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.api-table__name { color: #74c0ff; }
+.api-table__type { color: rgba(255, 255, 255, 0.55); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.api-table__default { color: rgba(181, 252, 178, 0.7); }
+.api-table__desc {
+  font-family: var(--font-family-ui);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}

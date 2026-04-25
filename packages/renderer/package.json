@@ -6,6 +6,7 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
+    "playground": "vite --config ./playground/vite.config.ts",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "electron:build": "bun build electron-main/main.ts electron-main/backend.ts --outdir dist-electron --target node --format cjs -e electron && node -e \"require('fs').writeFileSync('dist-electron/package.json', JSON.stringify({type:'commonjs'})); require('fs').copyFileSync('electron-main/preload.cjs', 'dist-electron/preload.cjs')\"",
@@ -15,18 +16,16 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@react-three/drei": "^10.7.7",
-    "@react-three/fiber": "^9.6.0",
-    "jotai": "^2.19.1",
+    "@tailwindcss/vite": "^4.2.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "three": "^0.184.0"
+    "tailwindcss": "^4.2.4",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/three": "^0.184.0",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
     "electron": "^41.3.0",

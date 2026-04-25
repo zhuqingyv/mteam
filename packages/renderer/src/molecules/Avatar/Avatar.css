@@ -1,0 +1,12 @@
+.avatar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar .status-dot {
+  position: absolute;
+  right: 0;
+  bottom: 2px;
+}

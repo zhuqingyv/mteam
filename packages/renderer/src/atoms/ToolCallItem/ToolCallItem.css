@@ -1,0 +1,58 @@
+.tool-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.5;
+  padding: 2px 4px;
+}
+
+.tool-item__status {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.tool-item__status--done {
+  background: #23c55e;
+  box-shadow: 0 0 4px rgba(35, 197, 94, 0.5);
+}
+
+.tool-item__status--error {
+  background: #ff5b5b;
+  box-shadow: 0 0 4px rgba(255, 91, 91, 0.5);
+}
+
+.tool-item__status--running {
+  border: 1.5px solid rgba(74, 163, 255, 0.35);
+  border-top-color: #4aa3ff;
+  background: transparent;
+  animation: tool-item-spin 700ms linear infinite;
+}
+
+@keyframes tool-item-spin {
+  to { transform: rotate(360deg); }
+}
+
+.tool-item__name {
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: rgba(74, 163, 255, 0.8);
+  flex-shrink: 0;
+}
+
+.tool-item__summary {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-item__duration {
+  color: rgba(255, 255, 255, 0.35);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}

@@ -1,19 +1,53 @@
-// 果冻桌宠根组件：
-//   .jelly-drag  —— 透明全窗口覆盖层，-webkit-app-region: drag 让用户能拖窗口
-//   <JellyPet />  —— 3D 果冻 Canvas
-//   .jelly-overlay —— HTML 文字叠层（表情 + 中文陪伴语）
-import './styles/glass.css';
-import { JellyPet } from './components/JellyPet';
+import { useState, useRef } from 'react';
+import CapsuleCard from './organisms/CapsuleCard';
+
+const CAPSULE = { width: 380, height: 120 };
+const EXPANDED = { width: 640, height: 540 };
+const ANIM_MS = 350;
 
 export default function App() {
+  const [expanded, setExpanded] = useState(false);
+  const [animating, setAnimating] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const toggle = () => {
+    clearTimer();
+    if (!expanded) {
+      window.electronAPI?.resize(EXPANDED.width, EXPANDED.height, 'bottom-right');
+      requestAnimationFrame(() => {
+        setExpanded(true);
+        setAnimating(true);
+        timerRef.current = setTimeout(() => setAnimating(false), ANIM_MS);
+      });
+    } else {
+      setExpanded(false);
+      setAnimating(true);
+      timerRef.current = setTimeout(() => {
+        window.electronAPI?.resize(CAPSULE.width, CAPSULE.height, 'bottom-right');
+        setAnimating(false);
+      }, ANIM_MS);
+    }
+  };
+
   return (
-    <div className="jelly-root">
-      <div className="jelly-drag" />
-      <JellyPet />
-      <div className="jelly-overlay">
-        <div className="jelly-face">·ᴗ·</div>
-        <div className="jelly-words">嗨嗨，我在这里陪你~</div>
-      </div>
+    <div className="app">
+      <CapsuleCard
+        name="MTEAM"
+        agentCount={4}
+        taskCount={2}
+        messageCount={3}
+        online
+        expanded={expanded}
+        animating={animating}
+        onToggle={toggle}
+      />
     </div>
   );
 }

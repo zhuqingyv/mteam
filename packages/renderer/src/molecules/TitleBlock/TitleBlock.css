@@ -1,0 +1,16 @@
+.title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.title-block__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4aa3ff;
+  box-shadow: 0 0 4px rgba(74, 163, 255, 0.6);
+  flex-shrink: 0;
+  display: inline-block;
+}

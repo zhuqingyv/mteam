@@ -1,0 +1,57 @@
+import { useRef, useEffect } from 'react';
+import './ChatInput.css';
+
+interface ChatInputProps {
+  placeholder?: string;
+  value?: string;
+  onChange?: (value: string) => void;
+  onSend?: () => void;
+}
+
+export default function ChatInput({
+  placeholder = '输入消息…',
+  value = '',
+  onChange,
+  onSend,
+}: ChatInputProps) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }, [value]);
+
+  const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onSend?.();
+    }
+  };
+
+  return (
+    <div className="chat-input">
+      <textarea
+        ref={ref}
+        className="chat-input__textarea"
+        rows={1}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
+        onKeyDown={handleKey}
+      />
+      <button
+        type="button"
+        className="chat-input__send"
+        onClick={() => onSend?.()}
+        disabled={!value.trim()}
+        aria-label="发送"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M3 8h9M8 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+    </div>
+  );
+}

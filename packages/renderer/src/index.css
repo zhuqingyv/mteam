@@ -1,0 +1,20 @@
+@import "tailwindcss";
+@import './design-tokens/tokens.css';
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  font-family: var(--font-family-ui);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
