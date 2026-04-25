@@ -7,6 +7,19 @@
 >
 > 目的：下一个接手前端的 agent 不需要重读两份长文档就知道"什么能用、什么要改、什么要新建"。
 
+## 终局统计（Round 10 收尾）
+
+| 层 | 数量 | 目录 |
+|---|---|---|
+| atoms | **12** | Button / Icon / Logo / MessageMeta / NotificationCard / StatusDot / Surface / TeamSidebarItem / Text / ToolCallItem / TypingDots / VirtualList |
+| molecules | **16** | AgentCard / AgentSwitcher / Avatar / ChatHeader / ChatInput / CliList / DragHandle / MenuDots / MessageBadge / MessageBubble / MessageRow / NotificationStack / RosterList / TeamSidebar / TitleBlock / ToolCallList |
+| organisms | **9** | AgentList / CapsuleCard / ChatPanel / ExpandedView / NotificationCenter / PrimaryAgentSettings / TeamCanvas / TeamMonitorPanel / TemplateEditor |
+| templates | **2** | CapsuleWindow / PanelWindow |
+| pages | **3** | CapsulePage / TeamPage / SettingsPage |
+| hooks | **2** | useCapsuleToggle / useWsEvents |
+| api | **12** | client / index / ws / cli / driver-turns / instances / mcp / primaryAgent / roster / sessions / teams / templates |
+| store | **7** | agentStore / inputStore / messageStore / notificationStore / taskStore / windowStore / index |
+
 ---
 
 ## 1. 架构铁律（来自 COMPONENT-ARCHITECTURE.md）

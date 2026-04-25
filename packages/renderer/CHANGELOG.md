@@ -67,16 +67,70 @@ Organisms（2 个）：`CapsuleCard / ChatPanel`
   - 服务端缺口 D1–D6（消息三路分发 / Turn 前端契约 / 通知代理模式 / PROGRESS / 整体架构 / `/api/panel/` facade）
   - 前端硬门禁：只走 `/api/panel/`，不调底层接口
 
-### Round 5 — 打磨 + 产品组装（进行中）
+### Round 5 — API 合规重构 + 滚动条
 
-计划项：
+产出：
 
-- Logo 在线/离线灰度（在线=彩色、离线=灰度，不用绿点角标）
-- UI 视觉打磨（发光层级、气泡尖角对齐、IME 合成期）
-- Zustand store 拆细（按 `PRODUCT-REQUIREMENTS.md §4.2` 落地）
-- AI 友好文档（每个组件目录下 `README.md`，给下一个 agent 看）
-- 产品页面组装（`CapsulePage / ChatPage / SettingsPage / PetPage`）
-- 服务端 D6 落地后回填：前端 HTTP 全量迁至 `/api/panel/`
+- API 层合规重构：所有 HTTP 调用迁至 `/api/panel/*` facade（遵循 D-6 硬门禁）
+  - 按域拆分：`driver-turns / instances / mcp / primaryAgent / roster / sessions / teams / templates / cli`
+  - 统一 `ApiResult { ok, status, data, error }` 返回契约
+  - 旧 `client.ts` 里违反门禁的 Team API 封装全量下线
+- 滚动条系统：`tokens.css` 增补 `--scrollbar-*` 变体；`ChatPanel / AgentList / NotificationCenter` 统一接入
+- IME 合成期保护：`ChatInput` 加 `compositionstart/end` 守卫，中文输入法 Enter 不误发
+
+### Round 6 — 真实交互（store actions + 发消息流程）
+
+产出：
+
+- Store actions 补齐：`messageStore.send / agentStore.switch / taskStore.create` 等动作层
+- `ExpandedView` 串联：消息面板 → store → API → WS 回写闭环
+- 发消息流程：`ChatInput` → `messageStore.send` → `POST /api/panel/comm/send` → WS `turn.*` 事件回流 → block upsert
+- 虚拟滚动按 D-12 退回普通滚动（P0 范围消息 <500 条）
+
+### Round 7 — WS 事件接线
+
+产出：
+
+- `src/api/ws.ts` WS 客户端单例：带自动重连 + 指数退避 + 冷启动 HTTP 兜底
+- `hooks/useWsEvents.ts`：订阅服务端 WS 事件并分发到对应 store
+- 事件白名单：`turn.* / notification.* / instance.* / team.*`
+- Store 订阅链路全通：WS → store → UI 自动刷新
+
+### Round 8 — P1 UI 组件补全
+
+产出：
+
+- `organisms/NotificationCenter`：通知中心面板，按 agent 分组，支持签收/批量清理
+- `organisms/AgentList`：Agent 列表，在线/离线分段显示
+- `organisms/TemplateEditor`：模板编辑器（基于模板 API）
+- `organisms/PrimaryAgentSettings`：主 Agent 设置面板
+- `molecules/RosterList`：花名册列表
+- `molecules/CliList`：CLI 会话列表
+- 设置窗口 / CLI 窗口入口接入
+
+### Round 9 — Templates + Pages 架构层
+
+产出：
+
+- `templates/CapsuleWindow.tsx`：胶囊窗口骨架（含透明窗口 + drag 区）
+- `templates/PanelWindow.tsx`：面板窗口骨架（设置/聊天/CLI 复用）
+- `pages/CapsulePage.tsx`：胶囊主页面（集成 `CapsuleCard`）
+- `pages/TeamPage.tsx`：团队聊天主页面（集成 `ExpandedView / TeamCanvas`）
+- `pages/SettingsPage.tsx`：设置主页面（集成 `PrimaryAgentSettings / TemplateEditor`）
+- 每个 templates / pages 目录下配 `README.md`（给下一个 agent 看）
+- `App.tsx` 路由分发改为 `CapsulePage / TeamPage / SettingsPage` 分派
+- 设置窗口独立 BrowserWindow 落地
+
+### Round 10 — 全面体验打磨
+
+产出：
+
+- 视觉精修：发光层级、气泡尖角对齐、动画时序（展开/收起 `setBounds` 与 CSS transition 同步）
+- 交互精修：快捷键、焦点管理、错误态/空态、loading 骨架屏
+- 性能：`messageStore` 按 `driverId` 分段；大列表 memo；避免重复订阅
+- Playground 深度交互测试 + 逐像素检查胶囊 / 展开态
+- 组件体系终局统计：**atoms 12 / molecules 16 / organisms 9 / templates 2 / pages 3 / hooks 2 / api 12 / store 7**
+- TS `--noEmit` 零错 + `vite build` 成功（124 modules，gzip 68KB）
 
 ---
 
