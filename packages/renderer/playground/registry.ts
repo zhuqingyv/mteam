@@ -23,8 +23,13 @@ import ChatInput from '../src/molecules/ChatInput';
 import AgentSwitcher from '../src/molecules/AgentSwitcher';
 import DragHandle from '../src/molecules/DragHandle';
 import MessageBadge from '../src/molecules/MessageBadge';
+import TeamSidebarItem from '../src/atoms/TeamSidebarItem';
+import TeamSidebar from '../src/molecules/TeamSidebar';
+import AgentCard from '../src/molecules/AgentCard';
 import CapsuleCard from '../src/organisms/CapsuleCard';
 import ChatPanel from '../src/organisms/ChatPanel';
+import TeamCanvas from '../src/organisms/TeamCanvas';
+import TeamMonitorPanel from '../src/organisms/TeamMonitorPanel';
 
 export type PropType = 'string' | 'number' | 'boolean' | 'enum';
 
@@ -477,5 +482,92 @@ export const registry: ComponentEntry[] = [
       inputPlaceholder: '给 MTEAM 发送消息...',
     },
     note: '消息/Agent 列表为 mock 数据',
+  },
+  {
+    name: 'TeamSidebarItem',
+    layer: 'atoms',
+    component: TeamSidebarItem,
+    props: [
+      { name: 'name', type: 'string', default: 'Frontend', description: '团队名' },
+      { name: 'memberCount', type: 'number', default: 3, description: '成员数' },
+      { name: 'active', type: 'boolean', default: false, description: '激活态' },
+      { name: 'collapsed', type: 'boolean', default: false, description: '收起（只图标）' },
+    ],
+    defaults: { name: 'Frontend', memberCount: 3, active: false, collapsed: false },
+  },
+  {
+    name: 'TeamSidebar',
+    layer: 'molecules',
+    component: TeamSidebar,
+    props: [
+      { name: 'activeTeamId', type: 'string', default: 'frontend', description: '激活 team id' },
+      { name: 'defaultCollapsed', type: 'boolean', default: false, description: '默认收起' },
+    ],
+    defaults: {
+      activeTeamId: 'frontend',
+      defaultCollapsed: false,
+      teams: [
+        { id: 'frontend', name: 'Frontend', memberCount: 4 },
+        { id: 'backend', name: 'Backend', memberCount: 3 },
+        { id: 'devops', name: 'DevOps', memberCount: 2 },
+      ],
+    },
+    note: 'teams 为 mock 数据',
+  },
+  {
+    name: 'AgentCard',
+    layer: 'molecules',
+    component: AgentCard,
+    props: [
+      { name: 'name', type: 'string', default: 'Claude', description: 'Agent 名' },
+      {
+        name: 'status',
+        type: 'enum',
+        options: ['working', 'idle', 'shutdown'],
+        default: 'working',
+        description: '状态',
+      },
+      { name: 'lastMessage', type: 'string', default: '正在修复 UI Bug…', description: '最后消息' },
+      { name: 'x', type: 'number', default: 0, description: 'X 位置' },
+      { name: 'y', type: 'number', default: 0, description: 'Y 位置' },
+    ],
+    defaults: { name: 'Claude', status: 'working', lastMessage: '正在修复 UI Bug…', x: 0, y: 0 },
+    note: '可拖拽，原生 mousedown/move/up',
+  },
+  {
+    name: 'TeamCanvas',
+    layer: 'organisms',
+    component: TeamCanvas,
+    props: [],
+    defaults: {
+      agents: [
+        { id: 'a1', name: 'Claude', status: 'working', lastMessage: '修复 UI Bug', x: 40, y: 40 },
+        { id: 'a2', name: 'Codex', status: 'idle', lastMessage: '等待任务', x: 240, y: 160 },
+        { id: 'a3', name: 'Qwen', status: 'shutdown', x: 80, y: 280 },
+      ],
+    },
+    note: '画布式布局，卡片可拖拽',
+  },
+  {
+    name: 'TeamMonitorPanel',
+    layer: 'organisms',
+    component: TeamMonitorPanel,
+    props: [
+      { name: 'activeTeamId', type: 'string', default: 'frontend', description: '激活 team id' },
+    ],
+    defaults: {
+      activeTeamId: 'frontend',
+      teams: [
+        { id: 'frontend', name: 'Frontend', memberCount: 4 },
+        { id: 'backend', name: 'Backend', memberCount: 3 },
+        { id: 'devops', name: 'DevOps', memberCount: 2 },
+      ],
+      agents: [
+        { id: 'a1', name: 'Claude', status: 'working', lastMessage: '修复 UI Bug', x: 40, y: 40 },
+        { id: 'a2', name: 'Codex', status: 'idle', lastMessage: '等待任务', x: 260, y: 160 },
+        { id: 'a3', name: 'Qwen', status: 'shutdown', x: 100, y: 300 },
+      ],
+    },
+    note: '完整监控面板：侧边栏 + 画布',
   },
 ];
