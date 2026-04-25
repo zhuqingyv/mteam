@@ -679,3 +679,6 @@ export const registry: ComponentEntry[] = [
     note: 'Save 触发 onSave（payload = 当前表单值）；Cancel 触发 onCancel',
   },
 ];
+
+// 页面级组件（不在 Playground 展示）：ExpandedView — position: fixed 铺满视口，
+// 直接消费 store，无 props。在产品窗口即可看到完整形态。
