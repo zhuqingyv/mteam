@@ -3,6 +3,11 @@ import ComponentCard from './ComponentCard';
 import CapsuleCard from '../src/organisms/CapsuleCard';
 import ChatHeader from '../src/molecules/ChatHeader';
 import ChatPanel from '../src/organisms/ChatPanel';
+import StatusDot from '../src/atoms/StatusDot';
+import Button from '../src/atoms/Button';
+import Logo from '../src/atoms/Logo';
+import NotificationCard from '../src/atoms/NotificationCard';
+import MessageBubble from '../src/molecules/MessageBubble';
 
 const LAYER_ORDER: Layer[] = ['atoms', 'molecules', 'organisms'];
 const LAYER_TITLE: Record<Layer, string> = {
@@ -74,6 +79,59 @@ export default function App() {
               <div className="scenes__panel">
                 <ChatHeader name="M-TEAM" online />
                 <ChatPanel messages={SCENE_MESSAGES} agents={SCENE_AGENTS} inputPlaceholder="给 MTEAM 发送消息..." />
+              </div>
+            </div>
+          </div>
+        </div>
+        <h3 className="playground__subsection-title">Component States</h3>
+        <div className="states">
+          <div className="states__item">
+            <div className="states__label">StatusDot · 三态</div>
+            <div className="states__stage">
+              <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                <StatusDot status="online" />
+                <StatusDot status="busy" />
+                <StatusDot status="offline" />
+              </div>
+            </div>
+          </div>
+          <div className="states__item">
+            <div className="states__label">Button · 四态</div>
+            <div className="states__stage">
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <Button variant="primary">Primary</Button>
+                <Button variant="ghost">Ghost</Button>
+                <Button variant="dots" />
+                <Button variant="primary" disabled>Disabled</Button>
+              </div>
+            </div>
+          </div>
+          <div className="states__item">
+            <div className="states__label">MessageBubble · 三态</div>
+            <div className="states__stage">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 400 }}>
+                <MessageBubble variant="agent" agentName="Claude">Agent 消息示例</MessageBubble>
+                <MessageBubble variant="user">用户消息示例</MessageBubble>
+                <MessageBubble variant="thinking" agentName="Claude" />
+              </div>
+            </div>
+          </div>
+          <div className="states__item">
+            <div className="states__label">Logo · 在线/离线</div>
+            <div className="states__stage">
+              <div style={{ display: 'flex', gap: 16 }}>
+                <Logo size={44} online={true} />
+                <Logo size={44} online={false} />
+              </div>
+            </div>
+          </div>
+          <div className="states__item">
+            <div className="states__label">NotificationCard · 三种类型</div>
+            <div className="states__stage">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <NotificationCard title="任务完成" message="UI Bug 已修复" time="刚刚" type="task" />
+                <NotificationCard title="新消息" message="收到一条消息" time="2分钟前" type="info" />
+                <NotificationCard title="构建失败" message="vite build 报错" time="5分钟前" type="error" />
               </div>
             </div>
           </div>
