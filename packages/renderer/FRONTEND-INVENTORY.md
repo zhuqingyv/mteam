@@ -98,6 +98,8 @@ src/
 
 **未建（PRD 要求）**：
 - `AgentList` / `TeamPanel` / `TemplateEditor` / `McpStorePanel` / `SettingsPanel` / `NotificationCenter` —— P1
+- `InboxList`（展示单 agent inbox 摘要，对应 PRD §1.12 `GET /api/role-instances/:id/inbox`，等 D6 暴露到 `/api/panel/`）—— P1
+- `MessageHistoryList`（团队消息历史滚动加载，对应 PRD §1.12 `GET /api/teams/:id/messages`，等 D6）—— P1
 - `JellyPet` —— P2
 
 ---
@@ -132,6 +134,7 @@ P0 至少需要：
 - 已封装的具体 API：Team 7 个（listTeams / getTeam / createTeam / disbandTeam / listMembers / addMember / removeMember）
 - ⚠️ **已封装的 Team API 违反新硬门禁**（只能走 `/api/panel/`，但它们走 `/api/teams/*`）。下一步需要删除或等服务端在 `/api/panel/` 下重新暴露
 - **没有 WS 客户端** `src/api/ws.ts` —— P0 必须建
+- WS 路径当前 `/ws/events`（后端 `bus/ws-upgrade.ts:15`），**是否受 `/api/panel/` 门禁约束仍待裁决**（PRD §2.3 #9）；前端实现时用常量存路径，不写死为 prod 契约
 - 前端目前**唯一合规可调**端点：`GET /api/panel/driver/:id/turns`（Turn 快照）
 
 详见 `SERVER-API-INDEX.md` 顶部"前端使用警告"和 PRD §0.2。
