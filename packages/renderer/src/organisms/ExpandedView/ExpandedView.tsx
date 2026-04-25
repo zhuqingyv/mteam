@@ -1,6 +1,4 @@
 import ChatPanel from '../ChatPanel/ChatPanel';
-import NotificationStack from '../../molecules/NotificationStack';
-import type { Notification } from '../../molecules/NotificationStack/NotificationStack';
 import './ExpandedView.css';
 
 const messages = [
@@ -24,16 +22,9 @@ const agents = [
   { id: 'deepseek', name: 'DeepSeek' },
 ];
 
-const notifications: Notification[] = [
-  { id: 'n1', title: 'Codex 任务完成', message: '修复 UI Bug 已完成', time: '20:52', type: 'task' },
-];
-
 export default function ExpandedView() {
   return (
     <div className="expanded-view">
-      <div className="expanded-view__notif">
-        <NotificationStack notifications={notifications} />
-      </div>
       <ChatPanel messages={messages} agents={agents} />
     </div>
   );

@@ -195,8 +195,10 @@ P0 至少需要：
 | `COMPONENT-ARCHITECTURE.md` | 分层与命名铁律（不变层，改动需评审） |
 | `CHAT-UI-RESEARCH.md` | 聊天界面的设计决策原因（异形气泡 / 思考态 / 发光边 Q1~Q3 权衡） |
 | `PRODUCT-REQUIREMENTS.md` | 功能 / 优先级 / 交互流程 / 数据流（what & why） |
-| `SERVER-API-INDEX.md` | 服务端 HTTP 端点清单 |
+| `SERVER-API-INDEX.md` | 服务端 HTTP 端点清单（⚠️ 前端只可用 `/api/panel/*`） |
 | `SERVER-EVENTS-INDEX.md` | 服务端 WS 事件与数据结构清单 |
+| `DESIGN-REFERENCE.md` | 设计稿视觉规格（像素/色值/字号） |
+| `CHANGELOG.md` | 迭代日志 + 13 条设计决策 D-1~D-13（含 D-9 思考态不拆 / D-12 P0 不启用虚拟滚动 / D-6 `/api/panel/` 门禁） |
 | **`FRONTEND-INVENTORY.md`（本文件）** | **现有代码已做 / 没做 / 偏离设计的地方** |
 
 ---

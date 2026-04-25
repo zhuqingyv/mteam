@@ -6,28 +6,22 @@ const CAPSULE = { width: 380, height: 120 };
 const EXPANDED = { width: 640, height: 620 };
 const ANIM_MS = 350;
 
+const INITIAL_EXPANDED = typeof window !== 'undefined'
+  && new URLSearchParams(window.location.search).get('expanded') === '1';
+
 export default function App() {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(INITIAL_EXPANDED);
   const [animating, setAnimating] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const toggle = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    if (!expanded) {
-      window.electronAPI?.resize(EXPANDED.width, EXPANDED.height, 'bottom-right');
-      requestAnimationFrame(() => {
-        setExpanded(true);
-        setAnimating(true);
-        timerRef.current = setTimeout(() => setAnimating(false), ANIM_MS);
-      });
-    } else {
-      setExpanded(false);
-      setAnimating(true);
-      timerRef.current = setTimeout(() => {
-        window.electronAPI?.resize(CAPSULE.width, CAPSULE.height, 'bottom-right');
-        setAnimating(false);
-      }, ANIM_MS);
-    }
+    const next = !expanded;
+    setExpanded(next);
+    setAnimating(true);
+    const target = next ? EXPANDED : CAPSULE;
+    window.electronAPI?.resize(target.width, target.height, 'bottom-right', true);
+    timerRef.current = setTimeout(() => setAnimating(false), ANIM_MS);
   };
 
   return (

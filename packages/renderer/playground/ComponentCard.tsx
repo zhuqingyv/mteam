@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ComponentEntry } from './registry';
 import PropsPanel from './PropsPanel';
 
@@ -42,14 +42,12 @@ function nowLabel() {
 export default function ComponentCard({ entry }: ComponentCardProps) {
   const [values, setValues] = useState<Record<string, unknown>>(() => ({ ...entry.defaults }));
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [logSeq, setLogSeq] = useState(0);
+  const logSeqRef = useRef(0);
 
   const appendLog = useCallback((label: string, detail?: string) => {
-    setLogSeq((n) => {
-      const id = n + 1;
-      setLogs((prev) => [{ id, time: nowLabel(), label, detail }, ...prev].slice(0, 5));
-      return id;
-    });
+    logSeqRef.current += 1;
+    const id = logSeqRef.current;
+    setLogs((prev) => [{ id, time: nowLabel(), label, detail }, ...prev].slice(0, 5));
   }, []);
 
   const handleChange = (name: string, value: unknown) => {

@@ -220,11 +220,13 @@ export const registry: ComponentEntry[] = [
   {
     name: 'VirtualList',
     layer: 'atoms',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     component: (props: Record<string, unknown>) =>
       React.createElement(
         'div',
         { style: { width: 420, height: 360, background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' } },
-        React.createElement(VirtualList, props),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        React.createElement(VirtualList as any, props),
       ),
     props: [
       { name: 'itemEstimateHeight', type: 'number', default: 60, description: '预估行高 px' },

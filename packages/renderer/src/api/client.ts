@@ -1,9 +1,18 @@
-// 后端 API 封装：统一 base URL + 错误包装。
-// 返回 { ok, status, data } 结构，由面板自行决定如何展示。
+// 前端 API 客户端基础设施。
+//
+// 硬门禁（PRD §0.2 · mnemo 共识 feedback_no_direct_backend_api）：
+// 前端只允许调用 /api/panel/* 下的端点。其他顶级路径（/api/teams、
+// /api/role-instances、/api/messages 等）由服务端保留给 agent/内部调用，
+// 前端绝不能直连。D6 缺口（/api/panel/ facade 层）落地前，大部分领域
+// 函数只提供占位（panelPending）返回统一错误。
+//
+// 当前 /api/panel/ 下唯一合规端点：GET /api/panel/driver/:driverId/turns（见 ./driver-turns）。
+
 export const API_BASE: string =
   (import.meta.env.VITE_API_BASE as string | undefined) || 'http://localhost:58590';
 
-// 面板用的响应壳，失败时 data 里会带 error 字段。
+export const PANEL_BASE = `${API_BASE}/api/panel`;
+
 export interface ApiResult<T = unknown> {
   ok: boolean;
   status: number;
@@ -11,12 +20,10 @@ export interface ApiResult<T = unknown> {
   error: string | null;
 }
 
-// 核心 fetch，任何异常都归一化成 ApiResult，避免面板处理 throw。
-export async function apiFetch<T = unknown>(
-  path: string,
+async function apiFetch<T = unknown>(
+  url: string,
   init?: RequestInit,
 ): Promise<ApiResult<T>> {
-  const url = `${API_BASE}${path}`;
   try {
     const resp = await fetch(url, {
       ...init,
@@ -26,12 +33,10 @@ export async function apiFetch<T = unknown>(
       },
     });
 
-    // 204 无返回体
     if (resp.status === 204) {
       return { ok: true, status: 204, data: null, error: null };
     }
 
-    // 解析 JSON（容忍空）
     const text = await resp.text();
     const parsed: unknown = text ? JSON.parse(text) : null;
 
@@ -50,48 +55,36 @@ export async function apiFetch<T = unknown>(
   }
 }
 
-// 常用动词快捷方式，body 会自动 JSON 序列化。
-export function apiGet<T = unknown>(path: string): Promise<ApiResult<T>> {
-  return apiFetch<T>(path, { method: 'GET' });
+// path 不带 '/api/panel' 前缀，本函数自动补上，确保不会误调顶级 /api/*。
+export function panelGet<T = unknown>(path: string): Promise<ApiResult<T>> {
+  return apiFetch<T>(`${PANEL_BASE}${path}`, { method: 'GET' });
 }
 
-export function apiPost<T = unknown>(
-  path: string,
-  body?: unknown,
-  headers?: Record<string, string>,
-): Promise<ApiResult<T>> {
-  return apiFetch<T>(path, {
+export function panelPost<T = unknown>(path: string, body?: unknown): Promise<ApiResult<T>> {
+  return apiFetch<T>(`${PANEL_BASE}${path}`, {
     method: 'POST',
     body: body === undefined ? undefined : JSON.stringify(body),
-    headers,
   });
 }
 
-export function apiPut<T = unknown>(path: string, body?: unknown): Promise<ApiResult<T>> {
-  return apiFetch<T>(path, {
+export function panelPut<T = unknown>(path: string, body?: unknown): Promise<ApiResult<T>> {
+  return apiFetch<T>(`${PANEL_BASE}${path}`, {
     method: 'PUT',
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
 
-export function apiDelete<T = unknown>(path: string): Promise<ApiResult<T>> {
-  return apiFetch<T>(path, { method: 'DELETE' });
+export function panelDelete<T = unknown>(path: string): Promise<ApiResult<T>> {
+  return apiFetch<T>(`${PANEL_BASE}${path}`, { method: 'DELETE' });
 }
 
-// Team API
-export const apiListTeams = () => apiGet('/api/teams');
-export const apiGetTeam = (id: string) => apiGet(`/api/teams/${encodeURIComponent(id)}`);
-export const apiCreateTeam = (body: { name: string; leaderInstanceId: string }) =>
-  apiPost('/api/teams', body);
-export const apiDisbandTeam = (id: string) =>
-  apiPost(`/api/teams/${encodeURIComponent(id)}/disband`);
-export const apiAddTeamMember = (
-  teamId: string,
-  body: { instanceId: string; roleInTeam?: string },
-) => apiPost(`/api/teams/${encodeURIComponent(teamId)}/members`, body);
-export const apiRemoveTeamMember = (teamId: string, instanceId: string) =>
-  apiDelete(
-    `/api/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(instanceId)}`,
-  );
-export const apiListTeamMembers = (teamId: string) =>
-  apiGet(`/api/teams/${encodeURIComponent(teamId)}/members`);
+// D6 占位：服务端 /api/panel/ facade 未覆盖的领域统一返回此错误。
+// 调用方把 ok:false + D6 错误当作"UI 骨架模式"，展示空态或假数据。
+export function panelPending<T = unknown>(feature: string): Promise<ApiResult<T>> {
+  return Promise.resolve({
+    ok: false,
+    status: 0,
+    data: null,
+    error: `D6: /api/panel/ facade pending (${feature})`,
+  });
+}

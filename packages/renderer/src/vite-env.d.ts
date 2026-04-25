@@ -12,7 +12,7 @@ interface ImportMeta {
 
 interface Window {
   electronAPI?: {
-    resize: (w: number, h: number, anchor?: string) => void;
+    resize: (w: number, h: number, anchor?: string, animate?: boolean) => void;
     startResize: (direction: string) => void;
   };
 }

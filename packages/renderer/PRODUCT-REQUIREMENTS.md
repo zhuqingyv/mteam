@@ -23,12 +23,33 @@
 
 > team-lead 已确认服务端这 5 份文档正在补，本 PRD 遇到依赖这些文档的功能点**一律只写需求，不猜接口格式**，统一打 `[待服务端补充接口规范]` 标签。
 
+**编号命名约定（避免与 CHANGELOG 混淆）**：
+- 本 PRD 的 **`D1` ~ `D6`**（无横线）= **服务端待补文档/能力**
+- `CHANGELOG.md` 的 **`D-1` ~ `D-13`**（带横线）= **前端已落地的设计决策**
+- 两套编号**互不相关**，读到时靠格式区分。
+
+**2026-04-25 最新服务端 docs 核查结论**（读完 `packages/backend/docs/` 全量）：
+- 已读：`phase1/`（api-design + project-structure + README）、`phase2/README.md`、`comm/README.md`、`mcp/README.md`、`roster/README.md`、`mcp-store/README.md`、`cli-adapters/README.md`、`cleanup-plan.md`、`restructure-plan.md`。
+- **核心事实**：这批文档**无一份是"前端 facade 接口规范"**。它们是：
+  - `phase1 / phase2`：后端分期规划与角色实例生命周期（三态状态机 / pty 管理 / session register 回调）；
+  - `comm/`：agent 之间的 Unix socket 消息总线（地址、协议、路由），**上层是 agent & mteam-mcp，不是前端**；
+  - `mcp/`：内置 mteam MCP 六工具（`activate / deactivate / request_offline / send_msg / check_inbox / lookup`），**agent 子进程 stdio 调用，不是前端 HTTP**；
+  - `roster/`：活跃名单状态管理器 + 对应 `/api/roster/*` HTTP 路由（仍在 `/api/` 下，非 `/api/panel/`）；
+  - `mcp-store/` / `cli-adapters/` / `cleanup-plan.md` / `restructure-plan.md`：后端模块内部设计与重构计划。
+- **结论**：D1 / D2 / D3 / D5 / D6 全部**保持阻塞**。服务端本轮没有新增任何 `/api/panel/*` 前端 facade 端点。
+- **次要更新**（见 §1 具体条目）：
+  1. `POST /api/role-instances/:id/activate`（面板/测试激活入口）已在服务端落地，PRD §1.3 补条；
+  2. 删除接口 `?force=1` 语义明确（crash 路径），PRD §1.3 更正；
+  3. `GET /api/role-instances/:id/inbox`、`GET /api/messages/:id`、`GET /api/teams/:teamId/messages` 已在服务端落地但仍在 `/api/*`，前端暂**不可用**（等 D6）；
+  4. Roster alias 设置端点：服务端实装是 `PUT /api/roster/:id/alias`（`http/routes/roster.routes.ts:44`），与 docs 一致 —— PRD 原来写的 `PATCH` **是错的**，本轮已改为 `PUT`；
+  5. WS 白名单明确为 34 个事件（`ws.subscriber.ts::WS_EVENT_TYPES`），路径 `/ws/events`。⚠️ **该路径是否受 `/api/panel/` 硬门禁约束仍待 team-lead 裁决**（见 §2.3 #9 + `SERVER-EVENTS-INDEX.md` §0）；在裁决前，前端 WS 客户端不要把 `/ws/events` 写死为 prod 契约。
+
 | # | 缺失文档 | 影响的前端功能域 | 本 PRD 标签 |
 |---|---|---|---|
 | D1 | **消息三路分发设计**（comm-model-design 只有 Envelope，缺 `CommRouter.dispatch → agent/前端/DB` 架构图） | 聊天消息发送链路、用户 → Agent 的输入入口、前端如何从通讯路接消息 | `[待 D1]` |
 | D2 | **Turn 聚合前端接口**（turn-aggregator-design 是后端视角，缺 WS JSON 形状 + HTTP 快照接口） | 聊天流式 / thinking / tool_call 渲染、Turn 历史回看、断线补齐 | `[待 D2]` |
 | D3 | **通知系统前端接口**（notification-and-visibility.md 只有类型，缺三种代理模式的 HTTP 配置接口） | 通知中心、代理模式配置、静默/转发/提醒规则 | `[待 D3]` |
-| D4 | **PROGRESS.md 过时** | 不影响功能，但前端排期不知道全局进度卡在哪 | `[待 D4]` |
+| D4 | **PROGRESS.md 过时** | 仅信息同步，不阻塞前端功能 | `[待 D4]` |
 | D5 | **整体架构总览**（comm / bus / ws / filter / notification / process-runtime / agent-driver 怎么拼） | 前端 WS 客户端拓扑（单例 vs 多窗口直连）、事件白名单边界、重连补偿策略 | `[待 D5]` |
 
 **执行策略**：
@@ -40,14 +61,16 @@
 
 ## 0.2 硬门禁：前端只能走 `/api/panel/`（新增）
 
-**硬性规则**（mnemo 用户共识 `feedback_no_direct_backend_api`）：前端不得直接调用服务端底层接口（bus、comm、agent-driver、mcp-store 等），**只允许通过 `/api/panel/` 面板 API** 对接。每一轮团队迭代，必须有专门角色 grep 检查前端代码的 API 调用路径全部走 `/api/panel/`。
+**硬性规则**（mnemo 用户共识 `feedback_no_direct_backend_api` + CHANGELOG **`D-6`** 决策）：前端不得直接调用服务端底层接口（bus、comm、agent-driver、mcp-store 等），**只允许通过 `/api/panel/` 面板 API** 对接。每一轮团队迭代，必须有专门角色 grep 检查前端代码的 API 调用路径全部走 `/api/panel/`。
+
+> 本 PRD 里 `D6`（服务端 facade 层缺失）与 CHANGELOG `D-6`（前端只走 /api/panel/ 决策）是**同一件事的两面**：一边记录前端规则，一边记录服务端侧的能力缺口。
 
 **与现有路由的严重冲突**：读 `packages/backend/src/http/routes/` 后发现，当前**只有 `GET /api/panel/driver/:id/turns` 一个端点**真正在 `/api/panel/` 前缀下。其他端点都在顶级 `/api/*`：
 
 | 域 | 现路径 | 前端是否可用 |
 |---|---|---|
 | role-templates | `/api/role-templates` | ❌ 禁用 |
-| role-instances | `/api/role-instances` | ❌ 禁用 |
+| role-instances | `/api/role-instances`、`/api/role-instances/:id/activate`、`/api/role-instances/:id/request-offline`、`/api/role-instances/:id/inbox` | ❌ 禁用（Phase 2 新增 activate / request-offline / force 删；inbox 见 §1.12） |
 | teams | `/api/teams` | ❌ 禁用 |
 | sessions | `/api/sessions/register` | ❌ 禁用（本来也应由 agent 调） |
 | primary-agent | `/api/primary-agent` | ❌ 禁用 |
@@ -104,23 +127,29 @@
 
 ### 1.3 Agent / 实例管理（P1）
 
+> 生命周期基于 Phase 2 三态机：`PENDING → ACTIVE → PENDING_OFFLINE → (物理删除)`；异常崩溃走 `crash` 路径直接删（见 `backend/docs/phase2/README.md` §2）。所有接口**仍在 `/api/*` 下**，前端实际调用等 D6 facade。
+
 | 功能 | 服务端 API | 前端需要 |
 |---|---|---|
 | 列出当前所有实例 | `GET /api/role-instances`（handleListInstances） | `AgentList`（organism，待建） |
 | 创建实例（从模板） | `POST /api/role-instances`（handleCreateInstance） | `CreateInstanceDialog`（待建） |
-| Leader 批准下线 | `POST /api/role-instances/:id/request-offline`（需 leader 权限） | `AgentStatusMenu` 的"请求下线"按钮 |
-| 删除实例 | `DELETE /api/role-instances/:id?force=` | 确认弹窗 |
+| **面板激活**（PENDING→ACTIVE，测试/强制激活入口） | `POST /api/role-instances/:id/activate`（handleActivate）— 正常情况下由 CLI 子进程通过 `/api/sessions/register` 自动触发，面板仅做兜底/调试 | Agent 状态菜单里"强制激活"（调试态；P1 可选） |
+| Leader 批准下线 | `POST /api/role-instances/:id/request-offline`（需 leader 权限；`X-Role-Instance-Id` header 或 body `callerInstanceId` 指明调用者） | `AgentStatusMenu` 的"请求下线"按钮 |
+| 删除实例 | `DELETE /api/role-instances/:id` — 默认仅允许 `PENDING` / `PENDING_OFFLINE`；`ACTIVE` 返 409（需先 request-offline）；`?force=1` 绕过（Panel 管理员强杀，内部走 crash 路径） | 常规"删除"走 request-offline → delete 两步；紧急"强制销毁"走 `?force=1` 带二次确认 |
+| Inbox | `GET /api/role-instances/:id/inbox?peek=<bool>&limit=<N>` — 服务端已实现；`peek=false` 取走并 markRead | P1 用于展示单 agent 的未读/历史私信 |
 | 实时状态 | WS `instance.created / activated / offline_requested / deleted / session_registered` | `instanceStore` 监听事件更新 |
 
 ### 1.4 团队（P1）
 
 | 功能 | 服务端 API | 前端需要 |
 |---|---|---|
-| 列出 / 查看团队 | `GET /api/teams`、`GET /api/teams/:id` | `TeamList`、`TeamDetail` |
-| 创建团队 | `POST /api/teams`（name + leaderInstanceId） | `CreateTeamDialog` |
+| 列出 / 查看团队 | `GET /api/teams`、`GET /api/teams/:id`（详情含 `members` 数组） | `TeamList`、`TeamDetail` |
+| 创建团队 | `POST /api/teams`（name + leaderInstanceId + description?） | `CreateTeamDialog` |
 | 解散团队 | `POST /api/teams/:id/disband` | 确认弹窗 |
-| 添加成员 | `POST /api/teams/:id/members`（instanceId + roleInTeam） | 成员选择器 |
+| 列出团队成员（含 memberName/status/isLeader） | `GET /api/teams/:id/members` | 成员侧栏 |
+| 添加成员 | `POST /api/teams/:id/members`（instanceId + roleInTeam?） | 成员选择器 |
 | 移除成员 | `DELETE /api/teams/:id/members/:instanceId` | 列表项右键 |
+| **团队消息历史** | `GET /api/teams/:teamId/messages?limit=50&before=<cursor>` → `{ items: InboxSummary[], nextBefore, hasMore }`（服务端已实现，`items` 不含 content，全文要再拉 `GET /api/messages/:id`） | 团队聊天窗滚动加载 |
 | 实时同步 | WS `team.created / disbanded / member_joined / member_left` | `teamStore` 订阅 |
 
 ### 1.5 角色模板（P1）
@@ -153,12 +182,17 @@
 
 ### 1.8 Roster / 通讯录（P1）
 
+> 注：`packages/backend/docs/roster/README.md` 用的是 `PUT`，但服务端 `http/routes/roster.routes.ts` 实装也是 `PUT`（第 44 行）。**前端按实装为准写 `PUT`**。
+
 | 功能 | 服务端 API | 前端需要 |
 |---|---|---|
-| 列出 roster | `GET /api/roster?scope=team\|local\|remote&callerInstanceId` | `RosterList` |
-| 搜索 | `GET /api/roster/search?q&scope&callerInstanceId` | 搜索框 |
-| 备注名 | `PATCH /api/roster/:instanceId/alias` | 名字就地编辑 |
-| 通讯 | WS `comm.registered / disconnected / message_sent / message_received` | 通讯状态角标 |
+| 列出 roster（字段：instanceId/memberName/alias/scope/status/address/teamId/task） | `GET /api/roster?scope=team\|local\|remote&callerInstanceId=`（scope=team 时 caller 必填） | `RosterList` |
+| 搜索（alias 优先，`COALESCE(alias, member_name) LIKE`） | `GET /api/roster/search?q&scope&callerInstanceId` → `{match: 'unique\|multiple\|none', ...}` | 搜索框 |
+| 单条 | `GET /api/roster/:instanceId` | 卡片详情 |
+| 新增 / 更新 | `POST /api/roster`（agent/remote 同步用）、`PUT /api/roster/:instanceId`（状态字段部分更新） | 一般前端不触发，由服务端 subscriber 自动同步；前端只读 |
+| 备注名 | `PUT /api/roster/:instanceId/alias`（body `{alias}`） | 名字就地编辑 |
+| 删除 | `DELETE /api/roster/:instanceId` | 列表右键 |
+| 通讯状态 | WS `comm.registered / disconnected / message_sent / message_received` | 通讯状态角标 |
 
 ### 1.9 通知（P0）
 
@@ -175,7 +209,20 @@
 
 | 功能 | 服务端 API | 前端需要 |
 |---|---|---|
-| 注册 session | `POST /api/sessions/register`（内部由成员 agent 调） | 前端通常不直接调；但需要展示 session 绑定状态 |
+| 注册 session | `POST /api/sessions/register`（内部由 mteam MCP 子进程 proxy 或 CLI stdio proxy 调，前端**不直接触达**）— 语义：`PENDING → ACTIVE` 且写入 `claudeSessionId`，同时触发 `instance.activated` + `instance.session_registered` 事件 | 前端只订 `instance.activated` / `instance.session_registered` WS 事件展示 session 绑定状态，不直接 POST |
+
+### 1.12 消息（agent 间 + 团队消息，P1~P2）
+
+> 服务端四端点（`messages.routes.ts`）**均在 `/api/messages/*` 与 `/api/role-instances/:id/inbox` 下，仍不在 `/api/panel/*`**，等 D6 facade。功能存在但前端暂无合规入口。
+
+| 功能 | 服务端 API | 前端需要 | 缺口 |
+|---|---|---|---|
+| 发送消息（强注入 from=user） | `POST /api/messages/send` → `{ messageId, route }`，route ∈ `local-online / local-offline / system` | `ChatInput` 发送、展示 route 落点 | **`[待 D6]`** |
+| 查单条消息全文 | `GET /api/messages/:id?markRead=true` → `{ envelope }` | 点击 inbox 摘要后拉取全文 | **`[待 D6]`** |
+| 实例 Inbox 摘要 | `GET /api/role-instances/:instanceId/inbox?peek=<bool>&limit=<N>` → `{ messages: InboxSummary[], total }`（摘要**不含 content**） | 侧栏未读列表（每个 agent 一份） | **`[待 D6]`** |
+| 团队消息历史 | `GET /api/teams/:teamId/messages?before=&limit=` → `{ items, nextBefore, hasMore }` | 团队聊天滚动加载 | **`[待 D6]`** |
+
+其中 mteam MCP 侧对应的 agent 工具（`send_msg` / `check_inbox` / `lookup` 等 6 件，见 `backend/docs/mcp/README.md`）走 **Unix socket + env**，**完全不是前端 API 路径**，前端不需要关心。
 
 ### 1.11 桌宠（P2）
 
@@ -431,6 +478,38 @@ src/store/
 
 ---
 
+## 7.1 本轮更新摘要（2026-04-25）
+
+> 触发：team-lead 通知"服务端文档更新了"，要求核对 PRD。
+> 读范围：`packages/backend/docs/**` 全部 .md + `packages/backend/src/api/panel/*.ts`（9 文件）+ `packages/backend/src/bus/events.ts` + `packages/backend/src/bus/types.ts` + `packages/backend/src/comm/types.ts` + `packages/backend/src/http/routes/*.ts`。
+
+**不变的部分**：
+- 硬门禁 `/api/panel/*` 规则；
+- D1 ~ D6 全部阻塞状态；
+- 服务端仍只有 `GET /api/panel/driver/:id/turns` 一个合规端点；
+- WS 路径 `/ws/events`、34 个白名单事件；
+- P0 聊天主链路（`POST /api/messages/send`）仍**不可用**。
+
+**变了的部分**（本次回填）：
+1. §0.1 顶部加"2026-04-25 进度核查"段落，明确 `backend/docs/` 新增/更新的全是**后端架构与 agent 侧设计文档**，不是前端 facade 规范；
+2. §0.2 路由表 `role-instances` 行补齐 Phase 2 新增子路径（`/activate` / `/request-offline` / `/inbox`）；
+3. §1.3 Agent 实例管理：
+   - 新增"面板激活"条目（`POST /api/role-instances/:id/activate`）；
+   - 补齐 `request-offline` 的调用者识别方式（header `X-Role-Instance-Id` / body `callerInstanceId`）；
+   - 明确 `DELETE` 的状态机约束（`PENDING` / `PENDING_OFFLINE` 可删；`ACTIVE` 需先 request-offline；`?force=1` 走 crash 路径）；
+   - 新增 Inbox 接口；
+4. §1.4 团队：补 `GET /api/teams/:id/members`（enrich 版，含 memberName/status/isLeader）、团队消息历史；
+5. §1.8 Roster alias 端点：PRD 原写 `PATCH` 是错的，改为 **`PUT`**（与服务端实装一致）；新增 `POST/PUT/DELETE /api/roster/:id` 条目（但前端一般只读）；
+6. §1.10 Session：补说明"前端不直接调，只订阅 `instance.activated` / `instance.session_registered` 事件"；
+7. **新增 §1.12 消息**：`POST /api/messages/send`、`GET /api/messages/:id`、实例 `inbox`、团队 `messages` 四端点集中列出，全部标 `[待 D6]`；
+8. 明确 mteam MCP 六工具（`activate` / `deactivate` / `request_offline` / `send_msg` / `check_inbox` / `lookup`）是 **agent 侧 stdio** 工具，**不是前端 HTTP**，前端无需关心。
+
+**待服务端确认**：
+- D6 facade 优先级与时间表；
+- `/ws/events` 是否受 `/api/panel/` 硬门禁约束（若约束，需随 D6 暴露 `/ws/panel/events`）。
+
+---
+
 ## 8. 文档索引（五份互锁参考文档）
 
 前端 agent 接手工作前，按顺序通读这 5 份文档即可：
@@ -449,7 +528,7 @@ src/store/
 |---|---|---|
 | 6 | `SERVER-API-INDEX.md` | HTTP 端点清单；**⚠️ 前端只能用 `/api/panel/*`，其他 10 组目前全部 ❌ 禁用** |
 | 7 | `SERVER-EVENTS-INDEX.md` | WS 事件与 Turn/Block 数据结构 |
-| 8 | `CHANGELOG.md` | 迭代日志 + 13 条设计决策记录（D-1 ~ D-13），含 zustand 选择 / 不用 Storybook / 不引 react-markdown 等 |
+| 8 | `CHANGELOG.md` | 迭代日志 + 13 条设计决策记录 **`D-1` ~ `D-13`**（带横线，区别于本 PRD 的 `D1`~`D6`）。关键几条：**D-4** Logo 彩色/灰度承载在线态、**D-6** 前端只走 `/api/panel/`、**D-9** 思考态不拆组件、**D-12** P0 不启用虚拟滚动 |
 
 ---
 
