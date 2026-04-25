@@ -26,10 +26,13 @@ import MessageBadge from '../src/molecules/MessageBadge';
 import TeamSidebarItem from '../src/atoms/TeamSidebarItem';
 import TeamSidebar from '../src/molecules/TeamSidebar';
 import AgentCard from '../src/molecules/AgentCard';
+import CliList from '../src/molecules/CliList';
 import CapsuleCard from '../src/organisms/CapsuleCard';
 import ChatPanel from '../src/organisms/ChatPanel';
 import TeamCanvas from '../src/organisms/TeamCanvas';
 import TeamMonitorPanel from '../src/organisms/TeamMonitorPanel';
+import PrimaryAgentSettings from '../src/organisms/PrimaryAgentSettings';
+import NotificationCenter from '../src/organisms/NotificationCenter';
 
 export type PropType = 'string' | 'number' | 'boolean' | 'enum';
 
@@ -569,5 +572,62 @@ export const registry: ComponentEntry[] = [
       ],
     },
     note: '完整监控面板：侧边栏 + 画布',
+  },
+  {
+    name: 'CliList',
+    layer: 'molecules',
+    component: CliList,
+    props: [],
+    defaults: {
+      clis: [
+        { name: 'claude', path: '/usr/local/bin/claude', available: true },
+        { name: 'codex', path: '/usr/local/bin/codex', available: true },
+        { name: 'qwen', path: '', available: false },
+      ],
+    },
+    note: 'clis 为 mock；Refresh 点击触发 onRefresh',
+  },
+  {
+    name: 'PrimaryAgentSettings',
+    layer: 'organisms',
+    component: PrimaryAgentSettings,
+    props: [
+      { name: 'running', type: 'boolean', default: false, description: '总控是否运行中' },
+    ],
+    defaults: {
+      running: false,
+      config: { model: 'claude-opus-4-7', maxTokens: 8192 },
+    },
+    note: 'Start/Stop 与 running 状态联动（disabled）',
+    handlers: (setValues) => ({
+      onStart: () => setValues((p) => ({ ...p, running: true })),
+      onStop: () => setValues((p) => ({ ...p, running: false })),
+    }),
+  },
+  {
+    name: 'NotificationCenter',
+    layer: 'organisms',
+    component: NotificationCenter,
+    props: [
+      { name: 'open', type: 'boolean', default: true, description: '是否展开抽屉' },
+    ],
+    defaults: {
+      open: true,
+      acknowledgedIds: [] as string[],
+      notifications: [
+        { id: '1', title: 'Claude 完成任务', message: 'UI Bug 已修复，等待确认', time: '刚刚', type: 'task' },
+        { id: '2', title: '新消息', message: 'Codex 发送了一条消息', time: '2 分钟前', type: 'info' },
+        { id: '3', title: '构建失败', message: 'vite build 报错：Module not found', time: '5 分钟前', type: 'error' },
+        { id: '4', title: '模板已更新', message: 'frontend-engineer 的系统提示词已更新', time: '10 分钟前', type: 'info' },
+      ],
+    },
+    note: '点击条目标记已读（变暗）；× 关闭抽屉',
+    handlers: (setValues) => ({
+      onAcknowledge: (id: unknown) => setValues((p) => {
+        const prev = (p.acknowledgedIds as string[]) || [];
+        return prev.includes(id as string) ? p : { ...p, acknowledgedIds: [...prev, id as string] };
+      }),
+      onClose: () => setValues((p) => ({ ...p, open: false })),
+    }),
   },
 ];
