@@ -1,24 +1,8 @@
-// Instances（Agent 实例）领域 —— [待 D6]
-//
-// 服务端现有端点挂在顶级 /api/role-instances，前端硬门禁禁止直连。
-// D6 facade 未落地前，所有调用返回统一 D6 pending 错误。
-//
-// 未来服务端 facade 映射参考：
-//   listInstances   → GET    /api/panel/instances
-//   getInstance     → GET    /api/panel/instances/:id
-//   createInstance  → POST   /api/panel/instances
-//   activate        → POST   /api/panel/instances/:id/activate
-//   requestOffline  → POST   /api/panel/instances/:id/request-offline
-//   deleteInstance  → DELETE /api/panel/instances/:id?force=1
+// Instances（Agent 实例）—— /api/panel/instances* facade，对应后端 /api/role-instances*。
 
-import { panelPending, type ApiResult } from './client';
+import { panelGet, panelPost, panelDelete, type ApiResult } from './client';
 
-export type InstanceStatus =
-  | 'PENDING'
-  | 'ACTIVE'
-  | 'PENDING_OFFLINE'
-  | 'OFFLINE'
-  | 'DELETED';
+export type InstanceStatus = 'PENDING' | 'ACTIVE' | 'PENDING_OFFLINE' | 'OFFLINE' | 'DELETED';
 
 export interface RoleInstance {
   id: string;
@@ -42,28 +26,26 @@ export interface CreateInstanceBody {
 }
 
 export function listInstances(): Promise<ApiResult<RoleInstance[]>> {
-  return panelPending<RoleInstance[]>('instances.list');
+  return panelGet<RoleInstance[]>('/instances');
 }
 
-export function getInstance(_id: string): Promise<ApiResult<RoleInstance>> {
-  return panelPending<RoleInstance>('instances.get');
+export function getInstance(id: string): Promise<ApiResult<RoleInstance>> {
+  return panelGet<RoleInstance>(`/instances/${encodeURIComponent(id)}`);
 }
 
-export function createInstance(_body: CreateInstanceBody): Promise<ApiResult<RoleInstance>> {
-  return panelPending<RoleInstance>('instances.create');
+export function createInstance(body: CreateInstanceBody): Promise<ApiResult<RoleInstance>> {
+  return panelPost<RoleInstance>('/instances', body);
 }
 
-export function activateInstance(_id: string): Promise<ApiResult<RoleInstance>> {
-  return panelPending<RoleInstance>('instances.activate');
+export function activateInstance(id: string): Promise<ApiResult<RoleInstance>> {
+  return panelPost<RoleInstance>(`/instances/${encodeURIComponent(id)}/activate`);
 }
 
-export function requestOffline(
-  _id: string,
-  _callerInstanceId: string,
-): Promise<ApiResult<RoleInstance>> {
-  return panelPending<RoleInstance>('instances.requestOffline');
+export function requestOffline(id: string, callerInstanceId: string): Promise<ApiResult<RoleInstance>> {
+  const url = `/instances/${encodeURIComponent(id)}/request-offline`;
+  return panelPost<RoleInstance>(url, { callerInstanceId });
 }
 
-export function deleteInstance(_id: string, _force = false): Promise<ApiResult<null>> {
-  return panelPending<null>('instances.delete');
+export function deleteInstance(id: string, force = false): Promise<ApiResult<null>> {
+  return panelDelete<null>(`/instances/${encodeURIComponent(id)}${force ? '?force=1' : ''}`);
 }

@@ -59,39 +59,44 @@
 
 ---
 
-## 0.2 硬门禁：前端只能走 `/api/panel/`（新增）
+## 0.2 硬门禁：前端只能走 `/api/panel/`（2026-04-25 更新：D6 大部分已解除）
 
 **硬性规则**（mnemo 用户共识 `feedback_no_direct_backend_api` + CHANGELOG **`D-6`** 决策）：前端不得直接调用服务端底层接口（bus、comm、agent-driver、mcp-store 等），**只允许通过 `/api/panel/` 面板 API** 对接。每一轮团队迭代，必须有专门角色 grep 检查前端代码的 API 调用路径全部走 `/api/panel/`。
 
 > 本 PRD 里 `D6`（服务端 facade 层缺失）与 CHANGELOG `D-6`（前端只走 /api/panel/ 决策）是**同一件事的两面**：一边记录前端规则，一边记录服务端侧的能力缺口。
 
-**与现有路由的严重冲突**：读 `packages/backend/src/http/routes/` 后发现，当前**只有 `GET /api/panel/driver/:id/turns` 一个端点**真正在 `/api/panel/` 前缀下。其他端点都在顶级 `/api/*`：
+**2026-04-25 D6 最新核查（关键修正）**：重读 `packages/backend/src/http/routes/panel.routes.ts` + `panel.routes.test.ts` 后发现 **PRD 之前对 D6 状态的描述已严重过时**。服务端 panel facade 实际上已落地大部分 thin forwarder。前端可用的 `/api/panel/*` 端点远不止 1 个：
 
-| 域 | 现路径 | 前端是否可用 |
-|---|---|---|
-| role-templates | `/api/role-templates` | ❌ 禁用 |
-| role-instances | `/api/role-instances`、`/api/role-instances/:id/activate`、`/api/role-instances/:id/request-offline`、`/api/role-instances/:id/inbox` | ❌ 禁用（Phase 2 新增 activate / request-offline / force 删；inbox 见 §1.12） |
-| teams | `/api/teams` | ❌ 禁用 |
-| sessions | `/api/sessions/register` | ❌ 禁用（本来也应由 agent 调） |
-| primary-agent | `/api/primary-agent` | ❌ 禁用 |
-| cli | `/api/cli` | ❌ 禁用 |
-| roster | `/api/roster` | ❌ 禁用 |
-| mcp-store | `/api/mcp-store` | ❌ 禁用 |
-| mcp-tools | `/api/mcp-tools/search` | ❌ 禁用（本就是给 agent 用） |
-| messages | `/api/messages/send`、`/api/messages/:id`、`/api/role-instances/:id/inbox`、`/api/teams/:id/messages` | ❌ 禁用 |
-| driver-turns | `/api/panel/driver/:id/turns` | ✅ **唯一合规** |
+| 域 | Panel facade 路径 | 状态 | 转发目标 |
+|---|---|---|---|
+| driver-turns | `GET /api/panel/driver/:id/turns` | ✅ 可用 | 原生 panel 端点 |
+| teams | `GET/POST /api/panel/teams`、`/api/panel/teams/:id`（GET）、`/api/panel/teams/:id/disband`（POST）、`/api/panel/teams/:id/members`（GET/POST）、`/api/panel/teams/:id/members/:instanceId`（DELETE） | ✅ 可用 | `/api/teams*` |
+| role-instances | `GET/POST /api/panel/instances`、`/api/panel/instances/:id`（DELETE 含 `?force=1`）、`/api/panel/instances/:id/activate`（POST）、`/api/panel/instances/:id/request-offline`（POST） | ✅ 可用 | `/api/role-instances*` |
+| role-templates | `GET/POST/PATCH/DELETE /api/panel/templates[/:name]` | ✅ 可用 | `/api/role-templates*` |
+| roster | `GET/POST/PUT/DELETE /api/panel/roster[/...]`（含 `/search`、`/:id/alias`） | ✅ 可用 | `/api/roster*` |
+| primary-agent | `GET /api/panel/primary-agent`、`POST /api/panel/primary-agent/config`、`/start`、`/stop` | ✅ 可用 | `/api/primary-agent*` |
+| cli | `GET /api/panel/cli`、`POST /api/panel/cli/refresh` | ✅ 可用 | `/api/cli*` |
+| mcp-store | `GET /api/panel/mcp/store`、`POST /api/panel/mcp-store/install`、`DELETE /api/panel/mcp-store/:name` | ✅ 可用 | `/api/mcp-store*` |
+| mcp-tools 搜索 | `GET /api/panel/mcp/tools?instanceId=&q=`、或 `/api/panel/mcp-tools/search?...` | ✅ 可用 | `/api/mcp-tools/search` |
+| messages send | `POST /api/panel/messages` | ✅ 可用 | `/api/messages/send`（强注入 `from.kind='user'`） |
+| message by id | `GET /api/panel/messages/:id?markRead=true` | ✅ 可用 | `/api/messages/:id` |
+| instance inbox | `GET /api/panel/instances/:id/inbox` | ⚠️ **未转发** | panel 只把 `/instances/*` 转发到 `instances.routes.ts`，而 inbox 在 `messages.routes.ts`，所以 panel facade 下不通；需服务端补 forwarder |
+| team messages | `GET /api/panel/teams/:id/messages` | ⚠️ **未转发** | 同上：`teams.routes.ts` 不处理 `/messages` 子路径，底层在 `messages.routes.ts` |
+| sessions | — | — | agent 内部，前端不触达 |
 
-**结论**：**P0 聊天主链路当前在前端视角下是不可实现的**，因为发送消息的端点 `/api/messages/send` 不在 `/api/panel/`。
+**结论调整**：
+- **P0 聊天主链路已解除阻塞**：发送 (`POST /api/panel/messages`) + Turn 快照 (`GET /api/panel/driver/:id/turns`) 均可用；WS 走 `/ws/events`（路径是否受门禁约束仍 `[待 D6 边界裁决]`）。
+- **残余缺口（D6-residual）**：Inbox + 团队消息历史两条路径 panel 层 forwarder 未补齐；属 P1 功能，不阻塞 P0。
+- **SERVER-API-INDEX.md 第 11 节的"唯一合规"结论已过时，请同步更新**（单独任务）。
 
-**需服务端动作（D6 新增缺口）**：
-- **D6 · 面板 API 外观层**：在 `/api/panel/*` 下暴露一层前端专用 facade，覆盖上表所有前端 P0/P1 功能需要的能力。具体映射由服务端决定，前端只认 `/api/panel/`。
-- 在 D6 落地前，前端做**UI 骨架 + 假数据**即可，禁止直接调用非 `/api/panel/` 路径。
-
-更新 §0.1 缺口表，追加一项：
+**执行策略**：
+- 前端调用端点一律带 `/api/panel/` 前缀，底层 `panelGet/panelPost/panelPut/panelDelete` 已封装。
+- 前端 `src/api/*.ts` 中对应各域的 `panelPending` stub 需批量替换为真实调用（详见本轮产出的"替换清单"）。
+- 每轮仍需 grep 确认未直连顶级 `/api/*`。
 
 | # | 缺失文档 / 能力 | 影响 | 标签 |
 |---|---|---|---|
-| **D6** | **`/api/panel/*` facade 层**（当前只有 1 个端点，P0 所需其余端点全缺） | **P0 聊天 / 设置 / 列表所有 HTTP 交互全部阻塞** | `[待 D6]` |
+| **D6-residual** | Inbox / 团队消息历史 panel facade 未补 forwarder | P1 Inbox 侧栏 + 团队聊天滚动加载 | `[待 D6-residual]` |
 
 ---
 

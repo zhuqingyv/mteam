@@ -1,8 +1,9 @@
 // API 层统一出口。
 //
-// 硬门禁提示：前端只能走 /api/panel/*（PRD §0.2）。当前唯一真实可用接口是
-// driver-turns（./driver-turns）；teams / instances / sessions / mcp 四个领域
-// 返回 D6 pending 占位，facade 层落地后再补真调。WebSocket 走 /ws/events。
+// 硬门禁提示：前端只能走 /api/panel/*（PRD §0.2）。teams / instances / sessions /
+// mcp / driver-turns 已接 panel facade 真调；少数未暴露的端点仍用 panelPending 占位
+// （teams.addMember / removeMember、sessions.list / get、mcp.install / uninstall）。
+// WebSocket 走 /ws/events。
 
 export {
   API_BASE,

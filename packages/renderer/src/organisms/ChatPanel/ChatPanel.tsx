@@ -26,12 +26,20 @@ interface ChatPanelProps {
   messages?: Message[];
   agents?: Agent[];
   inputPlaceholder?: string;
+  inputValue?: string;
+  onInputChange?: (v: string) => void;
+  onSend?: () => void;
+  onSelectAgent?: (id: string) => void;
 }
 
 export default function ChatPanel({
   messages = [],
   agents = [],
   inputPlaceholder = '给 MTEAM 发送消息...',
+  inputValue = '',
+  onInputChange,
+  onSend,
+  onSelectAgent,
 }: ChatPanelProps) {
   const activeId = agents.find((a) => a.active)?.id;
   return (
@@ -56,8 +64,13 @@ export default function ChatPanel({
         />
       </div>
       <div className="chat-panel__footer">
-        <AgentSwitcher agents={agents} activeId={activeId} />
-        <ChatInput placeholder={inputPlaceholder} value="" />
+        <AgentSwitcher agents={agents} activeId={activeId} onSelect={onSelectAgent} />
+        <ChatInput
+          placeholder={inputPlaceholder}
+          value={inputValue}
+          onChange={onInputChange}
+          onSend={onSend}
+        />
       </div>
     </div>
   );

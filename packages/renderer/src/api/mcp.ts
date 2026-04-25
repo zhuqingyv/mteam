@@ -1,20 +1,18 @@
-// MCP 工具与 Store 领域 —— [待 D6]
-//
-// 服务端现有端点 /api/mcp-store、/api/mcp-tools/search 都在顶级 /api/*，
-// 前端硬门禁禁止直连。D6 facade 未落地前只能 stub。
-//
-// 未来服务端 facade 映射参考：
-//   listMcpTools     → GET    /api/panel/mcp-tools?q=
-//   listMcpServers   → GET    /api/panel/mcp-store
-//   installMcpServer → POST   /api/panel/mcp-store/install
-//   uninstallMcp     → DELETE /api/panel/mcp-store/:name
+// MCP 工具搜索 + 商店列表。install/uninstall facade 未暴露，保留占位。
+// listMcpTools 的 query 必须自带 '?'，后端强校验 instanceId 和 q。
 
-import { panelPending, type ApiResult } from './client';
+import { panelGet, panelPending, type ApiResult } from './client';
 
 export interface McpTool {
   name: string;
   serverName: string;
   description?: string;
+}
+
+export interface McpSearchHit {
+  mcpServer: string;
+  toolName: string;
+  description: string;
 }
 
 export interface McpServer {
@@ -38,13 +36,17 @@ export interface InstallMcpBody {
   description?: string;
 }
 
-export function listMcpTools(_q?: string): Promise<ApiResult<McpTool[]>> {
-  return panelPending<McpTool[]>('mcp.listTools');
+export function listMcpTools(
+  query?: string,
+): Promise<ApiResult<{ hits: McpSearchHit[] }>> {
+  return panelGet<{ hits: McpSearchHit[] }>(`/mcp-tools${query ?? ''}`);
 }
 
-export function listMcpServers(): Promise<ApiResult<McpServer[]>> {
-  return panelPending<McpServer[]>('mcp.listServers');
+export function listMcpStore(): Promise<ApiResult<McpServer[]>> {
+  return panelGet<McpServer[]>('/mcp/store');
 }
+
+export const listMcpServers = listMcpStore;
 
 export function installMcpServer(_body: InstallMcpBody): Promise<ApiResult<McpServer>> {
   return panelPending<McpServer>('mcp.install');

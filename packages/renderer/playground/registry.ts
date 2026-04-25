@@ -532,7 +532,7 @@ export const registry: ComponentEntry[] = [
       { name: 'y', type: 'number', default: 0, description: 'Y 位置' },
     ],
     defaults: { name: 'Claude', status: 'working', lastMessage: '正在修复 UI Bug…', x: 0, y: 0 },
-    note: '可拖拽，原生 mousedown/move/up',
+    note: '可拖拽（mousedown/move/up），点击可展开为 400×400 CapsuleCard，× 回到胶囊态',
   },
   {
     name: 'TeamCanvas',
