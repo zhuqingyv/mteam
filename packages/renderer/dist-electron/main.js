@@ -47,7 +47,7 @@ var import_node_child_process = require("node:child_process");
 var import_node_path = require("node:path");
 var import_node_url = require("node:url");
 var __dirname2 = import_node_path.dirname(import_node_url.fileURLToPath("file:///Users/zhuqingyu/project/mcp-team-hub/packages/renderer/electron-main/backend.ts"));
-var BACKEND_ENTRY = import_node_path.resolve(__dirname2, "..", "..", "backend", "src", "server.ts");
+var BACKEND_ENTRY = import_node_path.resolve(__dirname2, "..", "..", "backend", "src", "http", "server.ts");
 var child = null;
 function startBackend() {
   if (child && child.exitCode === null)
@@ -76,10 +76,11 @@ function stopBackend() {
 var import_electron = require("electron");
 var import_node_path2 = require("node:path");
 var import_node_url2 = require("node:url");
+var ICON_PATH = import_node_path2.resolve(import_node_path2.dirname(import_node_url2.fileURLToPath("file:///Users/zhuqingyu/project/mcp-team-hub/packages/renderer/electron-main/main.ts")), "..", "build", "icon.png");
 var __dirname3 = import_node_path2.dirname(import_node_url2.fileURLToPath("file:///Users/zhuqingyu/project/mcp-team-hub/packages/renderer/electron-main/main.ts"));
 var VITE_DEV_URL = process.env.VITE_DEV_URL;
 var IS_DEV = !!VITE_DEV_URL;
-var PET_SIZE = { width: 300, height: 200 };
+var PET_SIZE = { width: 380, height: 120 };
 var mainWindow = null;
 function createWindow() {
   const { width: screenW, height: screenH } = import_electron.screen.getPrimaryDisplay().workAreaSize;
@@ -89,9 +90,10 @@ function createWindow() {
     x: Math.round(screenW - PET_SIZE.width - 40),
     y: Math.round(screenH - PET_SIZE.height - 80),
     title: "mteam",
+    icon: import_electron.nativeImage.createFromPath(ICON_PATH),
     transparent: true,
     frame: false,
-    hasShadow: true,
+    hasShadow: false,
     backgroundColor: "#00000000",
     resizable: true,
     alwaysOnTop: true,
@@ -110,21 +112,45 @@ function createWindow() {
     mainWindow = null;
   });
 }
+import_electron.ipcMain.on("window:start-resize", (_e, direction) => {
+  if (!mainWindow)
+    return;
+  mainWindow.webContents.send("resize-started");
+  const dirMap = {
+    top: "top",
+    bottom: "bottom",
+    left: "left",
+    right: "right",
+    tl: "top-left",
+    tr: "top-right",
+    bl: "bottom-left",
+    br: "bottom-right"
+  };
+  const mapped = dirMap[direction];
+  if (mapped) {
+    mainWindow.startResizing?.(mapped);
+  }
+});
 import_electron.ipcMain.on("window:resize", (_e, payload) => {
   if (!mainWindow)
     return;
   const [x, y] = mainWindow.getPosition();
   const [w, h] = mainWindow.getSize();
+  let newX = x;
+  let newY = y;
+  if (payload.anchor === "bottom-right") {
+    newX = x + w - payload.width;
+    newY = y + h - payload.height;
+  }
   const { width: screenW, height: screenH } = import_electron.screen.getPrimaryDisplay().workAreaSize;
-  const anchorRight = x + w;
-  const anchorBottom = y + h;
-  let newX = anchorRight - payload.width;
-  let newY = anchorBottom - payload.height;
   newX = Math.max(8, Math.min(newX, screenW - payload.width - 8));
   newY = Math.max(8, Math.min(newY, screenH - payload.height - 8));
-  mainWindow.setBounds({ x: newX, y: newY, width: payload.width, height: payload.height }, false);
+  mainWindow.setBounds({ x: newX, y: newY, width: payload.width, height: payload.height }, payload.animate ?? false);
 });
 import_electron.app.whenReady().then(() => {
+  if (process.platform === "darwin" && import_electron.app.dock) {
+    import_electron.app.dock.setIcon(import_electron.nativeImage.createFromPath(ICON_PATH));
+  }
   startBackend();
   createWindow();
   import_electron.app.on("activate", () => {

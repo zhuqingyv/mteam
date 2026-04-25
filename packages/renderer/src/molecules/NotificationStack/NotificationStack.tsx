@@ -12,45 +12,63 @@ export interface Notification {
 
 interface NotificationStackProps {
   notifications: Notification[];
-  onDismiss?: (id: string) => void;
+  acknowledgedIds?: string[];
   maxVisible?: number;
 }
 
-export default function NotificationStack({ notifications, onDismiss, maxVisible = 3 }: NotificationStackProps) {
-  const [dismissing, setDismissing] = useState<Set<string>>(new Set());
+type Phase = 'check' | 'fade' | 'slide';
+
+export default function NotificationStack({ notifications, acknowledgedIds = [], maxVisible = 3 }: NotificationStackProps) {
+  const [phases, setPhases] = useState<Record<string, Phase>>({});
   const prevIds = useRef<Set<string>>(new Set(notifications.map((n) => n.id)));
   const [entering, setEntering] = useState<Set<string>>(new Set());
+  const ackSet = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const current = new Set(notifications.map((n) => n.id));
     const next = new Set<string>();
     notifications.forEach((n) => { if (!prevIds.current.has(n.id)) next.add(n.id); });
     if (next.size) {
       setEntering((prev) => new Set([...prev, ...next]));
       requestAnimationFrame(() => requestAnimationFrame(() => setEntering(new Set())));
     }
-    prevIds.current = current;
+    prevIds.current = new Set(notifications.map((n) => n.id));
   }, [notifications]);
 
-  const handleDismiss = (id: string) => {
-    setDismissing((prev) => new Set(prev).add(id));
-    setTimeout(() => {
-      onDismiss?.(id);
-      setDismissing((prev) => { const next = new Set(prev); next.delete(id); return next; });
-    }, 300);
-  };
+  useEffect(() => {
+    acknowledgedIds.forEach((id) => {
+      if (ackSet.current.has(id)) return;
+      ackSet.current.add(id);
+      setPhases((p) => ({ ...p, [id]: 'check' }));
+      setTimeout(() => setPhases((p) => ({ ...p, [id]: 'fade' })), 320);
+      setTimeout(() => setPhases((p) => ({ ...p, [id]: 'slide' })), 620);
+    });
+  }, [acknowledgedIds]);
 
   const visible = notifications.slice(0, maxVisible);
   return (
     <div className="notif-stack" style={{ minHeight: 60 + Math.max(0, visible.length - 1) * 8 }}>
-      {visible.map((n, i) => (
-        <div
-          key={n.id}
-          className={`notif-stack__slot notif-stack__slot--${i}${dismissing.has(n.id) ? ' notif-stack__slot--dismissing' : ''}${entering.has(n.id) ? ' notif-stack__slot--entering' : ''}`}
-        >
-          <NotificationCard {...n} onDismiss={i === 0 ? () => handleDismiss(n.id) : undefined} />
-        </div>
-      ))}
+      {visible.map((n, i) => {
+        const phase = phases[n.id];
+        const slotCls = [
+          'notif-stack__slot',
+          `notif-stack__slot--${i}`,
+          entering.has(n.id) ? 'notif-stack__slot--entering' : '',
+          phase === 'fade' ? 'notif-stack__slot--fading' : '',
+          phase === 'slide' ? 'notif-stack__slot--sliding' : '',
+        ].filter(Boolean).join(' ');
+        return (
+          <div key={n.id} className={slotCls}>
+            <NotificationCard {...n} />
+            {phase === 'check' && (
+              <span className="notif-stack__check" aria-label="acknowledged">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M5 12l5 5L20 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
 import CapsuleCard from './organisms/CapsuleCard';
+import ExpandedView from './organisms/ExpandedView';
 
 const CAPSULE = { width: 380, height: 120 };
-const EXPANDED = { width: 640, height: 540 };
+const EXPANDED = { width: 640, height: 620 };
 const ANIM_MS = 350;
 
 export default function App() {
@@ -10,15 +11,8 @@ export default function App() {
   const [animating, setAnimating] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const clearTimer = () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  };
-
   const toggle = () => {
-    clearTimer();
+    if (timerRef.current) clearTimeout(timerRef.current);
     if (!expanded) {
       window.electronAPI?.resize(EXPANDED.width, EXPANDED.height, 'bottom-right');
       requestAnimationFrame(() => {
@@ -38,16 +32,10 @@ export default function App() {
 
   return (
     <div className="app">
-      <CapsuleCard
-        name="MTEAM"
-        agentCount={4}
-        taskCount={2}
-        messageCount={3}
-        online
-        expanded={expanded}
-        animating={animating}
-        onToggle={toggle}
-      />
+      <CapsuleCard name="MTEAM" agentCount={4} taskCount={2} messageCount={3} online
+        expanded={expanded} animating={animating} onToggle={toggle}>
+        {expanded && <ExpandedView />}
+      </CapsuleCard>
     </div>
   );
 }

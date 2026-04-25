@@ -1,10 +1,24 @@
-# 服务端 HTTP API 端点清单（前端对接用）
+# 服务端 HTTP API 端点清单
 
 > 任务 #11 产出。读取 `packages/backend/src/api/panel/` 与 `packages/backend/src/http/routes/` 得到。
-> 仅罗列端点、方法、body / query 形状、关键错误码；**不含前端如何消费**（见 `PRODUCT-REQUIREMENTS.md`）。
+> 仅罗列端点、方法、body / query 形状、关键错误码。
 > 路由注册入口：`packages/backend/src/http/router.ts`。
 
-## 1. 角色模板 Role Templates
+---
+
+## ⚠️ 前端使用警告（必读）
+
+**硬性门禁**（mnemo 用户共识 `feedback_no_direct_backend_api`）：**前端不得直接调用本文件列出的大部分端点**。只有 `/api/panel/*` 前缀下的端点允许前端调用。
+
+当前**唯一合规前端可调**端点：`GET /api/panel/driver/:driverId/turns`（见第 11 节）。
+
+其他所有端点（teams / role-templates / role-instances / sessions / primary-agent / cli / roster / mcp-store / mcp-tools / messages）**暂时对前端禁用**，等服务端在 `/api/panel/` 下补 facade 层（详见 PRD §0.2 · 新增缺口 D6）。
+
+本文件的其他节保留，供：服务端开发 / 面板 facade 对齐行为 / agent 侧（member-driver、MCP 工具）合法调用者参考。
+
+---
+
+## 1. 角色模板 Role Templates ❌ 前端禁用
 
 | 方法 | 路径 | 说明 | 关键字段 | 错误码 |
 |---|---|---|---|---|
@@ -16,7 +30,7 @@
 
 事件：`template.created / updated / deleted`。
 
-## 2. 角色实例 Role Instances
+## 2. 角色实例 Role Instances ❌ 前端禁用
 
 | 方法 | 路径 | 说明 | 关键字段 | 错误码 |
 |---|---|---|---|---|
@@ -29,7 +43,7 @@
 
 事件：`instance.created / activated / offline_requested / deleted / session_registered`。
 
-## 3. 团队 Teams
+## 3. 团队 Teams ❌ 前端禁用
 
 | 方法 | 路径 | 说明 | 关键字段 | 错误码 |
 |---|---|---|---|---|
@@ -44,7 +58,7 @@
 
 事件：`team.created / disbanded / member_joined / member_left`。
 
-## 4. Sessions
+## 4. Sessions ❌ 前端禁用（本就是 agent 内部调）
 
 | 方法 | 路径 | 说明 | 关键字段 |
 |---|---|---|---|
@@ -54,7 +68,7 @@
 
 事件：`instance.activated`、`instance.session_registered`。
 
-## 5. Primary Agent（总控）
+## 5. Primary Agent（总控） ❌ 前端禁用
 
 | 方法 | 路径 | 说明 | 关键字段 | 错误码 |
 |---|---|---|---|---|
@@ -65,7 +79,7 @@
 
 事件：`primary_agent.configured / started / stopped`。
 
-## 6. CLI 扫描
+## 6. CLI 扫描 ❌ 前端禁用
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -74,7 +88,7 @@
 
 事件：`cli.available / unavailable`。
 
-## 7. Roster（通讯录）
+## 7. Roster（通讯录） ❌ 前端禁用
 
 | 方法 | 路径 | 说明 | 关键 query/body |
 |---|---|---|---|
@@ -86,7 +100,7 @@
 | PATCH | `/api/roster/:instanceId/alias` | 设置备注名 | `alias` |
 | DELETE | `/api/roster/:instanceId` | 删除 | 404 |
 
-## 8. MCP Store（第三方 MCP 管理）
+## 8. MCP Store（第三方 MCP 管理） ❌ 前端禁用
 
 | 方法 | 路径 | 说明 | 关键字段 |
 |---|---|---|---|
@@ -96,13 +110,13 @@
 
 事件：`mcp.installed / uninstalled`。
 
-## 9. MCP 工具搜索（agent 调用路径）
+## 9. MCP 工具搜索（agent 调用路径） ❌ 前端禁用（本就是给 agent 用）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/mcp-tools/search?instanceId=&q=` | 按实例的 availableMcps 搜"次屏工具"（search 允许但 surface 不展示） |
 
-## 10. 消息 Messages（W2-I）⭐ 对接聊天入口
+## 10. 消息 Messages（W2-I） ❌ 前端禁用（等 `/api/panel/` facade）
 
 | 方法 | 路径 | 说明 | 关键字段 |
 |---|---|---|---|
@@ -114,7 +128,7 @@
 关键：`/api/messages/send` 返回 `{ messageId, route }`；`route` 来自 `CommRouter.dispatch`。服务端强注入 `from.kind='user'` + `fromAddress='user:local'`。
 Content-Type 必须 `application/json`，否则 `415`。
 
-## 11. Driver Turn 快照（T-10）⭐ 对接聊天历史
+## 11. Driver Turn 快照（T-10）✅ 前端唯一合规端点
 
 | 方法 | 路径 | 说明 |
 |---|---|---|

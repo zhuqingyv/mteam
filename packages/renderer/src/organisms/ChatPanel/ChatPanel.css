@@ -27,6 +27,21 @@
   padding-bottom: 6px;
 }
 
+/* 连续两条同一 agent 的消息：下一条隐藏气泡内 agent 名 + 头像，视觉成组 */
+.chat-panel__row:has(.message-row--agent) + .chat-panel__row:has(.message-row--agent) .bubble__name {
+  display: none;
+}
+.chat-panel__row:has(.message-row--agent) + .chat-panel__row:has(.message-row--agent) .message-row__avatar {
+  visibility: hidden;
+}
+/* 连续同一 role 的消息：上一条气泡底角回归大圆角（因为气泡还不是组尾） */
+.chat-panel__row:has(.message-row--agent):has(+ .chat-panel__row .message-row--agent) .bubble--agent {
+  border-bottom-left-radius: 16px;
+}
+.chat-panel__row:has(.message-row--user):has(+ .chat-panel__row .message-row--user) .bubble--user {
+  border-bottom-right-radius: 16px;
+}
+
 .chat-panel__footer {
   padding: 10px 12px 12px;
   display: flex;

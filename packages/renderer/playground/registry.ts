@@ -420,21 +420,14 @@ export const registry: ComponentEntry[] = [
     ],
     defaults: {
       maxVisible: 3,
+      acknowledgedIds: [],
       notifications: [
         { id: '1', title: 'Claude 完成任务', message: 'UI Bug 已修复，等待确认', time: '刚刚', type: 'task' },
         { id: '2', title: '新消息', message: 'Codex 发送了一条消息', time: '2分钟前', type: 'info' },
         { id: '3', title: '构建失败', message: 'vite build 报错：Module not found', time: '5分钟前', type: 'error' },
       ],
     },
-    note: 'notifications 为 mock 数据；点击最前卡片右上 × 可 dismiss',
-    handlers: (setValues) => ({
-      onDismiss: (id: unknown) => {
-        setValues((prev) => {
-          const list = (prev.notifications as Array<{ id: string }> | undefined) ?? [];
-          return { ...prev, notifications: list.filter((n) => n.id !== id) };
-        });
-      },
-    }),
+    note: 'acknowledgedIds 驱动签收动画（打勾→淡出→滑走）；card 无 × 按钮',
   },
   {
     name: 'CapsuleCard',

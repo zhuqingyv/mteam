@@ -41,8 +41,15 @@
 }
 .bubble__read { color: rgba(var(--color-accent-primary-rgb), 0.8); font-weight: 500; }
 
-.bubble--thinking { min-width: 100px; }
-.bubble__dots { display: inline-flex; gap: 4px; padding: 2px 0; }
+.bubble--thinking {
+  min-width: 56px;
+  min-height: 32px;
+  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.bubble__dots { display: inline-flex; gap: 5px; align-items: center; }
 .bubble__dots i {
   width: 6px; height: 6px; border-radius: 50%;
   background: rgba(255, 255, 255, 0.55);

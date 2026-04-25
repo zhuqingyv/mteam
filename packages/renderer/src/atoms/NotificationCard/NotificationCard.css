@@ -32,24 +32,3 @@
   -webkit-box-orient: vertical;
 }
 .notif-card__time { font-size: 11px; color: rgba(255, 255, 255, 0.4); flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.notif-card__dismiss {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 18px;
-  height: 18px;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0;
-  transition:
-    opacity var(--duration-fast) var(--easing-standard),
-    background var(--duration-fast) var(--easing-standard),
-    color var(--duration-fast) var(--easing-standard);
-}
-.notif-card:hover .notif-card__dismiss { opacity: 1; }
-.notif-card__dismiss:hover { background: rgba(255, 255, 255, 0.18); color: #fff; }

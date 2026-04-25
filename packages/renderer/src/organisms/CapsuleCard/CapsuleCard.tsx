@@ -13,11 +13,12 @@ interface CapsuleCardProps {
   expanded?: boolean;
   animating?: boolean;
   onToggle?: () => void;
+  children?: React.ReactNode;
 }
 
 export default function CapsuleCard({
   name = 'M-TEAM', agentCount, taskCount, messageCount, online,
-  expanded = false, animating = false, onToggle,
+  expanded = false, animating = false, onToggle, children,
 }: CapsuleCardProps) {
   const cls = ['card'];
   if (expanded) cls.push('card--expanded');
@@ -36,7 +37,7 @@ export default function CapsuleCard({
         <StatusDot status="online" size="sm" />
       </div>
       <button className="card__close" onClick={onToggle}>×</button>
-      <div className="card__body" />
+      <div className="card__body">{children}</div>
     </div>
   );
 }

@@ -19,7 +19,7 @@ export default function MessageBubble({
   return (
     <div className={`bubble-row bubble-row--${variant}`}>
       <div className={`bubble bubble--${variant}`}>
-        {agentName && variant !== 'user' && (
+        {agentName && variant === 'agent' && (
           <div className="bubble__name">{agentName}</div>
         )}
         {variant === 'thinking' ? (

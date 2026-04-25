@@ -38,6 +38,40 @@
 
 ---
 
+## 0.2 硬门禁：前端只能走 `/api/panel/`（新增）
+
+**硬性规则**（mnemo 用户共识 `feedback_no_direct_backend_api`）：前端不得直接调用服务端底层接口（bus、comm、agent-driver、mcp-store 等），**只允许通过 `/api/panel/` 面板 API** 对接。每一轮团队迭代，必须有专门角色 grep 检查前端代码的 API 调用路径全部走 `/api/panel/`。
+
+**与现有路由的严重冲突**：读 `packages/backend/src/http/routes/` 后发现，当前**只有 `GET /api/panel/driver/:id/turns` 一个端点**真正在 `/api/panel/` 前缀下。其他端点都在顶级 `/api/*`：
+
+| 域 | 现路径 | 前端是否可用 |
+|---|---|---|
+| role-templates | `/api/role-templates` | ❌ 禁用 |
+| role-instances | `/api/role-instances` | ❌ 禁用 |
+| teams | `/api/teams` | ❌ 禁用 |
+| sessions | `/api/sessions/register` | ❌ 禁用（本来也应由 agent 调） |
+| primary-agent | `/api/primary-agent` | ❌ 禁用 |
+| cli | `/api/cli` | ❌ 禁用 |
+| roster | `/api/roster` | ❌ 禁用 |
+| mcp-store | `/api/mcp-store` | ❌ 禁用 |
+| mcp-tools | `/api/mcp-tools/search` | ❌ 禁用（本就是给 agent 用） |
+| messages | `/api/messages/send`、`/api/messages/:id`、`/api/role-instances/:id/inbox`、`/api/teams/:id/messages` | ❌ 禁用 |
+| driver-turns | `/api/panel/driver/:id/turns` | ✅ **唯一合规** |
+
+**结论**：**P0 聊天主链路当前在前端视角下是不可实现的**，因为发送消息的端点 `/api/messages/send` 不在 `/api/panel/`。
+
+**需服务端动作（D6 新增缺口）**：
+- **D6 · 面板 API 外观层**：在 `/api/panel/*` 下暴露一层前端专用 facade，覆盖上表所有前端 P0/P1 功能需要的能力。具体映射由服务端决定，前端只认 `/api/panel/`。
+- 在 D6 落地前，前端做**UI 骨架 + 假数据**即可，禁止直接调用非 `/api/panel/` 路径。
+
+更新 §0.1 缺口表，追加一项：
+
+| # | 缺失文档 / 能力 | 影响 | 标签 |
+|---|---|---|---|
+| **D6** | **`/api/panel/*` facade 层**（当前只有 1 个端点，P0 所需其余端点全缺） | **P0 聊天 / 设置 / 列表所有 HTTP 交互全部阻塞** | `[待 D6]` |
+
+---
+
 ## 1. 功能清单（P0 / P1 / P2）
 
 > P0 = 本期必做；P1 = 胶囊 MVP 之后第一阶段；P2 = 远期
@@ -54,11 +88,11 @@
 
 ### 1.2 聊天（P0）
 
-> 补充：再读一遍 `packages/backend/src/http/routes/` 后发现两个端点**已存在**，把相关项阻塞等级下调为"端点就绪、契约文档未齐"。完整端点清单见 `SERVER-API-INDEX.md`。
+> 状态演进：最早只列"待 D1/D2"；读 `http/routes/` 后发现两个端点已存在（曾短暂降级为"部分就绪"）；**再之后 mnemo 加了"前端只能走 `/api/panel/*`"硬门禁（§0.2）**，`/api/messages/send` 不在 `/api/panel/` 下，前端**不可用**，重新标回阻塞。只有 `/api/panel/driver/:id/turns` 一个端点合规。完整端点清单见 `SERVER-API-INDEX.md` 顶部警告。
 
 | 功能 | 服务端来源 | 前端需要 | 缺口 |
 |---|---|---|---|
-| 发送用户消息 | `POST /api/messages/send`（body: `to.address`/`content`/`kind='chat'`；服务端强注入 `from=user:local`） | `ChatInput`、`onSend`；成功返回 `{messageId, route}` | **`[待 D1 · 部分就绪]`** 端点在，但"发送成功→前端本地乐观渲染 id 如何对齐后端 messageId"、"三路分发到前端那一路的 WS 推送形状"仍依赖 D1 |
+| 发送用户消息 | 服务端已有 `POST /api/messages/send`，但**不在 `/api/panel/` 下，前端禁用** | `ChatInput`、`onSend`；UI 骨架先行 | **`[待 D6 + D1]`** D6（`/api/panel/` facade）未落地前前端无合规入口；D6 落地后还须 D1 定义乐观渲染对齐规则 |
 | 接收 Agent 回复（流式） | WS 推 turn.* | `MessageBubble.status='streaming'`，content 追加 | **`[待 D2]`** 前端订阅的 WS JSON 形状与后端 `turn-events.ts` 不必完全一致，须 D2 落契约 |
 | 展示"正在思考" | WS turn.started → block thinking | `ThinkingIndicator`（`TypingDots`） | **`[待 D2]`** thinking block 字段与节奏待规范 |
 | 展示工具调用 | WS block.type=tool_call | `ToolCallItem`（已有） + 折叠展开 | **`[待 D2]`** tool_call 中间态/终态 JSON 如何切换待规范 |
@@ -179,21 +213,22 @@
 | template | `PanelWindow` | 面板骨架（顶栏 + 内容 + 底栏） | P0 |
 | page | `CapsulePage` / `ChatPage` / `SettingsPage` / `PetPage` | Electron 多窗口入口 | P0（Capsule + Chat），P1（其他） |
 
-### 2.3 服务端缺口（前端阻塞点 —— 已对齐 team-lead，等 D1~D5 文档）
+### 2.3 服务端缺口（前端阻塞点 —— 已对齐 team-lead，等 D1~D6 文档）
 
-统一挂到 §0.1 的 5 份缺失文档。本表列出"具体接口级"的阻塞项，对应哪份文档。
-**更新**：读 `http/routes/` 后，缺口 #1 和 #2 的端点实际已存在；降级为"部分就绪"。
+统一挂到 §0.1 的 6 份缺失文档（含 D6 facade）。本表列出"具体接口级"的阻塞项。
+**状态演进**：读 `http/routes/` 后曾把 #1 #2 降级为"部分就绪"；之后加了 `/api/panel/*` 硬门禁（§0.2），#1 重新回到阻塞（端点存在但前端禁用），#2 因本身已在 `/api/panel/` 下保持就绪。
 
 | # | 缺口 | 依赖文档 | 状态 | 前端兜底策略 |
 |---|---|---|---|---|
-| 1 | 用户消息发送入口 | **D1** | ✅ 已有 `POST /api/messages/send`（强注入 `from=user`）；契约文档未齐 | 可开工；成功回执与本地乐观消息对齐规则等 D1 |
-| 2 | Turn 历史快照 HTTP | **D2** | ✅ 已有 `GET /api/panel/driver/:id/turns`（`active + recent[]`） | 可开工；与 WS 实时事件的合并策略等 D2 |
+| 1 | 用户消息发送入口 | **D6 + D1** | ⛔ 端点已有但**不在 `/api/panel/` 下前端禁用**；D1 契约亦未齐 | UI 骨架 + 假数据；等 D6 facade 暴露 `/api/panel/messages/send`（或同等） |
+| 2 | Turn 历史快照 HTTP | **D2** | ✅ `GET /api/panel/driver/:id/turns`（`active + recent[]`）—— 本身就在 `/api/panel/`，合规 | 可开工；与 WS 实时事件的合并策略等 D2 |
 | 3 | Turn WS 事件前端 JSON 形状 | **D2** | ⚠️ 只有后端 interface；前端契约未定 | 不硬编码解析；加适配层隔离 |
 | 4 | `notification.delivered.target=agent` 语义 | **D3** | ⚠️ 未定义 | 暂忽略 agent 目标事件 |
 | 5 | 三种通知代理模式的配置接口 | **D3** | ⚠️ 未定义 | 设置面板"通知策略"做禁用占位 |
 | 6 | WS 连接拓扑（主进程中转 vs 每窗口直连） | **D5** | ⚠️ 未定义 | 先单例挂 Capsule 主窗口 + IPC 广播 |
 | 7 | 断线重连后的补偿语义 | **D5** | ⚠️ 未定义 | 先做"重连 → 对所有 store 重跑 HTTP 冷启动"兜底 |
 | 8 | 前端事件白名单边界 | **D5** | ⚠️ 未定义 | 不在前端复用后端 `WS_EVENT_TYPES` 常量 |
+| 9 | WS 路径是否受 `/api/panel/` 门禁约束 | **D6 边界裁决** | ⚠️ 当前 `/ws/events`；门禁原文只约束 HTTP，未明确 WS | 等 team-lead 裁决；推荐随 D6 暴露 `/ws/panel/events` |
 
 ---
 
@@ -389,10 +424,32 @@ src/store/
 
 ## 7. 对齐后的动作清单（给 team-lead）
 
-1. 确认服务端 §2.3 四个缺口的答复（尤其缺口 #1，是聊天能否跑通的关键）。
-2. 对齐 WS 连接模型：主进程中转 vs 每窗口直连。
+1. 推进 D6 facade：当前 `/api/panel/` 下仅 1 个端点，P0 聊天链路完全阻塞，优先级高于 D1~D5。
+2. 对齐 D1~D5：按 §0.1 / §2.3 顺序补文档，前端按标签逐条解阻塞。
 3. 确认 P0 范围是否等同于「胶囊 + 一个 Claude 聊天窗 + 总控启停」。
 4. 确认后续 P1 功能（模板 / MCP / 团队管理）是否单独开窗口，还是 ChatPanel 侧栏。
+
+---
+
+## 8. 文档索引（五份互锁参考文档）
+
+前端 agent 接手工作前，按顺序通读这 5 份文档即可：
+
+| # | 文档 | 定位 | 何时查 |
+|---|---|---|---|
+| 1 | **本文件** `PRODUCT-REQUIREMENTS.md` | 功能清单 / 优先级 / 交互流程 / 数据流 | 先读，确定做什么 |
+| 2 | `COMPONENT-ARCHITECTURE.md` | 分层铁律 / Tokens / Props 约定 | 动手前读一遍 |
+| 3 | `CHAT-UI-RESEARCH.md` | 聊天 UI 设计决策理由（Q1 异形气泡 / Q2 思考态 / Q3 发光边） | 实现 ChatPanel 相关组件前 |
+| 4 | `DESIGN-REFERENCE.md` | 设计稿视觉规格（31~43 号图的像素布局 / 色值 / 字号） | 落样式时对照 |
+| 5 | `FRONTEND-INVENTORY.md` | 现有代码已做 / 没做 / 偏离设计的地方 | 评估改动范围 |
+
+服务端对接三份（按需查）：
+
+| # | 文档 | 用途 |
+|---|---|---|
+| 6 | `SERVER-API-INDEX.md` | HTTP 端点清单；**⚠️ 前端只能用 `/api/panel/*`，其他 10 组目前全部 ❌ 禁用** |
+| 7 | `SERVER-EVENTS-INDEX.md` | WS 事件与 Turn/Block 数据结构 |
+| 8 | `CHANGELOG.md` | 迭代日志 + 13 条设计决策记录（D-1 ~ D-13），含 zustand 选择 / 不用 Storybook / 不引 react-markdown 等 |
 
 ---
 

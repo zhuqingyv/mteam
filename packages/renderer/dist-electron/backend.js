@@ -47,7 +47,7 @@ var import_node_child_process = require("node:child_process");
 var import_node_path = require("node:path");
 var import_node_url = require("node:url");
 var __dirname2 = import_node_path.dirname(import_node_url.fileURLToPath("file:///Users/zhuqingyu/project/mcp-team-hub/packages/renderer/electron-main/backend.ts"));
-var BACKEND_ENTRY = import_node_path.resolve(__dirname2, "..", "..", "backend", "src", "server.ts");
+var BACKEND_ENTRY = import_node_path.resolve(__dirname2, "..", "..", "backend", "src", "http", "server.ts");
 var child = null;
 function startBackend() {
   if (child && child.exitCode === null)

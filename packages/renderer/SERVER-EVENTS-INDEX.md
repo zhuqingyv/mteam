@@ -12,6 +12,19 @@
 
 ---
 
+## 0. 路径与 `/api/panel/` 门禁的关系（开工前必读）
+
+**服务端当前 WS 路径**：`/ws/events`（见 `packages/backend/src/bus/ws-upgrade.ts`）。
+
+**待裁决**：mnemo 硬门禁 `feedback_no_direct_backend_api` 原文仅约束 HTTP（"只允许通过 `/api/panel/`"），**未明确 WS 是否同样受约束**。严格按字面，`/ws/events` 不违规；但按同样的隔离精神（面板 facade），应该迁到 `/ws/panel/events`。
+
+**前端执行策略**（等 team-lead 裁决）：
+- 短期：如 team-lead 确认 WS 不受门禁，直连 `/ws/events`；
+- 中长期（推荐）：服务端随 D6 facade 一并暴露 `/ws/panel/events`，前端只连这个；
+- 两种情况下，本文档列出的事件类型和数据结构均不变，只是连接路径不同。
+
+---
+
 ## 1. 事件公共结构
 
 所有事件都以 `BusEventBase` 为基：

@@ -26,19 +26,11 @@
 }
 
 .message-row__meta {
-  padding: 0 8px;
-}
-
-.message-row--agent .message-row__meta {
-  align-self: flex-start;
-}
-
-.message-row--user .message-row__meta {
-  align-self: flex-end;
+  display: none;
 }
 
 .message-row__tools {
-  margin-top: 4px;
-  padding: 0 4px;
+  margin-top: 6px;
+  padding: 0 2px;
   align-self: stretch;
 }
