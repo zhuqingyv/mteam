@@ -22,4 +22,7 @@ export * from './instances';
 export * from './sessions';
 export * from './mcp';
 export * from './primaryAgent';
+export * from './templates';
+export * from './roster';
+export * from './cli';
 export * from './ws';

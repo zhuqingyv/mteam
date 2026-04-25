@@ -27,12 +27,15 @@ import TeamSidebarItem from '../src/atoms/TeamSidebarItem';
 import TeamSidebar from '../src/molecules/TeamSidebar';
 import AgentCard from '../src/molecules/AgentCard';
 import CliList from '../src/molecules/CliList';
+import RosterList from '../src/molecules/RosterList';
 import CapsuleCard from '../src/organisms/CapsuleCard';
 import ChatPanel from '../src/organisms/ChatPanel';
 import TeamCanvas from '../src/organisms/TeamCanvas';
 import TeamMonitorPanel from '../src/organisms/TeamMonitorPanel';
 import PrimaryAgentSettings from '../src/organisms/PrimaryAgentSettings';
 import NotificationCenter from '../src/organisms/NotificationCenter';
+import AgentList from '../src/organisms/AgentList';
+import TemplateEditor from '../src/organisms/TemplateEditor';
 
 export type PropType = 'string' | 'number' | 'boolean' | 'enum';
 
@@ -629,5 +632,50 @@ export const registry: ComponentEntry[] = [
       }),
       onClose: () => setValues((p) => ({ ...p, open: false })),
     }),
+  },
+  {
+    name: 'RosterList',
+    layer: 'molecules',
+    component: RosterList,
+    props: [],
+    defaults: {
+      entries: [
+        { id: 'i1', name: 'claude-leader', alias: 'Lead', scope: 'local' },
+        { id: 'i2', name: 'codex-worker', scope: 'local' },
+        { id: 'i3', name: 'qwen-remote', alias: 'Q', scope: 'remote' },
+      ],
+    },
+    note: '点击 alias 编辑；Enter 提交、Esc 取消',
+    handlers: (setValues) => ({
+      onEditAlias: (id: unknown, alias: unknown) => setValues((p) => {
+        const list = (p.entries as { id: string; alias?: string }[]) || [];
+        return { ...p, entries: list.map((e) => e.id === id ? { ...e, alias: alias as string } : e) };
+      }),
+    }),
+  },
+  {
+    name: 'AgentList',
+    layer: 'organisms',
+    component: AgentList,
+    props: [],
+    defaults: {
+      agents: [
+        { id: 'a1', name: 'claude-frontend', status: 'running', task: '修复 UI Bug' },
+        { id: 'a2', name: 'codex-backend', status: 'idle' },
+        { id: 'a3', name: 'qwen-offline', status: 'offline' },
+      ],
+    },
+    note: 'offline→Activate；其他→Offline；全部都有 Delete',
+  },
+  {
+    name: 'TemplateEditor',
+    layer: 'organisms',
+    component: TemplateEditor,
+    props: [],
+    defaults: {
+      template: { name: 'frontend-engineer', role: 'engineer', persona: '负责前端开发与 UI 实现。', availableMcps: ['filesystem', 'git'] },
+      mcpOptions: ['filesystem', 'git', 'github', 'browser', 'shell'],
+    },
+    note: 'Save 触发 onSave（payload = 当前表单值）；Cancel 触发 onCancel',
   },
 ];
