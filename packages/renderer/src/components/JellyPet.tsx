@@ -14,16 +14,17 @@ function JellyMesh() {
   // onBeforeCompile 把 noise 位移注入到内置 PBR 顶点 shader 里
   const material = useMemo(() => {
     const mat = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color('#e8d0f0'),
-      transmission: 0.6,
-      roughness: 0.35,
-      thickness: 1.5,
-      ior: 1.4,
-      clearcoat: 0.3,
-      clearcoatRoughness: 0.4,
+      color: new THREE.Color('#d4b0e8'),
+      transmission: 0.15,
+      roughness: 0.25,
+      thickness: 2.0,
+      ior: 1.45,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.2,
       transparent: true,
-      opacity: 0.85,
-      metalness: 0,
+      opacity: 0.75,
+      metalness: 0.05,
+      envMapIntensity: 1.5,
     });
 
     const uAmp = { value: 0.04 };
