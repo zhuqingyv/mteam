@@ -1,6 +1,7 @@
 import CapsulePage from './pages/CapsulePage';
 import TeamPage from './pages/TeamPage';
 import SettingsPage from './pages/SettingsPage';
+import { useBootstrap } from './hooks/useBootstrap';
 import { useWsEvents } from './hooks/useWsEvents';
 
 const windowType =
@@ -9,6 +10,7 @@ const windowType =
     : null;
 
 export default function App() {
+  useBootstrap();
   useWsEvents();
   switch (windowType) {
     case 'team': return <TeamPage />;
