@@ -678,6 +678,29 @@ export const registry: ComponentEntry[] = [
     },
     note: 'Save 触发 onSave（payload = 当前表单值）；Cancel 触发 onCancel',
   },
+  {
+    name: 'TurnRendering',
+    layer: 'molecules',
+    component: MessageRow,
+    props: [
+      { name: 'streaming', type: 'boolean', default: true, description: '流式输出（文本尾部光标）' },
+    ],
+    defaults: {
+      role: 'agent',
+      content: '',
+      time: '21:00',
+      agentName: 'Claude',
+      streaming: true,
+      blocks: [
+        { type: 'thinking', blockId: 'b1' },
+        { type: 'text', blockId: 'b2', content: '我来分析一下这个文件...' },
+        { type: 'tool_call', blockId: 'b3', toolName: 'read_file', status: 'completed', summary: '读取 package.json' },
+        { type: 'tool_result', blockId: 'b4', toolName: 'read_file', status: 'done', summary: '返回 42 行' },
+        { type: 'text', blockId: 'b5', content: '文件分析完毕，共 42 行代码。' },
+      ],
+    },
+    note: 'Turn 块渲染 demo：thinking→text→tool_call→tool_result→text',
+  },
 ];
 
 // 页面级组件（不在 Playground 展示）：ExpandedView — position: fixed 铺满视口，

@@ -34,3 +34,32 @@
   padding: 0 2px;
   align-self: stretch;
 }
+
+.message-row__blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 80%;
+}
+
+.message-row__text-block {
+  font: 400 14px/1.5 var(--font-family-ui);
+  color: rgba(255, 255, 255, 0.9);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.message-row__cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 1px;
+  background: rgba(var(--color-accent-primary-rgb), 0.8);
+  vertical-align: text-bottom;
+  animation: cursorBlink 1s step-end infinite;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

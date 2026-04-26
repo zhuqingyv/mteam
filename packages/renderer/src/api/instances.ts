@@ -2,35 +2,34 @@
 
 import { panelGet, panelPost, panelDelete, type ApiResult } from './client';
 
-export type InstanceStatus = 'PENDING' | 'ACTIVE' | 'PENDING_OFFLINE' | 'OFFLINE' | 'DELETED';
+export type RoleStatus = 'PENDING' | 'ACTIVE' | 'PENDING_OFFLINE';
 
 export interface RoleInstance {
   id: string;
   templateName: string;
   memberName: string;
   isLeader: boolean;
-  status: InstanceStatus;
   teamId: string | null;
-  task: string | null;
+  projectId: string | null;
+  status: RoleStatus;
+  sessionId: string | null;
+  sessionPid: number | null;
+  claudeSessionId: string | null;
   leaderName: string | null;
+  task: string | null;
   createdAt: string;
-  claudeSessionId?: string | null;
 }
 
 export interface CreateInstanceBody {
   templateName: string;
   memberName: string;
   isLeader?: boolean;
-  task?: string | null;
-  leaderName?: string | null;
+  task?: string;
+  leaderName?: string;
 }
 
 export function listInstances(): Promise<ApiResult<RoleInstance[]>> {
   return panelGet<RoleInstance[]>('/instances');
-}
-
-export function getInstance(id: string): Promise<ApiResult<RoleInstance>> {
-  return panelGet<RoleInstance>(`/instances/${encodeURIComponent(id)}`);
 }
 
 export function createInstance(body: CreateInstanceBody): Promise<ApiResult<RoleInstance>> {
@@ -42,8 +41,10 @@ export function activateInstance(id: string): Promise<ApiResult<RoleInstance>> {
 }
 
 export function requestOffline(id: string, callerInstanceId: string): Promise<ApiResult<RoleInstance>> {
-  const url = `/instances/${encodeURIComponent(id)}/request-offline`;
-  return panelPost<RoleInstance>(url, { callerInstanceId });
+  return panelPost<RoleInstance>(
+    `/instances/${encodeURIComponent(id)}/request-offline`,
+    { callerInstanceId },
+  );
 }
 
 export function deleteInstance(id: string, force = false): Promise<ApiResult<null>> {

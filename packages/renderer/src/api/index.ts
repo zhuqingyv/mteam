@@ -1,9 +1,7 @@
 // API 层统一出口。
 //
-// 硬门禁提示：前端只能走 /api/panel/*（PRD §0.2）。teams / instances / sessions /
-// mcp / driver-turns 已接 panel facade 真调；少数未暴露的端点仍用 panelPending 占位
-// （teams.addMember / removeMember、sessions.list / get、mcp.install / uninstall）。
-// WebSocket 走 /ws/events。
+// 硬门禁：前端只走 /api/panel/*（PRD §0.2）。WebSocket 走 /ws/events。
+// mcp.install / uninstall 的 panel 门面尚未开放，用 panelPending 占位。
 
 export {
   API_BASE,
@@ -16,13 +14,13 @@ export {
   type ApiResult,
 } from './client';
 
+export * from './cli';
 export * from './driver-turns';
-export * from './teams';
 export * from './instances';
-export * from './sessions';
 export * from './mcp';
 export * from './primaryAgent';
-export * from './templates';
 export * from './roster';
-export * from './cli';
+export * from './sessions';
+export * from './teams';
+export * from './templates';
 export * from './ws';

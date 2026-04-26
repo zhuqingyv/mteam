@@ -81,9 +81,9 @@ var ICON_PATH = import_node_path2.resolve(__dirname3, "..", "build", "icon.png")
 var VITE_DEV_URL = process.env.VITE_DEV_URL;
 var IS_DEV = !!VITE_DEV_URL;
 var PET_SIZE = { width: 380, height: 120 };
-var TEAM_PANEL_SIZE = { width: 1200, height: 800 };
 var mainWindow = null;
 var teamPanelWindow = null;
+var settingsWindow = null;
 var baseGlassOptions = {
   transparent: true,
   frame: false,
@@ -122,18 +122,27 @@ function createWindow() {
     mainWindow = null;
   });
 }
-function openTeamPanel() {
-  if (teamPanelWindow && !teamPanelWindow.isDestroyed()) {
-    teamPanelWindow.focus();
+function openPanel(key) {
+  const cfg = key === "team" ? { ref: teamPanelWindow, w: 1200, h: 800, title: "mteam — 团队面板", q: "?window=team" } : { ref: settingsWindow, w: 600, h: 500, title: "mteam — 设置", q: "?window=settings" };
+  if (cfg.ref && !cfg.ref.isDestroyed()) {
+    cfg.ref.focus();
     return;
   }
-  teamPanelWindow = new import_electron.BrowserWindow({ ...baseGlassOptions, ...TEAM_PANEL_SIZE, title: "mteam — 团队面板" });
-  loadRenderer(teamPanelWindow, "?window=team");
-  teamPanelWindow.on("closed", () => {
-    teamPanelWindow = null;
+  const win = new import_electron.BrowserWindow({ ...baseGlassOptions, width: cfg.w, height: cfg.h, title: cfg.title });
+  if (key === "team")
+    teamPanelWindow = win;
+  else
+    settingsWindow = win;
+  loadRenderer(win, cfg.q);
+  win.on("closed", () => {
+    if (key === "team")
+      teamPanelWindow = null;
+    else
+      settingsWindow = null;
   });
 }
-import_electron.ipcMain.on("window:open-team-panel", () => openTeamPanel());
+import_electron.ipcMain.on("window:open-team-panel", () => openPanel("team"));
+import_electron.ipcMain.on("window:open-settings", () => openPanel("settings"));
 var RESIZE_DIR_MAP = {
   top: "top",
   bottom: "bottom",

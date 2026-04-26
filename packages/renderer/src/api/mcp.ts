@@ -1,12 +1,7 @@
 // MCP 工具搜索 + 商店。全部走 /api/panel/* facade。
+// 注意：install / uninstall 的 panel 门面尚未开放（INDEX §5.1），用 panelPending 占位。
 
-import { panelGet, panelPost, panelDelete, type ApiResult } from './client';
-
-export interface McpTool {
-  name: string;
-  serverName: string;
-  description?: string;
-}
+import { panelGet, panelPending, type ApiResult } from './client';
 
 export interface McpSearchHit {
   mcpServer: string;
@@ -14,48 +9,38 @@ export interface McpSearchHit {
   description: string;
 }
 
-export interface McpServer {
+export interface McpConfig {
   name: string;
-  displayName?: string;
-  description?: string;
+  displayName: string;
+  description: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  transport: 'stdio' | 'sse';
   builtin: boolean;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  transport?: 'stdio' | 'sse';
 }
 
-export interface InstallMcpBody {
-  name: string;
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-  transport?: 'stdio' | 'sse';
-  displayName?: string;
-  description?: string;
-}
+/** @deprecated use McpConfig */
+export type McpServer = McpConfig;
 
 export function listMcpTools(
-  instanceId?: string,
-  q?: string,
+  instanceId: string,
+  q: string,
 ): Promise<ApiResult<{ hits: McpSearchHit[] }>> {
-  const params = new URLSearchParams();
-  if (instanceId) params.set('instanceId', instanceId);
-  if (q) params.set('q', q);
-  const qs = params.toString();
-  return panelGet<{ hits: McpSearchHit[] }>(`/mcp/tools${qs ? `?${qs}` : ''}`);
+  const params = new URLSearchParams({ instanceId, q });
+  return panelGet<{ hits: McpSearchHit[] }>(`/mcp-tools?${params.toString()}`);
 }
 
-export function listMcpStore(): Promise<ApiResult<McpServer[]>> {
-  return panelGet<McpServer[]>('/mcp/store');
+export function listMcpStore(): Promise<ApiResult<McpConfig[]>> {
+  return panelGet<McpConfig[]>('/mcp/store');
 }
 
 export const listMcpServers = listMcpStore;
 
-export function installMcpServer(body: InstallMcpBody): Promise<ApiResult<McpServer>> {
-  return panelPost<McpServer>('/mcp-store/install', body);
+export function installMcpServer(_body: unknown): Promise<ApiResult<McpConfig>> {
+  return panelPending<McpConfig>('mcp-store.install');
 }
 
-export function uninstallMcpServer(name: string): Promise<ApiResult<null>> {
-  return panelDelete<null>(`/mcp-store/${encodeURIComponent(name)}`);
+export function uninstallMcpServer(_name: string): Promise<ApiResult<null>> {
+  return panelPending<null>('mcp-store.uninstall');
 }

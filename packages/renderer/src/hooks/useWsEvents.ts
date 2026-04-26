@@ -1,36 +1,43 @@
 import { useEffect } from 'react';
-import { connectWs } from '../api/ws';
-import { useMessageStore, useAgentStore, useNotificationStore } from '../store';
-
-type WsEvent = { type: string; [k: string]: unknown };
+import { createWsClient } from '../api/ws';
+import { useMessageStore, useAgentStore, useNotificationStore, useWsStore } from '../store';
 
 export function useWsEvents(): void {
   useEffect(() => {
-    let handle: { close(): void } | null = null;
+    let client: ReturnType<typeof createWsClient> | null = null;
     try {
-      handle = connectWs((raw: unknown) => {
-        const e = raw as WsEvent;
-        if (e.type === 'turn.block_updated') {
+      client = createWsClient('local');
+      useWsStore.getState().setClient(client);
+      client.onEvent((e: { type: string; [k: string]: unknown }) => {
+        const t = e.type;
+        if (t === 'turn.block_updated') {
           const b = e.block as { blockId?: string; type?: string; content?: string } | undefined;
           if (!b?.blockId || b.type !== 'text') return;
           const msg = { id: b.blockId, role: 'agent' as const, content: b.content ?? '', time: String(e.ts ?? '') };
-          const s = useMessageStore.getState();
-          if (s.messages.some((m) => m.id === msg.id)) s.replaceMessage(msg.id, msg);
-          else s.addMessage(msg);
-        } else if (e.type === 'instance.activated' && typeof e.instanceId === 'string') {
+          const ms = useMessageStore.getState();
+          if (ms.messages.some((m) => m.id === msg.id)) ms.replaceMessage(msg.id, msg);
+          else ms.addMessage(msg);
+        } else if (t === 'instance.activated' && typeof e.instanceId === 'string') {
           useAgentStore.getState().setActiveAgent(e.instanceId);
-        } else if (e.type === 'notification.delivered') {
+        } else if (t === 'notification.delivered') {
           useNotificationStore.getState().push({
             id: String(e.eventId ?? e.sourceEventId ?? Date.now()),
             title: String(e.sourceEventType ?? 'notification'),
-            message: '',
-            time: String(e.ts ?? ''),
+            message: '', time: String(e.ts ?? ''),
           });
+        } else if (t === 'comm.message_sent' || t === 'comm.message_received') {
+          const ms = useMessageStore.getState();
+          const id = String(e.messageId ?? e.eventId ?? Date.now());
+          if (!ms.messages.some((m) => m.id === id)) {
+            ms.addMessage({ id, role: 'agent', content: '', time: String(e.ts ?? '') });
+          }
         }
       });
-    } catch (err) {
-      console.warn('[useWsEvents] connect failed', err);
+      client.subscribe('global');
+      const hb = setInterval(() => client?.ping(), 30_000);
+      return () => { clearInterval(hb); useWsStore.getState().setClient(null); client?.close(); };
+    } catch {
+      return () => { useWsStore.getState().setClient(null); client?.close(); };
     }
-    return () => handle?.close();
   }, []);
 }

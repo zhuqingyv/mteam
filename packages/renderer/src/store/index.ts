@@ -4,3 +4,4 @@ export * from './agentStore';
 export * from './taskStore';
 export * from './windowStore';
 export * from './notificationStore';
+export * from './wsStore';

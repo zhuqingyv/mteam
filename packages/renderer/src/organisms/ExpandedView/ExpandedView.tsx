@@ -13,6 +13,7 @@ import {
   selectInputText,
   selectSetInputText,
   selectClearInput,
+  useWsStore,
 } from '../../store';
 import type { Message } from '../../store/messageStore';
 import './ExpandedView.css';
@@ -82,9 +83,17 @@ export default function ExpandedView() {
     addMessage(userMsg);
     clearText();
 
+    const wsClient = useWsStore.getState().client;
+    const curActiveId = useAgentStore.getState().activeId;
+
+    if (wsClient && wsClient.readyState() === WebSocket.OPEN && curActiveId) {
+      wsClient.prompt(curActiveId, text, `req-${Date.now()}`);
+      return;
+    }
+
     const thinkingId = `t-${Date.now()}`;
-    const { agents: allAgents, activeId: curId } = useAgentStore.getState();
-    const activeAgentName = allAgents.find((a) => a.id === curId)?.name ?? 'Agent';
+    const { agents: allAgents, activeId: aid } = useAgentStore.getState();
+    const activeAgentName = allAgents.find((a) => a.id === aid)?.name ?? 'Agent';
 
     const t1 = setTimeout(() => {
       addMessage({

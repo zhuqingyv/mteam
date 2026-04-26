@@ -2,16 +2,20 @@
 
 import { panelGet, panelPost, type ApiResult } from './client';
 
-export interface CliEntry {
+export interface CliInfo {
   name: string;
-  path: string;
   available: boolean;
+  path: string | null;
+  version: string | null;
 }
 
-export function listCli(): Promise<ApiResult<CliEntry[]>> {
-  return panelGet<CliEntry[]>('/cli');
+/** @deprecated use CliInfo */
+export type CliEntry = CliInfo;
+
+export function listCli(): Promise<ApiResult<CliInfo[]>> {
+  return panelGet<CliInfo[]>('/cli');
 }
 
-export function refreshCli(): Promise<ApiResult<CliEntry[]>> {
-  return panelPost<CliEntry[]>('/cli/refresh');
+export function refreshCli(): Promise<ApiResult<CliInfo[]>> {
+  return panelPost<CliInfo[]>('/cli/refresh');
 }
