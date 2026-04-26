@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import TeamSidebar from '../../molecules/TeamSidebar';
 import TeamCanvas from '../TeamCanvas';
 import './TeamMonitorPanel.css';
@@ -21,17 +20,12 @@ interface TeamMonitorPanelProps {
 export default function TeamMonitorPanel({
   teams, agents, activeTeamId, onSelectTeam, onCreateTeam, onAgentDragEnd,
 }: TeamMonitorPanelProps) {
-  const [active, setActive] = useState(activeTeamId ?? teams[0]?.id);
-  const handleSelect = (id: string) => {
-    setActive(id);
-    onSelectTeam?.(id);
-  };
   return (
     <div className="team-monitor">
       <TeamSidebar
         teams={teams}
-        activeTeamId={activeTeamId ?? active}
-        onSelectTeam={handleSelect}
+        activeTeamId={activeTeamId}
+        onSelectTeam={onSelectTeam}
         onCreateTeam={onCreateTeam}
       />
       <TeamCanvas agents={agents} onAgentDragEnd={onAgentDragEnd} />

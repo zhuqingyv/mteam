@@ -1,20 +1,52 @@
+import { useEffect, useState } from 'react';
 import PanelWindow from '../templates/PanelWindow';
 import TeamMonitorPanel from '../organisms/TeamMonitorPanel';
-
-const DEMO_TEAMS = [
-  { id: 't1', name: 'MTEAM', memberCount: 4 },
-  { id: 't2', name: 'Frontend', memberCount: 2 },
-];
-const DEMO_AGENTS = [
-  { id: 'claude', name: 'Claude', status: 'idle', x: 120, y: 120 },
-  { id: 'codex', name: 'Codex', status: 'running', x: 320, y: 180 },
-  { id: 'qwen', name: 'Qwen', status: 'idle', x: 520, y: 140 },
-];
+import { listTeams, getTeam, createTeam } from '../api/teams';
+import type { TeamWithMembers } from '../api/teams';
+import { useTeamStore, usePrimaryAgentStore } from '../store';
 
 export default function TeamPage() {
+  const teams = useTeamStore((s) => s.teams);
+  const activeTeamId = useTeamStore((s) => s.activeTeamId);
+  const setTeams = useTeamStore((s) => s.setTeams);
+  const setActiveTeam = useTeamStore((s) => s.setActiveTeam);
+  const leaderInstanceId = usePrimaryAgentStore((s) => s.instanceId);
+  const [members, setMembers] = useState<TeamWithMembers['members']>([]);
+
+  useEffect(() => {
+    listTeams().then((r) => { if (r.ok && r.data) setTeams(r.data); }).catch(() => {});
+  }, [setTeams]);
+
+  const sidebarTeams = teams.map((t) => ({ id: t.id, name: t.name, memberCount: 0 }));
+
+  const agents = members.map((m, i) => ({
+    id: m.instanceId,
+    name: m.roleInTeam ?? m.instanceId,
+    status: 'idle',
+    x: 120 + i * 200,
+    y: 140,
+  }));
+
+  const handleSelectTeam = (id: string) => {
+    setActiveTeam(id);
+    getTeam(id).then((r) => { if (r.ok && r.data) setMembers(r.data.members); }).catch(() => {});
+  };
+
+  const handleCreateTeam = () => {
+    const name = window.prompt('Team name');
+    if (!name?.trim() || !leaderInstanceId) return;
+    createTeam({ name: name.trim(), leaderInstanceId }).catch(() => {});
+  };
+
   return (
     <PanelWindow>
-      <TeamMonitorPanel teams={DEMO_TEAMS} agents={DEMO_AGENTS} />
+      <TeamMonitorPanel
+        teams={sidebarTeams}
+        agents={agents}
+        activeTeamId={activeTeamId ?? undefined}
+        onSelectTeam={handleSelectTeam}
+        onCreateTeam={handleCreateTeam}
+      />
     </PanelWindow>
   );
 }

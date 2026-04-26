@@ -2,19 +2,18 @@ import CapsuleWindow from '../templates/CapsuleWindow';
 import CapsuleCard from '../organisms/CapsuleCard';
 import ExpandedView from '../organisms/ExpandedView';
 import { useCapsuleToggle } from '../hooks/useCapsuleToggle';
-import { useAgentStore, useNotificationStore, useWsStore } from '../store';
+import { useAgentStore, useNotificationStore, usePrimaryAgentStore, selectOnline } from '../store';
 
 export default function CapsulePage() {
   const { expanded, animating, toggle } = useCapsuleToggle();
   const agents = useAgentStore((s) => s.agents);
   const notifications = useNotificationStore((s) => s.notifications);
   const acknowledgedIds = useNotificationStore((s) => s.acknowledgedIds);
-  const wsClient = useWsStore((s) => s.client);
+  const online = usePrimaryAgentStore(selectOnline);
 
   const agentCount = agents.length;
   const taskCount = agents.filter((a) => a.status === 'running').length;
   const messageCount = notifications.filter((n) => !acknowledgedIds.includes(n.id)).length;
-  const online = wsClient !== null;
 
   return (
     <CapsuleWindow>
