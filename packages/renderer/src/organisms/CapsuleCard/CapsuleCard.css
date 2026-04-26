@@ -130,6 +130,7 @@
   top: 68px; bottom: 0;
   opacity: 0;
   transition: opacity 150ms ease;
+  -webkit-app-region: no-drag;
   pointer-events: none;
 }
 .card--expanded .card__body {
