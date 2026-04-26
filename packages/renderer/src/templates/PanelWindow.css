@@ -1,0 +1,8 @@
+.panel-window {
+  width: 100vw;
+  height: 100vh;
+  overflow: auto;
+  background: var(--surface-glass-dark);
+  color: var(--color-text-primary);
+  -webkit-app-region: no-drag;
+}
