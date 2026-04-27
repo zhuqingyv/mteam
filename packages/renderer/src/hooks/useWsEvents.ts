@@ -7,6 +7,7 @@ import {
   handleInstanceEvent,
   handleTurnEvent,
   handleTeamEvent,
+  handleTemplateEvent,
   handleOtherEvent,
 } from './wsEventHandlers';
 import { applyTurnHistoryResponse, applyTurnsResponse } from './turnHydrator';
@@ -88,6 +89,7 @@ export function useWsEvents(): void {
         else if (t.startsWith('instance.')) handleInstanceEvent(t, e);
         else if (t.startsWith('turn.')) handleTurnEvent(t, e);
         else if (t.startsWith('team.')) handleTeamEvent(t, e);
+        else if (t.startsWith('template.')) handleTemplateEvent(t, e);
         else handleOtherEvent(t, e);
       });
 

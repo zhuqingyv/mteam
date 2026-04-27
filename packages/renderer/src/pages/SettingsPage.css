@@ -8,6 +8,13 @@
   margin-right: auto;
 }
 
+.settings-page__tabs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
 .settings-page__close {
   position: absolute;
   right: 14px;

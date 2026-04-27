@@ -2,65 +2,192 @@ import { useEffect, useState } from 'react';
 import PanelWindow from '../templates/PanelWindow';
 import PrimaryAgentSettings from '../organisms/PrimaryAgentSettings';
 import CliList, { type CliEntry } from '../molecules/CliList';
+import TemplateList, { type RoleTemplate as TplListRow } from '../organisms/TemplateList';
+import TemplateEditor, { type TemplateDraft } from '../organisms/TemplateEditor';
+import Modal from '../atoms/Modal';
+import ConfirmDialog from '../molecules/ConfirmDialog';
 import Button from '../atoms/Button';
 import Icon from '../atoms/Icon';
 import { listCli, refreshCli, type CliInfo } from '../api/cli';
-import { usePrimaryAgentStore, selectOnline, selectPaConfig } from '../store';
+import {
+  listTemplates,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
+  type RoleTemplate,
+} from '../api/templates';
+import { listAvatars, randomAvatar, type AvatarRow } from '../api/avatars';
+import {
+  usePrimaryAgentStore,
+  selectOnline,
+  selectPaConfig,
+  useTemplateStore,
+  selectTemplates,
+} from '../store';
 import './SettingsPage.css';
 
+type Tab = 'primary' | 'cli' | 'template';
+
 function toCliEntries(list: CliInfo[]): CliEntry[] {
-  return list.map((c) => ({
-    name: c.name,
-    path: c.path ?? '',
-    available: c.available,
-  }));
+  return list.map((c) => ({ name: c.name, path: c.path ?? '', available: c.available }));
+}
+
+function toDraft(tpl: RoleTemplate): TemplateDraft {
+  return {
+    name: tpl.name,
+    role: tpl.role,
+    description: tpl.description ?? '',
+    persona: tpl.persona ?? '',
+    avatar: tpl.avatar ?? null,
+    availableMcps: tpl.availableMcps.map((m) => m.name),
+  };
 }
 
 export default function SettingsPage() {
   const config = usePrimaryAgentStore(selectPaConfig);
   const online = usePrimaryAgentStore(selectOnline);
+  const templates = useTemplateStore(selectTemplates);
+  const setTemplates = useTemplateStore((s) => s.setTemplates);
 
+  const [tab, setTab] = useState<Tab>('primary');
   const [clis, setClis] = useState<CliEntry[]>([]);
+  const [avatars, setAvatars] = useState<AvatarRow[]>([]);
+  const [editing, setEditing] = useState<RoleTemplate | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    listCli().then((res) => {
-      if (cancelled) return;
-      if (res.ok && res.data) setClis(toCliEntries(res.data));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    listCli().then((res) => { if (res.ok && res.data) setClis(toCliEntries(res.data)); });
+    listTemplates().then((res) => { if (res.ok && res.data) setTemplates(res.data); });
+    listAvatars().then((res) => { if (res.ok && res.data) setAvatars(res.data.avatars); });
+  }, [setTemplates]);
 
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') window.close();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !editorOpen && !pendingDelete) window.close(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editorOpen, pendingDelete]);
 
   const handleRefresh = async () => {
     const res = await refreshCli();
     if (res.ok && res.data) setClis(toCliEntries(res.data));
   };
 
-  const handleClose = () => {
-    window.close();
+  const handleCreate = () => { setEditing(null); setEditorOpen(true); };
+  const handleEdit = (name: string) => {
+    const tpl = templates.find((t) => t.name === name);
+    if (!tpl) return;
+    setEditing(tpl);
+    setEditorOpen(true);
   };
+  const handleDelete = (name: string) => setPendingDelete(name);
+
+  const handleSave = async (draft: TemplateDraft) => {
+    const availableMcps = draft.availableMcps.map((name) => ({ name, surface: '*' as const, search: '*' as const }));
+    if (editing) {
+      const res = await updateTemplate(editing.name, {
+        role: draft.role,
+        description: draft.description || null,
+        persona: draft.persona || null,
+        avatar: draft.avatar,
+        availableMcps,
+      });
+      if (res.ok) setEditorOpen(false);
+    } else {
+      const res = await createTemplate({
+        name: draft.name,
+        role: draft.role,
+        description: draft.description || null,
+        persona: draft.persona || null,
+        avatar: draft.avatar,
+        availableMcps,
+      });
+      if (res.ok) setEditorOpen(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    await deleteTemplate(pendingDelete);
+    setPendingDelete(null);
+  };
+
+  const handleRandomAvatar = async () => {
+    const res = await randomAvatar();
+    if (res.ok && res.data?.avatar) {
+      const row = res.data.avatar;
+      setAvatars((prev) => (prev.some((a) => a.id === row.id) ? prev : [...prev, row]));
+      setEditing((prev) => (prev ? { ...prev, avatar: row.id } : prev));
+    }
+  };
+
+  const mcpOptions = Array.from(new Set(templates.flatMap((t) => t.availableMcps.map((m) => m.name))));
+  const existingNames = templates.map((t) => t.name);
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'primary', label: '主 Agent' },
+    { id: 'cli', label: 'CLI' },
+    { id: 'template', label: '模板管理' },
+  ];
 
   return (
     <PanelWindow>
       <div className="settings-page__close">
-        <Button variant="icon" size="sm" onClick={handleClose}>
+        <Button variant="icon" size="sm" onClick={() => window.close()}>
           <Icon name="close" size={14} />
         </Button>
       </div>
       <div className="settings-page__content">
-        <PrimaryAgentSettings config={config} running={online} />
-        <CliList clis={clis} onRefresh={handleRefresh} />
+        <div className="settings-page__tabs" role="tablist">
+          {tabs.map((t) => (
+            <Button
+              key={t.id}
+              variant={tab === t.id ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </Button>
+          ))}
+        </div>
+        {tab === 'primary' && <PrimaryAgentSettings config={config} running={online} />}
+        {tab === 'cli' && <CliList clis={clis} onRefresh={handleRefresh} />}
+        {tab === 'template' && (
+          <TemplateList
+            templates={templates as TplListRow[]}
+            onCreate={handleCreate}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        )}
       </div>
+
+      <Modal
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        title={editing ? `编辑：${editing.name}` : '新建模板'}
+        size="lg"
+      >
+        <TemplateEditor
+          template={editing ? toDraft(editing) : undefined}
+          mcpOptions={mcpOptions}
+          avatars={avatars}
+          existingNames={existingNames}
+          isEdit={!!editing}
+          onSave={handleSave}
+          onCancel={() => setEditorOpen(false)}
+          onRandomAvatar={handleRandomAvatar}
+        />
+      </Modal>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="删除模板"
+        message={`确认删除模板 "${pendingDelete}"？此操作无法撤销。`}
+        variant="danger"
+        confirmLabel="删除"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </PanelWindow>
   );
 }

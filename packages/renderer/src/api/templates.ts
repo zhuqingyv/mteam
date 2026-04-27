@@ -13,6 +13,7 @@ export interface RoleTemplate {
   role: string;
   description: string | null;
   persona: string | null;
+  avatar: string | null;
   availableMcps: McpToolVisibility[];
   createdAt?: string;
   updatedAt?: string;
@@ -23,6 +24,7 @@ export interface CreateTemplateBody {
   role: string;
   description?: string | null;
   persona?: string | null;
+  avatar?: string | null;
   availableMcps?: McpToolVisibility[];
 }
 

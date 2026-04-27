@@ -1,6 +1,7 @@
-import { useAgentStore, useNotificationStore, usePrimaryAgentStore, useTeamStore, primaryAgentBridge } from '../store';
+import { useAgentStore, useNotificationStore, usePrimaryAgentStore, useTeamStore, useTemplateStore, primaryAgentBridge } from '../store';
 import type { AgentState, PrimaryAgentRow } from '../api/primaryAgent';
 import type { TeamRow, TeamMemberRow } from '../api/teams';
+import { getTemplate } from '../api/templates';
 
 export { handleTurnEvent } from './handleTurnEvent';
 
@@ -105,6 +106,24 @@ export function handleTeamEvent(t: string, e: Record<string, unknown>) {
     const instanceId = String(p.instanceId ?? '');
     if (teamId && instanceId) ts.removeTeamMember(teamId, instanceId);
   }
+}
+
+export function handleTemplateEvent(t: string, e: Record<string, unknown>) {
+  const p = (e.payload ?? e) as Record<string, unknown>;
+  const name = String(p.templateName ?? '');
+  if (!name) return;
+  const st = useTemplateStore.getState();
+  if (t === 'template.deleted') {
+    st.removeTemplate(name);
+    return;
+  }
+  // created / updated: payload 里只有 templateName，拉全量补齐
+  getTemplate(name).then((res) => {
+    if (res.ok && res.data) {
+      if (t === 'template.created') st.addTemplate(res.data);
+      else st.addTemplate(res.data); // addTemplate 同时兼容 upsert
+    }
+  });
 }
 
 export function handleOtherEvent(t: string, e: Record<string, unknown>) {
