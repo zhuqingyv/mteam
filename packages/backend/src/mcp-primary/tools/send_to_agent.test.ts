@@ -14,6 +14,7 @@ import { InProcessComm } from '../../mcp-http/in-process-comm.js';
 import { closeDb, getDb } from '../../db/connection.js';
 import { RoleTemplate } from '../../domain/role-template.js';
 import { RoleInstance } from '../../domain/role-instance.js';
+import { listByAssignee } from '../../action-item/repo.js';
 import type { PrimaryMcpEnv } from '../config.js';
 
 const PRIMARY_ID = 'primary_001';
@@ -69,15 +70,17 @@ describe('send_to_agent schema', () => {
     expect(s.additionalProperties).toBe(false);
   });
 
-  it('kind enum restricted to chat/task', () => {
+  it('kind enum expanded to 5 values (chat + task/approval/decision/authorization)', () => {
     const props = (sendToAgentSchema.inputSchema as { properties: Record<string, { enum?: readonly string[] }> }).properties;
-    expect(props.kind.enum).toEqual(['chat', 'task']);
+    expect(props.kind.enum).toEqual(['chat', 'task', 'approval', 'decision', 'authorization']);
   });
 
-  it('exposes summary + replyTo', () => {
+  it('exposes summary + replyTo + deadline + title', () => {
     const props = (sendToAgentSchema.inputSchema as { properties: Record<string, unknown> }).properties;
     expect(props.summary).toBeDefined();
     expect(props.replyTo).toBeDefined();
+    expect(props.deadline).toBeDefined();
+    expect(props.title).toBeDefined();
   });
 });
 
@@ -128,7 +131,7 @@ describe('runSendToAgent · address path', () => {
     expect(inbox.messages[0].kind).toBe('task');
   });
 
-  it('kind="system" rejected', async () => {
+  it('kind="system" rejected (not in 5-kind enum)', async () => {
     const peerId = seedPeer('bob');
     const { router, store } = makeRouter();
     const comm = makeComm(router);
@@ -183,6 +186,94 @@ describe('runSendToAgent · address path', () => {
     });
     expect(res).toEqual({ delivered: true, to: `local:${leaderId}` });
     expect(store.listInbox(leaderId, { peek: true }).total).toBe(1);
+  });
+});
+
+describe('runSendToAgent · ActionItem integration', () => {
+  it('kind=chat + no deadline → no ActionItem created (original behavior)', async () => {
+    const peerId = seedPeer('bob');
+    const { router } = makeRouter();
+    const comm = makeComm(router);
+    const res = await runSendToAgent(env, comm, { to: `local:${peerId}`, content: 'hi' });
+    expect(res).toEqual({ delivered: true, to: `local:${peerId}` });
+    expect(listByAssignee(peerId).length).toBe(0);
+  });
+
+  it('kind=task + deadline → ActionItem created + returns actionItemId', async () => {
+    const peerId = seedPeer('bob');
+    const { router } = makeRouter();
+    const comm = makeComm(router);
+    const deadline = Date.now() + 60_000;
+    const res = await runSendToAgent(env, comm, {
+      to: `local:${peerId}`, content: 'review the PR', kind: 'task', deadline, title: '审 PR',
+    });
+    const wrapped = res as { delivered: boolean; to: string; actionItemId: string };
+    expect(wrapped.delivered).toBe(true);
+    expect(wrapped.to).toBe(`local:${peerId}`);
+    expect(typeof wrapped.actionItemId).toBe('string');
+    expect(wrapped.actionItemId.length).toBeGreaterThan(0);
+
+    const items = listByAssignee(peerId);
+    expect(items.length).toBe(1);
+    expect(items[0].kind).toBe('task');
+    expect(items[0].title).toBe('审 PR');
+    expect(items[0].description).toBe('review the PR');
+    expect(items[0].deadline).toBe(deadline);
+    expect(items[0].creator).toEqual({ kind: 'agent', id: PRIMARY_ID });
+    expect(items[0].assignee).toEqual({ kind: 'agent', id: peerId });
+  });
+
+  it('kind=approval + deadline → ActionItem created (non-task kinds still open items)', async () => {
+    const peerId = seedPeer('bob');
+    const { router, store } = makeRouter();
+    const comm = makeComm(router);
+    const deadline = Date.now() + 120_000;
+    const res = await runSendToAgent(env, comm, {
+      to: `local:${peerId}`, content: 'approve release?', kind: 'approval', deadline,
+    });
+    expect((res as { actionItemId?: string }).actionItemId).toBeDefined();
+
+    const items = listByAssignee(peerId);
+    expect(items.length).toBe(1);
+    expect(items[0].kind).toBe('approval');
+    // 底层消息仍走 task 通路投递（send_msg 不改）。
+    const inbox = store.listInbox(peerId, { peek: true });
+    expect(inbox.messages[0].kind).toBe('task');
+  });
+
+  it('kind=chat + deadline → still no ActionItem (chat 不走 ActionItem)', async () => {
+    const peerId = seedPeer('bob');
+    const { router } = makeRouter();
+    const comm = makeComm(router);
+    const res = await runSendToAgent(env, comm, {
+      to: `local:${peerId}`, content: 'heads up', kind: 'chat', deadline: Date.now() + 60_000,
+    });
+    expect(res).toEqual({ delivered: true, to: `local:${peerId}` });
+    expect((res as { actionItemId?: unknown }).actionItemId).toBeUndefined();
+    expect(listByAssignee(peerId).length).toBe(0);
+  });
+
+  it('kind=task + deadline <= now+1000 → error, no message sent, no item', async () => {
+    const peerId = seedPeer('bob');
+    const { router, store } = makeRouter();
+    const comm = makeComm(router);
+    const res = await runSendToAgent(env, comm, {
+      to: `local:${peerId}`, content: 'x', kind: 'task', deadline: Date.now() + 500,
+    });
+    expect((res as { error: string }).error).toContain('deadline');
+    expect(store.listInbox(peerId, { peek: true }).total).toBe(0);
+    expect(listByAssignee(peerId).length).toBe(0);
+  });
+
+  it('kind=decision + no deadline → message delivered but no ActionItem', async () => {
+    const peerId = seedPeer('bob');
+    const { router } = makeRouter();
+    const comm = makeComm(router);
+    const res = await runSendToAgent(env, comm, {
+      to: `local:${peerId}`, content: 'pick A or B', kind: 'decision',
+    });
+    expect(res).toEqual({ delivered: true, to: `local:${peerId}` });
+    expect(listByAssignee(peerId).length).toBe(0);
   });
 });
 

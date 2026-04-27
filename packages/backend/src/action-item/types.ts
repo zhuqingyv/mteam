@@ -32,3 +32,19 @@ export interface ActionItem {
   teamId: string | null;
   relatedMessageId: string | null;
 }
+
+// DAO 返回类型别名，与 ActionItem 完全等价。repo 函数签名用它突出"DB row"语义。
+export type ActionItemRow = ActionItem;
+
+// create() 输入：服务端注入时间戳 / 初始状态；id 可选（缺省 DAO 生成 UUID v4）。
+export interface CreateActionItemInput {
+  id?: string;
+  kind: ActionItemKind;
+  title: string;
+  description?: string;
+  creator: ActorId;
+  assignee: ActorId;
+  deadline: number;
+  teamId?: string | null;
+  relatedMessageId?: string | null;
+}

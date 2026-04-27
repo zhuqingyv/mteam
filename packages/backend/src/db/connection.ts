@@ -10,9 +10,10 @@ import { migrateMessagesEnvelope } from './migrations/2026-04-25-messages-envelo
 import { migrateMessagesDropInstanceFk } from './migrations/2026-04-26-messages-drop-instance-fk.js';
 import { migrateSandboxAutoApprove } from './migrations/2026-04-27-sandbox-autoapprove.js';
 import { migrateRoleTemplatesAvatar } from './migrations/2026-04-27-role-templates-avatar.js';
+import { migrateActionItems } from './migrations/2026-04-27-action-items.js';
 
-const SCHEMA_VERSION = 2;
-const SCHEMA_NOTE = 'avatars';
+const SCHEMA_VERSION = 3;
+const SCHEMA_NOTE = 'action-items';
 
 const DEFAULT_DB_PATH = join(homedir(), '.claude', 'team-hub', 'v2.db');
 const SCHEMAS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'schemas');
@@ -96,6 +97,7 @@ export function getDb(): Database {
   migrateMessagesDropInstanceFk(db);
   migrateSandboxAutoApprove(db);
   migrateRoleTemplatesAvatar(db);
+  migrateActionItems(db);
   recordVersion(db);
 
   handle = db;
