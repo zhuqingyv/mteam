@@ -56,31 +56,43 @@ export interface CliWaitHost {
   reboot(): void;
 }
 
-// 等 cliManager.ready() 一次性完成全量扫描后再重入 boot()。
-// 旧方案监听每条 cli.available 事件并重入 boot()，但 claude/codex 并行扫描时
-// codex 先完成 → boot 重入 → claude 未完成 → 又订阅 → 无限循环。
-// 改为 ready() 等全部扫完，只重入一次，彻底消除竞态。
+// 等 cliManager 首次扫描完成后，验证 CLI 可用性再重入 boot()。
+// 防死循环：ready() resolve 后若 CLI 仍不可用（扫描找不到或 readyPromise 被 teardown 清空），
+// 做一次 refresh() 强制重扫；重扫后仍不可用则放弃，不再重入。
 export function waitForCliScan(host: CliWaitHost): void {
   if (host.getCliSub()) return;
   const sub = host.eventBus.on('cli.available').subscribe((ev) => {
-    // 仅打日志，不重入 boot — 重入由 ready() 触发
     process.stderr.write(`[primary-agent] cli '${ev.cliName}' available (waiting for full scan)\n`);
   });
   host.setCliSub(sub);
-  void cliManager.ready().then(() => {
+
+  const tryReboot = (): void => {
     if (!host.getCliSub()) return; // teardown 已清理，放弃重入
-    host.getCliSub()!.unsubscribe();
-    host.setCliSub(null);
-    // 扫描完成后验证 CLI 是否真的可用，避免 ready() 已 resolve + CLI 仍不可用 → 无限循环
     const row = readRow();
     const neededCli = row?.cliType ?? ['claude', 'codex'].find((c) => cliManager.isAvailable(c));
     if (neededCli && cliManager.isAvailable(neededCli)) {
+      host.getCliSub()!.unsubscribe();
+      host.setCliSub(null);
       process.stderr.write(`[primary-agent] cli '${neededCli}' available, auto-start\n`);
       host.reboot();
     } else {
-      process.stderr.write(
-        `[primary-agent] CLI scan complete but no CLI available — staying stopped\n`,
-      );
+      // ready() 可能因 teardown 竞态导致空 resolve，做一次 refresh 补救
+      void cliManager.refresh().then(() => {
+        if (!host.getCliSub()) return;
+        const cli2 = row?.cliType ?? ['claude', 'codex'].find((c) => cliManager.isAvailable(c));
+        if (cli2 && cliManager.isAvailable(cli2)) {
+          host.getCliSub()!.unsubscribe();
+          host.setCliSub(null);
+          process.stderr.write(`[primary-agent] cli '${cli2}' available after refresh, auto-start\n`);
+          host.reboot();
+        } else {
+          host.getCliSub()!.unsubscribe();
+          host.setCliSub(null);
+          process.stderr.write('[primary-agent] CLI scan complete, no CLI found — staying stopped\n');
+        }
+      });
     }
-  });
+  };
+
+  void cliManager.ready().then(tryReboot);
 }

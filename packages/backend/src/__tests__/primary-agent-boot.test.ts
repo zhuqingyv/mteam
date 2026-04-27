@@ -51,6 +51,14 @@ function clearCli(): void {
   (cliManager as unknown as { readyPromise: Promise<void> | null }).readyPromise = null;
 }
 
+/** 让 refresh/poll 不做真实扫描，保持当前 snapshot 不变 */
+function stubRefreshNoop(): () => void {
+  const mgr = cliManager as unknown as { poll: () => Promise<void> };
+  const orig = mgr.poll;
+  mgr.poll = async () => {}; // no-op
+  return () => { mgr.poll = orig; };
+}
+
 function setControlledReady(): () => void {
   let resolve!: () => void;
   const p = new Promise<void>((r) => { resolve = r; });
@@ -201,6 +209,7 @@ describe('[guard] 主 Agent 启动链集成守卫', () => {
     // 复现 bug：ready() resolve 后 isAvailable 仍 false → 旧代码无条件 reboot() → 无限循环
     clearCli();
     const resolveReady = setControlledReady();
+    const restoreRefresh = stubRefreshNoop(); // 阻止 refresh 做真实扫描
     const bus = new EventBus();
     const runtime = new FakeRuntime();
     const agent = new PrimaryAgent(bus, runtime, new DriverRegistry());
@@ -209,16 +218,17 @@ describe('[guard] 主 Agent 启动链集成守卫', () => {
     agent.boot();
     expect(agent.isRunning()).toBe(false);
 
-    // 扫描完成，但 CLI 仍不可用（snapshot 标记 available=false）
+    // 扫描完成，但 CLI 仍不可用（snapshot 标记 available=false，refresh 也不刷新）
     stubCli(false);
     resolveReady();
-    // 让 microtask 和宏任务 flush
+    // 让 microtask（ready().then）和宏任务（refresh().then）flush
     await new Promise((r) => setTimeout(r, 50));
 
     // 不应死循环，应停在 stopped 状态
     expect(agent.isRunning()).toBe(false);
     expect(runtime.handles).toHaveLength(0);
 
+    restoreRefresh();
     await agent.teardown();
   });
 
