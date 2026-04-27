@@ -10,7 +10,7 @@ import Logo from '../src/atoms/Logo';
 import NotificationCard from '../src/atoms/NotificationCard';
 import MessageBubble from '../src/molecules/MessageBubble';
 
-const PLAYGROUND_VERSION = '1.7.1';
+const PLAYGROUND_VERSION = '1.7.4';
 
 type Tab = Layer | 'scenes';
 
@@ -182,7 +182,7 @@ export default function App() {
     <div className="playground">
       <header className="playground__header">
         <h1 className="playground__title">
-          MTEAM Component Library
+          MTEAM Component Library{' '}
           <span className="playground__version">v{PLAYGROUND_VERSION}</span>
         </h1>
         <p className="playground__subtitle">

@@ -31,14 +31,26 @@ export default function CapsuleCard({
   if (animating) cls.push('card--animating');
   if (bodyVisible) cls.push('card--body-visible');
 
+  const handleCollapsedClick = () => {
+    if (online === false) return;
+    onToggle?.();
+  };
+
   return (
     <div className={cls.join(' ')}>
       <div className="card__drag"><DragHandle /></div>
       <div className="card__logo"><Logo size={expanded ? 24 : 44} status={resolvedLogoStatus} /></div>
-      <div className="card__collapsed">
-        <TitleBlock title={name} subtitle={`${agentCount} Agents · ${taskCount} Tasks`} badgeText={messageCount > 0 ? `${messageCount} New messages` : undefined} badgeCount={messageCount} />
-        <MenuDots onClick={onToggle} disabled={online === false} />
-      </div>
+      {!expanded && (
+        <div
+          className="card__collapsed"
+          onClick={handleCollapsedClick}
+          role="button"
+          tabIndex={online === false ? -1 : 0}
+        >
+          <TitleBlock title={name} subtitle={`${agentCount} Agents · ${taskCount} Tasks`} badgeText={messageCount > 0 ? `${messageCount} New messages` : undefined} badgeCount={messageCount} />
+          <MenuDots disabled={online === false} />
+        </div>
+      )}
       <div className="card__expanded-head">
         <span className="card__expanded-name">{name}</span>
         <StatusDot status={online ? 'online' : 'offline'} size="sm" />

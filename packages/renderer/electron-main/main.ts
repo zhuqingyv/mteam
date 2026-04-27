@@ -79,7 +79,7 @@ const TEAM_OPEN_DEBOUNCE_MS = 500;
 function openPanel(key: 'team' | 'settings'): void {
   const cfg = key === 'team'
     ? { ref: teamPanelWindow, w: 1200, h: 800, minW: 800, minH: 600, title: 'mteam — 团队面板', q: '?window=team' }
-    : { ref: settingsWindow, w: 600, h: 500, minW: 400, minH: 300, title: 'mteam — 设置', q: '?window=settings' };
+    : { ref: settingsWindow, w: 800, h: 640, minW: 640, minH: 480, title: 'mteam — 设置', q: '?window=settings' };
   // stale ref 保险：on('closed') 已置 null，但防止异步时序或异常路径留下的已 destroy ref
   if (cfg.ref && cfg.ref.isDestroyed()) {
     if (key === 'team') teamPanelWindow = null;

@@ -88,16 +88,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  opacity: 1;
-  transition: opacity 180ms ease;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
 }
-.card--expanded .card__collapsed {
-  opacity: 0;
-  pointer-events: none;
-  visibility: hidden;
-  transition: opacity 180ms ease, visibility 0s linear 180ms;
-}
-.card__collapsed .btn--dots { -webkit-app-region: no-drag; }
 
 .card__expanded-head {
   position: absolute;

@@ -178,7 +178,7 @@ function createWindow() {
 var lastTeamOpenAt = 0;
 var TEAM_OPEN_DEBOUNCE_MS = 500;
 function openPanel(key) {
-  const cfg = key === "team" ? { ref: teamPanelWindow, w: 1200, h: 800, minW: 800, minH: 600, title: "mteam — 团队面板", q: "?window=team" } : { ref: settingsWindow, w: 600, h: 500, minW: 400, minH: 300, title: "mteam — 设置", q: "?window=settings" };
+  const cfg = key === "team" ? { ref: teamPanelWindow, w: 1200, h: 800, minW: 800, minH: 600, title: "mteam — 团队面板", q: "?window=team" } : { ref: settingsWindow, w: 800, h: 640, minW: 640, minH: 480, title: "mteam — 设置", q: "?window=settings" };
   if (cfg.ref && cfg.ref.isDestroyed()) {
     if (key === "team")
       teamPanelWindow = null;

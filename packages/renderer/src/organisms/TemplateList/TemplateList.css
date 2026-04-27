@@ -100,7 +100,12 @@
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  color: rgba(255, 255, 255, 0.35);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(230, 237, 247, 0.9);
+  background: linear-gradient(135deg, rgba(120, 170, 255, 0.28), rgba(160, 140, 220, 0.22));
+  text-transform: uppercase;
+  user-select: none;
 }
 
 .tpl-list__meta {

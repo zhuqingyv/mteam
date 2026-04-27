@@ -1,0 +1,37 @@
+.team-page__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  pointer-events: none;
+}
+
+.team-page__empty-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 56px;
+  min-width: 320px;
+  text-align: center;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+}
+
+.team-page__empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(120, 170, 255, 0.12);
+  color: rgba(180, 210, 255, 0.85);
+}
+
+.team-page__empty-actions {
+  margin-top: 4px;
+  -webkit-app-region: no-drag;
+}

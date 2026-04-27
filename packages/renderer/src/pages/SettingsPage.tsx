@@ -133,7 +133,7 @@ export default function SettingsPage() {
     <PanelWindow>
       <div className="settings-page__close">
         <Button variant="icon" size="sm" onClick={() => window.close()}>
-          <Icon name="close" size={14} />
+          <Icon name="close" size={24} />
         </Button>
       </div>
       <div className="settings-page__content">

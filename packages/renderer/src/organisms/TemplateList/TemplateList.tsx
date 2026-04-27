@@ -43,6 +43,13 @@ function truncate(text: string | null, max = 80): string {
   return text.length > max ? text.slice(0, max) + '…' : text;
 }
 
+function initialOf(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return '?';
+  const ch = Array.from(trimmed)[0] ?? '?';
+  return /[a-z]/.test(ch) ? ch.toUpperCase() : ch;
+}
+
 export default function TemplateList({
   templates,
   onSelect,
@@ -112,7 +119,9 @@ export default function TemplateList({
                         draggable={false}
                       />
                     ) : (
-                      <div className="tpl-list__avatar-placeholder" aria-hidden>?</div>
+                      <div className="tpl-list__avatar-placeholder" aria-hidden>
+                        {initialOf(tpl.name)}
+                      </div>
                     )}
                   </div>
                   <div className="tpl-list__meta">

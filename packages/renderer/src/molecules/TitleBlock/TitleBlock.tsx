@@ -12,7 +12,12 @@ export default function TitleBlock({ title, subtitle, badgeText, badgeCount = 0 
   return (
     <div className="title-block">
       <Text variant="title">{title}</Text>
-      {subtitle && <Text variant="subtitle">{subtitle}</Text>}
+      {subtitle && (
+        <>
+          <span className="title-block__sr-sep">{' '}</span>
+          <Text variant="subtitle">{subtitle}</Text>
+        </>
+      )}
       {badgeText && (
         <Text variant="badge">
           {badgeText}

@@ -39,7 +39,8 @@ export default function ToolBar({
           type="button"
           className="toolbar__icon-btn"
           onClick={onSettings}
-          aria-label="Settings"
+          aria-label="设置"
+          title="设置"
         >
           <Icon name="settings" size={14} />
         </button>

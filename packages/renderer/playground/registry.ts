@@ -419,7 +419,7 @@ export const registry: ComponentEntry[] = [
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     component: Modal as any,
     props: [
-      { name: 'open', type: 'boolean', default: true, description: '是否打开' },
+      { name: 'open', type: 'boolean', default: false, description: '是否打开' },
       { name: 'title', type: 'string', default: '删除模板', description: '标题' },
       {
         name: 'size',
@@ -431,7 +431,7 @@ export const registry: ComponentEntry[] = [
       { name: 'closeOnBackdrop', type: 'boolean', default: true, description: '点外部关闭' },
       { name: 'closeOnEsc', type: 'boolean', default: true, description: 'ESC 关闭' },
     ],
-    defaults: { open: true, title: '删除模板', size: 'md', closeOnBackdrop: true, closeOnEsc: true },
+    defaults: { open: false, title: '删除模板', size: 'md', closeOnBackdrop: true, closeOnEsc: true },
     renderChildren: () =>
       React.createElement(
         'div',
@@ -599,7 +599,7 @@ export const registry: ComponentEntry[] = [
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     component: ConfirmDialog as any,
     props: [
-      { name: 'open', type: 'boolean', default: true, description: '是否打开' },
+      { name: 'open', type: 'boolean', default: false, description: '是否打开' },
       { name: 'title', type: 'string', default: '删除模板', description: '弹窗标题' },
       {
         name: 'message',
@@ -618,7 +618,7 @@ export const registry: ComponentEntry[] = [
       },
     ],
     defaults: {
-      open: true,
+      open: false,
       title: '删除模板',
       message: '确定要删除 "frontend-engineer" 模板吗？此操作不可撤销。',
       confirmLabel: '删除',
@@ -836,9 +836,14 @@ export const registry: ComponentEntry[] = [
         default: 'online',
         description: 'Logo 三态；未传则回落到 online 布尔',
       },
+      { name: 'expanded', type: 'boolean', default: false, description: '展开态（仅静态展示，Electron 里由 useCapsuleToggle 驱动）' },
+      { name: 'bodyVisible', type: 'boolean', default: false, description: '展开动画结束后 body 淡入' },
     ],
-    defaults: { name: 'M-TEAM', agentCount: 3, taskCount: 2, messageCount: 5, online: true, logoStatus: 'online' },
-    note: '展开动画依赖 Electron，Playground 仅展示收起态',
+    defaults: { name: 'M-TEAM', agentCount: 3, taskCount: 2, messageCount: 5, online: true, logoStatus: 'online', expanded: false, bodyVisible: false },
+    note: '收起态整条胶囊可点击 toggle，三点也冒泡到 toggle；展开态 card__collapsed 不在 DOM。展开动画依赖 Electron',
+    handlers: (setValues) => ({
+      onToggle: () => setValues((p) => ({ ...p, expanded: !p.expanded, bodyVisible: !p.expanded })),
+    }),
   },
   {
     name: 'ChatPanel',
@@ -1192,6 +1197,16 @@ export const registry: ComponentEntry[] = [
           availableMcps: [{ name: 'mteam', surface: '*', search: '*' }],
           createdAt: '2026-04-27T08:00:00Z',
           updatedAt: '2026-04-27T08:00:00Z',
+        },
+        {
+          name: '文案写手',
+          role: 'writer',
+          description: '无 avatar 的模板，展示首字母兜底。',
+          persona: null,
+          avatar: null,
+          availableMcps: [],
+          createdAt: '2026-04-27T09:00:00Z',
+          updatedAt: '2026-04-27T09:00:00Z',
         },
       ],
     },

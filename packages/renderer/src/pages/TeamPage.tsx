@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import PanelWindow from '../templates/PanelWindow';
 import TeamMonitorPanel from '../organisms/TeamMonitorPanel';
+import Surface from '../atoms/Surface';
+import Button from '../atoms/Button';
+import Icon from '../atoms/Icon';
+import Text from '../atoms/Text';
 import { listTeams, getTeam, createTeam } from '../api/teams';
 import { useTeamStore, usePrimaryAgentStore, useAgentStore } from '../store';
+import './TeamPage.css';
 
 export default function TeamPage() {
   const [collapsed, setCollapsed] = useState(false);
@@ -80,7 +85,7 @@ export default function TeamPage() {
 
   return (
     <PanelWindow>
-      {hasTeams && (
+      {hasTeams ? (
         <TeamMonitorPanel
           teams={sidebarTeams}
           agents={agents}
@@ -90,6 +95,30 @@ export default function TeamPage() {
           collapsed={collapsed}
           onToggleCollapsed={() => setCollapsed((v) => !v)}
         />
+      ) : (
+        <div className="team-page__empty">
+          <Surface variant="panel">
+            <div className="team-page__empty-inner">
+              <div className="team-page__empty-icon" aria-hidden>
+                <Icon name="team" size={32} />
+              </div>
+              <Text variant="title">尚未创建团队</Text>
+              <Text variant="subtitle">
+                让主 Agent 帮你拉起第一个团队，开始协作
+              </Text>
+              <div className="team-page__empty-actions">
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={handleCreateTeam}
+                  disabled={!leaderInstanceId}
+                >
+                  创建团队
+                </Button>
+              </div>
+            </div>
+          </Surface>
+        </div>
       )}
     </PanelWindow>
   );
