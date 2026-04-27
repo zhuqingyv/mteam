@@ -7,6 +7,8 @@ interface ToolBarProps {
   currentModel: string;
   onModelChange: (value: string) => void;
   onSettings?: () => void;
+  onTeamPanel?: () => void;
+  teamPanelActive?: boolean;
 }
 
 export default function ToolBar({
@@ -14,6 +16,8 @@ export default function ToolBar({
   currentModel,
   onModelChange,
   onSettings,
+  onTeamPanel,
+  teamPanelActive = false,
 }: ToolBarProps) {
   return (
     <div className="toolbar">
@@ -21,6 +25,16 @@ export default function ToolBar({
         <Dropdown options={modelOptions} value={currentModel} onChange={onModelChange} />
       </div>
       <div className="toolbar__right">
+        <button
+          type="button"
+          className="toolbar__icon-btn"
+          onClick={onTeamPanel}
+          aria-label="成员面板"
+          title="成员面板"
+          data-active={teamPanelActive ? 'true' : undefined}
+        >
+          <Icon name="team" size={14} />
+        </button>
         <button
           type="button"
           className="toolbar__icon-btn"

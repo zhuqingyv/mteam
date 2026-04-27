@@ -61,6 +61,10 @@ export default function ExpandedView() {
     window.electronAPI?.openSettings();
   }, []);
 
+  const handleTeamPanel = useCallback(() => {
+    window.electronAPI?.openTeamPanel();
+  }, []);
+
   const handleSend = useCallback(() => {
     const text = useInputStore.getState().text.trim();
     if (!text) return;
@@ -98,6 +102,7 @@ export default function ExpandedView() {
             currentModel={currentModel}
             onModelChange={handleModelChange}
             onSettings={handleSettings}
+            onTeamPanel={handleTeamPanel}
           />
         }
       />

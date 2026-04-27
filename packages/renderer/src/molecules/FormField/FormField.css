@@ -1,0 +1,37 @@
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-family: var(--font-family-ui);
+}
+
+.form-field__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.form-field__label-text {
+  line-height: 1.2;
+}
+
+.form-field__required {
+  color: var(--color-accent-danger);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+}
+
+.form-field__control {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-field__error {
+  font-size: var(--font-size-xs);
+  color: var(--color-accent-danger);
+  line-height: 1.3;
+}

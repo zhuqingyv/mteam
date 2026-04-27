@@ -138,7 +138,7 @@ packages/
 - [x] WS 白名单切换（driver.* 生命周期保留 + turn.* 聚合事件替换零散事件）
 
 ### 前端对接文档（14 份）
-- [x] `docs/architecture-overview.md` — 整体架构总览 + 大 ASCII 图 + 关键设计决策
+- [x] `packages/backend/docs/architecture-overview.md` — 整体架构总览 + 大 ASCII 图 + 关键设计决策
 - [x] `docs/frontend-api/ws-protocol.md` — WS 上下行协议 + 4 种错误码
 - [x] `docs/frontend-api/bus-events.md` — 34+ bus 事件类型
 - [x] `docs/frontend-api/message-flow.md` — 消息三路分发（DB / agent / 前端）
@@ -196,14 +196,14 @@ packages/
 | CLI adapter 调研 | packages/backend/docs/cli-adapters/README.md |
 | 旧代码清理方案 | packages/backend/docs/cleanup-plan.md |
 | 角色模板定义 | docs/role-templates.md |
-| RxJS 事件总线设计 | docs/rxjs-event-bus-design.md |
-| Team 模块技术方案 | docs/teams/team-manager-design.md |
-| Team 生命周期联动方案 | docs/teams/team-lifecycle-sync.md |
-| MCP 动态注入机制 | docs/mcp-dynamic-injection-design.md |
-| 整体架构总览 | docs/architecture-overview.md |
-| Phase ws 任务清单 | docs/phase-ws/TASK-LIST.md |
-| Phase ws Turn 聚合方案 | docs/phase-ws/turn-aggregator-design.md |
-| Phase comm 任务清单 | docs/phase-comm/TASK-LIST.md |
+| RxJS 事件总线设计 | packages/backend/docs/rxjs-event-bus-design.md |
+| Team 模块技术方案 | packages/backend/docs/teams/team-manager-design.md |
+| Team 生命周期联动方案 | packages/backend/docs/teams/team-lifecycle-sync.md |
+| MCP 动态注入机制 | packages/backend/docs/mcp-dynamic-injection-design.md |
+| 整体架构总览 | packages/backend/docs/architecture-overview.md |
+| Phase ws 任务清单 | packages/backend/docs/phase-ws/TASK-LIST.md |
+| Phase ws Turn 聚合方案 | packages/backend/docs/phase-ws/turn-aggregator-design.md |
+| Phase comm 任务清单 | packages/backend/docs/phase-comm/TASK-LIST.md |
 | 前端对接目录 | docs/frontend-api/ |
 
 ## 关键设计决策

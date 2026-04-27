@@ -21,7 +21,18 @@ const CONTROLLED_PROP_BY_CALLBACK: Record<string, string> = {
   onSelect: 'activeId',
 };
 
-const CALLBACK_NAMES = ['onClick', 'onChange', 'onSend', 'onSelect', 'onAdd', 'onDismiss'];
+const CALLBACK_NAMES = [
+  'onClick',
+  'onChange',
+  'onSend',
+  'onSelect',
+  'onAdd',
+  'onDismiss',
+  'onRandom',
+  'onModelChange',
+  'onTeamPanel',
+  'onSettings',
+];
 
 function formatArg(arg: unknown): string {
   if (arg === undefined) return '';

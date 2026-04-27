@@ -71,11 +71,16 @@ export function waitForCliScan(host: CliWaitHost): void {
     if (!host.getCliSub()) return; // teardown 已清理，放弃重入
     host.getCliSub()!.unsubscribe();
     host.setCliSub(null);
+    // 扫描完成后验证 CLI 是否真的可用，避免 ready() 已 resolve + CLI 仍不可用 → 无限循环
     const row = readRow();
-    const neededCli = row ? row.cliType : ['claude', 'codex'].find((c) => cliManager.isAvailable(c));
-    if (neededCli) {
+    const neededCli = row?.cliType ?? ['claude', 'codex'].find((c) => cliManager.isAvailable(c));
+    if (neededCli && cliManager.isAvailable(neededCli)) {
       process.stderr.write(`[primary-agent] cli '${neededCli}' available, auto-start\n`);
+      host.reboot();
+    } else {
+      process.stderr.write(
+        `[primary-agent] CLI scan complete but no CLI available — staying stopped\n`,
+      );
     }
-    host.reboot();
   });
 }

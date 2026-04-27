@@ -11,7 +11,7 @@
 | 文档 | 路径 | 读完知道什么 |
 |------|------|------------|
 | **接口总览** | [docs/frontend-api/INDEX.md](../../../docs/frontend-api/INDEX.md) | 全部 WS + HTTP 接口白名单/黑名单 |
-| **架构总览** | [docs/architecture-overview.md](../../../docs/architecture-overview.md) | 系统全貌 |
+| **架构总览** | [packages/backend/docs/architecture-overview.md](../../backend/docs/architecture-overview.md) | 系统全貌 |
 
 ---
 

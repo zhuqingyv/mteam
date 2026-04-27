@@ -13,9 +13,16 @@ import ToolCallItem from '../src/atoms/ToolCallItem';
 import NotificationCard from '../src/atoms/NotificationCard';
 import VirtualList from '../src/atoms/VirtualList';
 import Dropdown from '../src/atoms/Dropdown';
+import Textarea from '../src/atoms/Textarea';
+import Input from '../src/atoms/Input';
+import Tag from '../src/atoms/Tag';
+import Modal from '../src/atoms/Modal';
 import ToolCallList from '../src/molecules/ToolCallList';
 import NotificationStack from '../src/molecules/NotificationStack';
 import Avatar from '../src/molecules/Avatar';
+import AvatarPicker from '../src/molecules/AvatarPicker';
+import FormField from '../src/molecules/FormField';
+import ConfirmDialog from '../src/molecules/ConfirmDialog';
 import TitleBlock from '../src/molecules/TitleBlock';
 import MenuDots from '../src/molecules/MenuDots';
 import MessageBubble from '../src/molecules/MessageBubble';
@@ -39,6 +46,7 @@ import PrimaryAgentSettings from '../src/organisms/PrimaryAgentSettings';
 import NotificationCenter from '../src/organisms/NotificationCenter';
 import AgentList from '../src/organisms/AgentList';
 import TemplateEditor from '../src/organisms/TemplateEditor';
+import TemplateList from '../src/organisms/TemplateList';
 
 export type PropType = 'string' | 'number' | 'boolean' | 'enum';
 
@@ -52,6 +60,22 @@ export interface PropDef {
 
 export type Layer = 'atoms' | 'molecules' | 'organisms';
 
+// Sub-groups within each layer. Keep values in sync with App.tsx ordering.
+export type Group =
+  // atoms
+  | 'basic'
+  | 'input'
+  | 'display'
+  | 'container'
+  // molecules
+  | 'form'
+  | 'chat'
+  | 'nav'
+  | 'team'
+  | 'display-mol'
+  // organisms
+  | 'full';
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyComponent = ComponentType<any>;
 
@@ -60,6 +84,7 @@ export type ValuesUpdater = (updater: (prev: Record<string, unknown>) => Record<
 export interface ComponentEntry {
   name: string;
   layer: Layer;
+  group: Group;
   component: AnyComponent;
   props: PropDef[];
   defaults: Record<string, unknown>;
@@ -74,6 +99,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'Surface',
     layer: 'atoms',
+    group: 'basic',
     component: Surface,
     props: [
       {
@@ -90,6 +116,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'StatusDot',
     layer: 'atoms',
+    group: 'basic',
     component: StatusDot,
     props: [
       {
@@ -112,6 +139,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'Logo',
     layer: 'atoms',
+    group: 'display',
     component: Logo,
     props: [
       { name: 'size', type: 'number', default: 56, description: '尺寸 px' },
@@ -128,6 +156,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'Text',
     layer: 'atoms',
+    group: 'basic',
     component: Text,
     props: [
       {
@@ -144,6 +173,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'Button',
     layer: 'atoms',
+    group: 'basic',
     component: Button,
     props: [
       {
@@ -168,12 +198,13 @@ export const registry: ComponentEntry[] = [
   {
     name: 'Icon',
     layer: 'atoms',
+    group: 'basic',
     component: Icon,
     props: [
       {
         name: 'name',
         type: 'enum',
-        options: ['close', 'send', 'chevron', 'chevron-down', 'settings', 'plus', 'check', 'check-double'],
+        options: ['close', 'send', 'chevron', 'chevron-down', 'settings', 'plus', 'check', 'check-double', 'team'],
         default: 'send',
         description: '图标名',
       },
@@ -185,6 +216,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'TypingDots',
     layer: 'atoms',
+    group: 'display',
     component: TypingDots,
     props: [
       { name: 'color', type: 'string', default: 'rgba(230,237,247,0.8)', description: '点颜色' },
@@ -194,6 +226,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'TextBlock',
     layer: 'atoms',
+    group: 'display',
     component: TextBlock,
     props: [
       { name: 'content', type: 'string', default: '你好，我是团队 Agent', description: '文本内容' },
@@ -205,6 +238,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'MessageMeta',
     layer: 'atoms',
+    group: 'display',
     component: MessageMeta,
     props: [
       { name: 'time', type: 'string', default: '10:24', description: '时间文本' },
@@ -215,6 +249,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'ToolCallItem',
     layer: 'atoms',
+    group: 'display',
     component: ToolCallItem,
     props: [
       { name: 'toolName', type: 'string', default: 'read_file', description: '工具名' },
@@ -233,6 +268,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'NotificationCard',
     layer: 'atoms',
+    group: 'display',
     component: NotificationCard,
     props: [
       { name: 'title', type: 'string', default: 'Claude 完成任务', description: '标题' },
@@ -251,6 +287,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'Dropdown',
     layer: 'atoms',
+    group: 'input',
     component: Dropdown,
     props: [
       {
@@ -274,8 +311,117 @@ export const registry: ComponentEntry[] = [
     }),
   },
   {
+    name: 'Textarea',
+    layer: 'atoms',
+    group: 'input',
+    component: Textarea,
+    props: [
+      { name: 'placeholder', type: 'string', default: '请输入多行文本…', description: '占位符' },
+      { name: 'disabled', type: 'boolean', default: false, description: '禁用' },
+      { name: 'rows', type: 'number', default: 4, description: '初始行数' },
+      { name: 'maxLength', type: 'number', default: 200, description: '最大字符数（显示计数）' },
+    ],
+    defaults: {
+      value: '',
+      placeholder: '请输入多行文本…',
+      disabled: false,
+      rows: 4,
+      maxLength: 200,
+    },
+    note: '发光玻璃风格多行输入；maxLength 非空时右下角显示字数计数',
+    handlers: (setValues) => ({
+      onChange: (v: unknown) => setValues((p) => ({ ...p, value: v as string })),
+    }),
+  },
+  {
+    name: 'Input',
+    layer: 'atoms',
+    group: 'input',
+    component: Input,
+    props: [
+      { name: 'value', type: 'string', default: '', description: '输入值' },
+      { name: 'placeholder', type: 'string', default: '请输入…', description: '占位符' },
+      {
+        name: 'type',
+        type: 'enum',
+        options: ['text', 'password', 'email'],
+        default: 'text',
+        description: '输入类型',
+      },
+      { name: 'disabled', type: 'boolean', default: false, description: '禁用' },
+      { name: 'error', type: 'boolean', default: false, description: '错误态（红色发光边框）' },
+    ],
+    defaults: { value: '', placeholder: '请输入…', type: 'text', disabled: false, error: false },
+    note: '发光玻璃风格单行输入；受控组件，onChange 回传新值',
+    handlers: (setValues) => ({
+      onChange: (v: unknown) => setValues((p) => ({ ...p, value: v as string })),
+    }),
+  },
+  {
+    name: 'Tag',
+    layer: 'atoms',
+    group: 'input',
+    component: Tag,
+    props: [
+      { name: 'label', type: 'string', default: 'filesystem', description: '标签文本' },
+      {
+        name: 'variant',
+        type: 'enum',
+        options: ['default', 'primary', 'danger'],
+        default: 'default',
+        description: '样式',
+      },
+      {
+        name: 'size',
+        type: 'enum',
+        options: ['sm', 'md'],
+        default: 'md',
+        description: '尺寸',
+      },
+      { name: 'disabled', type: 'boolean', default: false, description: '禁用' },
+      { name: 'closable', type: 'boolean', default: true, description: '可关闭（注入 onRemove）' },
+    ],
+    defaults: { label: 'filesystem', variant: 'default', size: 'md', disabled: false, closable: true },
+    note: '胶囊发光玻璃；closable=true 时显示关闭按钮并触发 onRemove',
+    handlers: (setValues) => ({
+      onRemove: () => setValues((p) => ({ ...p, closable: !(p.closable as boolean) })),
+    }),
+  },
+  {
+    name: 'Modal',
+    layer: 'atoms',
+    group: 'container',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    component: Modal as any,
+    props: [
+      { name: 'open', type: 'boolean', default: true, description: '是否打开' },
+      { name: 'title', type: 'string', default: '删除模板', description: '标题' },
+      {
+        name: 'size',
+        type: 'enum',
+        options: ['sm', 'md', 'lg'],
+        default: 'md',
+        description: '尺寸',
+      },
+      { name: 'closeOnBackdrop', type: 'boolean', default: true, description: '点外部关闭' },
+      { name: 'closeOnEsc', type: 'boolean', default: true, description: 'ESC 关闭' },
+    ],
+    defaults: { open: true, title: '删除模板', size: 'md', closeOnBackdrop: true, closeOnEsc: true },
+    renderChildren: () =>
+      React.createElement(
+        'div',
+        { style: { color: 'rgba(230,237,247,0.8)', fontSize: 14, lineHeight: 1.6 } },
+        '确定要删除 "frontend-engineer" 模板吗？此操作不可撤销。',
+      ),
+    note: '居中遮罩+发光玻璃面板；ESC/点外部关闭；打开时焦点陷入面板、关闭时还原',
+    handlers: (setValues) => ({
+      onClose: () => setValues((p) => ({ ...p, open: false })),
+    }),
+  },
+  {
     name: 'VirtualList',
     layer: 'atoms',
+    group: 'container',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     component: (props: Record<string, unknown>) =>
       React.createElement(
@@ -307,6 +453,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'ToolCallList',
     layer: 'molecules',
+    group: 'chat',
     component: ToolCallList,
     props: [
       { name: 'defaultCollapsed', type: 'boolean', default: false, description: '默认收起' },
@@ -324,6 +471,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'Avatar',
     layer: 'molecules',
+    group: 'form',
     component: Avatar,
     props: [
       { name: 'size', type: 'number', default: 56, description: 'Logo 尺寸' },
@@ -332,8 +480,45 @@ export const registry: ComponentEntry[] = [
     defaults: { size: 56, online: true },
   },
   {
+    name: 'AvatarPicker',
+    layer: 'molecules',
+    group: 'form',
+    component: AvatarPicker,
+    props: [
+      { name: 'columns', type: 'number', default: 5, description: '网格列数' },
+      { name: 'disabled', type: 'boolean', default: false, description: '禁用' },
+      { name: 'loading', type: 'boolean', default: false, description: '加载中（骨架屏）' },
+    ],
+    defaults: {
+      columns: 5,
+      disabled: false,
+      loading: false,
+      value: 'avatar-03',
+      avatars: Array.from({ length: 20 }, (_, i) => {
+        const n = String(i + 1).padStart(2, '0');
+        return { id: `avatar-${n}`, filename: `avatar-${n}.png`, builtin: true };
+      }),
+    },
+    handlers: (setValues) => ({
+      onChange: (...args: unknown[]) => {
+        const id = args[0] as string;
+        setValues((prev) => ({ ...prev, value: id }));
+      },
+      onRandom: () => {
+        setValues((prev) => {
+          const list = (prev.avatars as { id: string }[]) || [];
+          if (list.length === 0) return prev;
+          const pick = list[Math.floor(Math.random() * list.length)];
+          return { ...prev, value: pick.id };
+        });
+      },
+    }),
+    note: '20 个内置头像 mock；onRandom 随机命中，onChange 切换选中',
+  },
+  {
     name: 'TitleBlock',
     layer: 'molecules',
+    group: 'display-mol',
     component: TitleBlock,
     props: [
       { name: 'title', type: 'string', default: 'M-TEAM', description: '主标题' },
@@ -346,13 +531,82 @@ export const registry: ComponentEntry[] = [
   {
     name: 'MenuDots',
     layer: 'molecules',
+    group: 'nav',
     component: MenuDots,
     props: [],
     defaults: {},
   },
   {
+    name: 'FormField',
+    layer: 'molecules',
+    group: 'form',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    component: FormField as any,
+    props: [
+      { name: 'label', type: 'string', default: '模板名称', description: '字段标签' },
+      { name: 'required', type: 'boolean', default: true, description: '是否必填（标红 *）' },
+      { name: 'error', type: 'string', default: '', description: '错误信息（非空时显示红字）' },
+      { name: 'value', type: 'string', default: 'frontend-engineer', description: '内部 Input 示例值' },
+    ],
+    defaults: { label: '模板名称', required: true, error: '', value: 'frontend-engineer' },
+    renderChildren: (p) =>
+      React.createElement(Input, {
+        value: (p.value as string) ?? '',
+        placeholder: '请输入模板名称',
+        error: Boolean(p.error),
+        // onChange 由 handlers 接管
+      }),
+    handlers: (setValues) => ({
+      onChange: (...args: unknown[]) => {
+        const v = args[0] as string;
+        setValues((prev) => ({ ...prev, value: v }));
+      },
+    }),
+    note: 'label + required 星号 + 错误文案 + slot（演示包裹 Input）',
+  },
+  {
+    name: 'ConfirmDialog',
+    layer: 'molecules',
+    group: 'form',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    component: ConfirmDialog as any,
+    props: [
+      { name: 'open', type: 'boolean', default: true, description: '是否打开' },
+      { name: 'title', type: 'string', default: '删除模板', description: '弹窗标题' },
+      {
+        name: 'message',
+        type: 'string',
+        default: '确定要删除 "frontend-engineer" 模板吗？此操作不可撤销。',
+        description: '提示内容',
+      },
+      { name: 'confirmLabel', type: 'string', default: '删除', description: '确认按钮文案' },
+      { name: 'cancelLabel', type: 'string', default: '取消', description: '取消按钮文案' },
+      {
+        name: 'variant',
+        type: 'enum',
+        options: ['default', 'danger'],
+        default: 'danger',
+        description: '变体（danger 红色确认按钮）',
+      },
+    ],
+    defaults: {
+      open: true,
+      title: '删除模板',
+      message: '确定要删除 "frontend-engineer" 模板吗？此操作不可撤销。',
+      confirmLabel: '删除',
+      cancelLabel: '取消',
+      variant: 'danger',
+    },
+    handlers: (setValues) => ({
+      onConfirm: () => setValues((p) => ({ ...p, open: false })),
+      onCancel: () => setValues((p) => ({ ...p, open: false })),
+    }),
+    note: 'Modal + Button 组合；danger 变体为红色确认，default 为蓝色',
+  },
+  {
     name: 'MessageBubble',
     layer: 'molecules',
+    group: 'chat',
     component: MessageBubble,
     props: [
       {
@@ -372,6 +626,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'MessageRow',
     layer: 'molecules',
+    group: 'chat',
     component: MessageRow,
     props: [
       {
@@ -403,6 +658,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'ChatHeader',
     layer: 'molecules',
+    group: 'chat',
     component: ChatHeader,
     props: [
       { name: 'name', type: 'string', default: 'M-TEAM', description: '团队名' },
@@ -414,6 +670,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'ChatInput',
     layer: 'molecules',
+    group: 'chat',
     component: ChatInput,
     props: [
       { name: 'placeholder', type: 'string', default: '输入消息…', description: '占位符' },
@@ -430,6 +687,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'AgentSwitcher',
     layer: 'molecules',
+    group: 'nav',
     component: AgentSwitcher,
     props: [
       { name: 'activeId', type: 'string', default: 'claude', description: '当前激活 Agent id' },
@@ -447,6 +705,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'ToolBar',
     layer: 'molecules',
+    group: 'nav',
     component: ToolBar,
     props: [
       {
@@ -456,22 +715,32 @@ export const registry: ComponentEntry[] = [
         default: 'claude',
         description: '当前选中的模型 value',
       },
+      {
+        name: 'teamPanelActive',
+        type: 'boolean',
+        default: false,
+        description: '成员面板按钮激活态（点击按钮可切换）',
+      },
     ],
     defaults: {
       currentModel: 'claude',
+      teamPanelActive: false,
       modelOptions: [
         { value: 'claude', label: 'Claude' },
         { value: 'codex', label: 'Codex' },
       ],
     },
-    note: 'ChatPanel footer 工具条：左侧模型下拉 + 右侧齿轮',
+    note: 'ChatPanel footer 工具条：左侧模型下拉 + 右侧 [👥 成员] [⚙ 设置]',
     handlers: (setValues) => ({
       onModelChange: (v: unknown) => setValues((p) => ({ ...p, currentModel: v as string })),
+      onTeamPanel: () => setValues((p) => ({ ...p, teamPanelActive: !p.teamPanelActive })),
+      onSettings: () => {},
     }),
   },
   {
     name: 'DragHandle',
     layer: 'molecules',
+    group: 'nav',
     component: DragHandle,
     props: [
       { name: 'visible', type: 'boolean', default: true, description: '显示' },
@@ -481,6 +750,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'MessageBadge',
     layer: 'molecules',
+    group: 'nav',
     component: MessageBadge,
     props: [
       { name: 'count', type: 'number', default: 5, description: '计数' },
@@ -497,6 +767,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'NotificationStack',
     layer: 'molecules',
+    group: 'display-mol',
     component: NotificationStack,
     props: [
       { name: 'maxVisible', type: 'number', default: 3, description: '最多显示层数' },
@@ -515,6 +786,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'CapsuleCard',
     layer: 'organisms',
+    group: 'full',
     component: CapsuleCard,
     props: [
       { name: 'name', type: 'string', default: 'M-TEAM', description: '团队名' },
@@ -536,6 +808,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'ChatPanel',
     layer: 'organisms',
+    group: 'full',
     component: ChatPanel,
     props: [],
     defaults: {
@@ -557,11 +830,7 @@ export const registry: ComponentEntry[] = [
         { id: '4', role: 'user', content: '帮我优化 MTEAM 窗口的 UI 设计', time: '20:50', read: true },
         { id: '5', role: 'agent', agentName: 'Claude', content: '', time: '', thinking: true },
       ],
-      agents: [
-        { id: 'claude', name: 'Claude', active: true },
-        { id: 'codex', name: 'Codex' },
-        { id: 'qwen', name: 'Qwen' },
-      ],
+      agents: [],
       inputPlaceholder: '给 MTEAM 发送消息...',
       toolBar: React.createElement(ToolBar, {
         modelOptions: [
@@ -572,11 +841,12 @@ export const registry: ComponentEntry[] = [
         onModelChange: () => {},
       }),
     },
-    note: '消息/Agent 列表为 mock；footer 注入 ToolBar slot（模型切换+齿轮）',
+    note: '主 Agent 场景不显示 AgentSwitcher，模型切换走 ToolBar Dropdown',
   },
   {
     name: 'TeamSidebarItem',
     layer: 'atoms',
+    group: 'display',
     component: TeamSidebarItem,
     props: [
       { name: 'name', type: 'string', default: 'Frontend', description: '团队名' },
@@ -589,6 +859,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'TeamSidebar',
     layer: 'molecules',
+    group: 'team',
     component: TeamSidebar,
     props: [
       { name: 'activeTeamId', type: 'string', default: 'frontend', description: '激活 team id' },
@@ -608,6 +879,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'AgentCard',
     layer: 'molecules',
+    group: 'team',
     component: AgentCard,
     props: [
       { name: 'name', type: 'string', default: 'Claude', description: 'Agent 名' },
@@ -628,6 +900,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'TeamCanvas',
     layer: 'organisms',
+    group: 'full',
     component: TeamCanvas,
     props: [],
     defaults: {
@@ -643,6 +916,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'TeamMonitorPanel',
     layer: 'organisms',
+    group: 'full',
     component: TeamMonitorPanel,
     props: [
       { name: 'activeTeamId', type: 'string', default: 'frontend', description: '激活 team id' },
@@ -670,6 +944,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'CliList',
     layer: 'molecules',
+    group: 'team',
     component: CliList,
     props: [],
     defaults: {
@@ -684,6 +959,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'PrimaryAgentSettings',
     layer: 'organisms',
+    group: 'full',
     component: PrimaryAgentSettings,
     props: [
       { name: 'running', type: 'boolean', default: false, description: '总控是否运行中' },
@@ -711,6 +987,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'NotificationCenter',
     layer: 'organisms',
+    group: 'full',
     component: NotificationCenter,
     props: [
       { name: 'open', type: 'boolean', default: true, description: '是否展开抽屉' },
@@ -737,6 +1014,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'RosterList',
     layer: 'molecules',
+    group: 'team',
     component: RosterList,
     props: [],
     defaults: {
@@ -757,6 +1035,7 @@ export const registry: ComponentEntry[] = [
   {
     name: 'AgentList',
     layer: 'organisms',
+    group: 'full',
     component: AgentList,
     props: [],
     defaults: {
@@ -771,17 +1050,96 @@ export const registry: ComponentEntry[] = [
   {
     name: 'TemplateEditor',
     layer: 'organisms',
+    group: 'full',
     component: TemplateEditor,
-    props: [],
+    props: [
+      { name: 'isEdit', type: 'boolean', default: false, description: '编辑模式（name 只读）' },
+    ],
     defaults: {
-      template: { name: 'frontend-engineer', role: 'engineer', persona: '负责前端开发与 UI 实现。', availableMcps: ['filesystem', 'git'] },
+      isEdit: false,
+      template: {
+        name: 'frontend-engineer',
+        role: 'engineer',
+        description: 'Frontend developer focused on React/TypeScript',
+        persona: '负责前端开发与 UI 实现。',
+        avatar: 'avatar-03',
+        availableMcps: ['filesystem', 'git'],
+      },
       mcpOptions: ['filesystem', 'git', 'github', 'browser', 'shell'],
+      existingNames: ['frontend-engineer', 'qa-engineer', 'reviewer'],
+      avatars: Array.from({ length: 20 }, (_, i) => {
+        const n = String(i + 1).padStart(2, '0');
+        return { id: `avatar-${n}`, filename: `avatar-${n}.png`, builtin: true };
+      }),
     },
-    note: 'Save 触发 onSave（payload = 当前表单值）；Cancel 触发 onCancel',
+    handlers: (setValues) => ({
+      onRandomAvatar: () => setValues((prev) => {
+        const list = (prev.avatars as { id: string }[]) || [];
+        if (list.length === 0) return prev;
+        const pick = list[Math.floor(Math.random() * list.length)];
+        const tpl = (prev.template as Record<string, unknown>) || {};
+        return { ...prev, template: { ...tpl, avatar: pick.id } };
+      }),
+    }),
+    note: 'FormField/Input/Textarea/Tag/AvatarPicker 组合；isEdit=true 时名称只读；existingNames 用于查重',
+  },
+  {
+    name: 'TemplateList',
+    layer: 'organisms',
+    group: 'full',
+    component: TemplateList,
+    props: [
+      { name: 'loading', type: 'boolean', default: false, description: '加载态（骨架屏）' },
+    ],
+    defaults: {
+      loading: false,
+      templates: [
+        {
+          name: 'frontend-engineer',
+          role: 'engineer',
+          description: 'Frontend developer focused on React/TypeScript, responsive design and accessibility.',
+          persona: 'You are a skilled frontend engineer...',
+          avatar: 'avatar-03',
+          availableMcps: [
+            { name: 'mteam', surface: ['send_msg'], search: '*' },
+            { name: 'filesystem', surface: '*', search: '*' },
+            { name: 'git', surface: '*', search: '*' },
+            { name: 'github', surface: '*', search: '*' },
+          ],
+          createdAt: '2026-04-26T10:00:00Z',
+          updatedAt: '2026-04-27T10:30:00Z',
+        },
+        {
+          name: 'qa-reviewer',
+          role: 'qa',
+          description: 'Careful code reviewer. Ensures test coverage and regression safety.',
+          persona: 'You review PRs...',
+          avatar: 'avatar-07',
+          availableMcps: [
+            { name: 'mteam', surface: ['send_msg', 'read_message'], search: '*' },
+            { name: 'filesystem', surface: '*', search: '*' },
+          ],
+          createdAt: '2026-04-26T11:00:00Z',
+          updatedAt: '2026-04-27T09:00:00Z',
+        },
+        {
+          name: 'pm-lead',
+          role: 'manager',
+          description: '项目经理，负责任务拆解与进度跟踪。',
+          persona: null,
+          avatar: 'avatar-12',
+          availableMcps: [{ name: 'mteam', surface: '*', search: '*' }],
+          createdAt: '2026-04-27T08:00:00Z',
+          updatedAt: '2026-04-27T08:00:00Z',
+        },
+      ],
+    },
+    note: '卡片网格；点击卡片 → onSelect；编辑/删除按钮；顶部 [新建模板]；空态与 loading 骨架屏',
   },
   {
     name: 'TurnRendering',
     layer: 'molecules',
+    group: 'chat',
     component: MessageRow,
     props: [
       { name: 'streaming', type: 'boolean', default: true, description: '流式输出（文本尾部光标）' },

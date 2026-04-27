@@ -4,7 +4,7 @@
 
 ## 设计契约
 
-见 `docs/phase-sandbox-acp/stage-4-mcp-http.md` §4.1。
+见 `packages/backend/docs/phase-sandbox-acp/stage-4-mcp-http.md` §4.1。
 
 核心约束：
 - **不 COPY backend 代码** — mteam / searchTools 留在 host backend 进程里，通过 MCP HTTP listener 暴露。容器里只跑 ACP agent 本体。

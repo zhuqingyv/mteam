@@ -1,7 +1,7 @@
 # Turn 聚合前端对接
 
 > **面向**：前端 UI（WS 下行 `turn.*` 事件 + WS 快照查询 `get_turns` + WS 冷历史 `get_turn_history`）。**主 Agent 只有 WS 一个数据源**：实时流、快照、冷历史翻页都走同一条 WS。HTTP 端点 `/api/panel/driver/:id/turns` 与 `/api/panel/driver/:id/turn-history` 仅作为后端内部/调试保留，前端禁调。Agent 不感知 Turn —— Turn 是后端从 agent 的 ACP `sessionUpdate` 聚合出来的产物，仅推给前端。
-> 后端权威：`docs/phase-ws/turn-aggregator-design.md`
+> 后端权威：`packages/backend/docs/phase-ws/turn-aggregator-design.md`
 > 场景：用户在 agent 窗口看 agent 工作过程（思考/回复/调工具/计划/用量）
 
 后端把一轮对话聚合成 **Turn**，Turn 里按 `seq` 排的 **TurnBlock** 就是渲染单元。后端推的 block 是**完整最新状态**（非 delta），前端按 `blockId` upsert 即可。

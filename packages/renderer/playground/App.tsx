@@ -1,4 +1,5 @@
-import { registry, type Layer } from './registry';
+import { useState } from 'react';
+import { registry, type Layer, type Group } from './registry';
 import ComponentCard from './ComponentCard';
 import CapsuleCard from '../src/organisms/CapsuleCard';
 import ChatHeader from '../src/molecules/ChatHeader';
@@ -9,13 +10,36 @@ import Logo from '../src/atoms/Logo';
 import NotificationCard from '../src/atoms/NotificationCard';
 import MessageBubble from '../src/molecules/MessageBubble';
 
-const PLAYGROUND_VERSION = '1.5.0';
+const PLAYGROUND_VERSION = '1.6.0';
 
-const LAYER_ORDER: Layer[] = ['atoms', 'molecules', 'organisms'];
-const LAYER_TITLE: Record<Layer, string> = {
+type Tab = Layer | 'scenes';
+
+const TAB_ORDER: Tab[] = ['atoms', 'molecules', 'organisms', 'scenes'];
+const TAB_TITLE: Record<Tab, string> = {
   atoms: 'Atoms',
   molecules: 'Molecules',
   organisms: 'Organisms',
+  scenes: 'Scenes',
+};
+
+// Ordered sub-groups per layer (drives the order of sub-sections in the UI).
+const GROUPS_BY_LAYER: Record<Layer, Group[]> = {
+  atoms: ['basic', 'input', 'display', 'container'],
+  molecules: ['form', 'chat', 'nav', 'team', 'display-mol'],
+  organisms: ['full'],
+};
+
+const GROUP_TITLE: Record<Group, string> = {
+  basic: '基础',
+  input: '输入',
+  display: '展示',
+  container: '容器',
+  form: '表单',
+  chat: '聊天',
+  nav: '导航',
+  team: '团队',
+  'display-mol': '展示',
+  full: '综合',
 };
 
 const SCENE_MESSAGES = [
@@ -43,7 +67,117 @@ const SCENE_AGENTS = [
   { id: 'qwen', name: 'Qwen' },
 ];
 
+function LayerPane({ layer }: { layer: Layer }) {
+  const layerEntries = registry.filter((e) => e.layer === layer);
+  const groups = GROUPS_BY_LAYER[layer];
+  return (
+    <section className="playground__section">
+      {groups.map((group) => {
+        const entries = layerEntries.filter((e) => e.group === group);
+        if (entries.length === 0) return null;
+        return (
+          <div key={group} className="playground__group">
+            <h3 className="playground__group-title">{GROUP_TITLE[group]}</h3>
+            <div className="playground__grid">
+              {entries.map((entry) => (
+                <ComponentCard key={entry.name} entry={entry} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function ScenesPane() {
+  return (
+    <section className="playground__section">
+      <div className="scenes">
+        <div className="scenes__item">
+          <div className="scenes__label">收起态 · Capsule</div>
+          <div className="scenes__stage scenes__stage--capsule">
+            <CapsuleCard name="M-TEAM" agentCount={3} taskCount={2} messageCount={5} online />
+          </div>
+        </div>
+        <div className="scenes__item">
+          <div className="scenes__label">展开态 · Expanded Panel</div>
+          <div className="scenes__stage scenes__stage--expanded">
+            <div className="scenes__panel">
+              <ChatHeader name="M-TEAM" online />
+              <ChatPanel messages={SCENE_MESSAGES} agents={SCENE_AGENTS} inputPlaceholder="给 MTEAM 发送消息..." />
+            </div>
+          </div>
+        </div>
+      </div>
+      <h3 className="playground__subsection-title">Component States</h3>
+      <div className="states">
+        <div className="states__item">
+          <div className="states__label">StatusDot · 三态</div>
+          <div className="states__stage">
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+              <StatusDot status="online" />
+              <StatusDot status="busy" />
+              <StatusDot status="offline" />
+            </div>
+          </div>
+        </div>
+        <div className="states__item">
+          <div className="states__label">Button · 四态</div>
+          <div className="states__stage">
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Button variant="primary">Primary</Button>
+              <Button variant="ghost">Ghost</Button>
+              <Button variant="dots" />
+              <Button variant="primary" disabled>Disabled</Button>
+            </div>
+          </div>
+        </div>
+        <div className="states__item">
+          <div className="states__label">MessageBubble · 三态</div>
+          <div className="states__stage">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 400 }}>
+              <MessageBubble variant="agent" agentName="Claude">Agent 消息示例</MessageBubble>
+              <MessageBubble variant="user">用户消息示例</MessageBubble>
+              <MessageBubble variant="thinking" agentName="Claude" />
+            </div>
+          </div>
+        </div>
+        <div className="states__item">
+          <div className="states__label">Logo · 三态（online / connecting 呼吸 / offline）</div>
+          <div className="states__stage" data-testid="logo-states-stage">
+            <div style={{ display: 'flex', gap: 16 }}>
+              <span data-testid="logo-online"><Logo size={44} status="online" /></span>
+              <span data-testid="logo-connecting"><Logo size={44} status="connecting" /></span>
+              <span data-testid="logo-offline"><Logo size={44} status="offline" /></span>
+            </div>
+          </div>
+        </div>
+        <div className="states__item">
+          <div className="states__label">NotificationCard · 三种类型</div>
+          <div className="states__stage">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <NotificationCard title="任务完成" message="UI Bug 已修复" time="刚刚" type="task" />
+              <NotificationCard title="新消息" message="收到一条消息" time="2分钟前" type="info" />
+              <NotificationCard title="构建失败" message="vite build 报错" time="5分钟前" type="error" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
+  const [activeTab, setActiveTab] = useState<Tab>('atoms');
+
+  const tabCount: Record<Tab, number> = {
+    atoms: registry.filter((e) => e.layer === 'atoms').length,
+    molecules: registry.filter((e) => e.layer === 'molecules').length,
+    organisms: registry.filter((e) => e.layer === 'organisms').length,
+    scenes: 0,
+  };
+
   return (
     <div className="playground">
       <header className="playground__header">
@@ -55,94 +189,27 @@ export default function App() {
           Dark glass components · atoms · molecules · organisms · scenes
         </p>
       </header>
-      {LAYER_ORDER.map((layer) => {
-        const entries = registry.filter((e) => e.layer === layer);
-        if (entries.length === 0) return null;
-        return (
-          <section key={layer} className="playground__section">
-            <h2 className="playground__section-title">{LAYER_TITLE[layer]}</h2>
-            <div className="playground__grid">
-              {entries.map((entry) => (
-                <ComponentCard key={entry.name} entry={entry} />
-              ))}
-            </div>
-          </section>
-        );
-      })}
-      <section className="playground__section">
-        <h2 className="playground__section-title">Scenes</h2>
-        <div className="scenes">
-          <div className="scenes__item">
-            <div className="scenes__label">收起态 · Capsule</div>
-            <div className="scenes__stage scenes__stage--capsule">
-              <CapsuleCard name="M-TEAM" agentCount={3} taskCount={2} messageCount={5} online />
-            </div>
-          </div>
-          <div className="scenes__item">
-            <div className="scenes__label">展开态 · Expanded Panel</div>
-            <div className="scenes__stage scenes__stage--expanded">
-              <div className="scenes__panel">
-                <ChatHeader name="M-TEAM" online />
-                <ChatPanel messages={SCENE_MESSAGES} agents={SCENE_AGENTS} inputPlaceholder="给 MTEAM 发送消息..." />
-              </div>
-            </div>
-          </div>
-        </div>
-        <h3 className="playground__subsection-title">Component States</h3>
-        <div className="states">
-          <div className="states__item">
-            <div className="states__label">StatusDot · 三态</div>
-            <div className="states__stage">
-              <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                <StatusDot status="online" />
-                <StatusDot status="busy" />
-                <StatusDot status="offline" />
-              </div>
-            </div>
-          </div>
-          <div className="states__item">
-            <div className="states__label">Button · 四态</div>
-            <div className="states__stage">
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                <Button variant="primary">Primary</Button>
-                <Button variant="ghost">Ghost</Button>
-                <Button variant="dots" />
-                <Button variant="primary" disabled>Disabled</Button>
-              </div>
-            </div>
-          </div>
-          <div className="states__item">
-            <div className="states__label">MessageBubble · 三态</div>
-            <div className="states__stage">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 400 }}>
-                <MessageBubble variant="agent" agentName="Claude">Agent 消息示例</MessageBubble>
-                <MessageBubble variant="user">用户消息示例</MessageBubble>
-                <MessageBubble variant="thinking" agentName="Claude" />
-              </div>
-            </div>
-          </div>
-          <div className="states__item">
-            <div className="states__label">Logo · 三态（online / connecting 呼吸 / offline）</div>
-            <div className="states__stage" data-testid="logo-states-stage">
-              <div style={{ display: 'flex', gap: 16 }}>
-                <span data-testid="logo-online"><Logo size={44} status="online" /></span>
-                <span data-testid="logo-connecting"><Logo size={44} status="connecting" /></span>
-                <span data-testid="logo-offline"><Logo size={44} status="offline" /></span>
-              </div>
-            </div>
-          </div>
-          <div className="states__item">
-            <div className="states__label">NotificationCard · 三种类型</div>
-            <div className="states__stage">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <NotificationCard title="任务完成" message="UI Bug 已修复" time="刚刚" type="task" />
-                <NotificationCard title="新消息" message="收到一条消息" time="2分钟前" type="info" />
-                <NotificationCard title="构建失败" message="vite build 报错" time="5分钟前" type="error" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <nav className="playground__tabs" role="tablist" aria-label="Component categories">
+        {TAB_ORDER.map((tab) => {
+          const active = tab === activeTab;
+          return (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={`playground__tab${active ? ' playground__tab--active' : ''}`}
+              onClick={() => setActiveTab(tab)}
+            >
+              <span className="playground__tab-label">{TAB_TITLE[tab]}</span>
+              {tab !== 'scenes' && (
+                <span className="playground__tab-count">{tabCount[tab]}</span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+      {activeTab === 'scenes' ? <ScenesPane /> : <LayerPane layer={activeTab} />}
     </div>
   );
 }

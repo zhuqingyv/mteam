@@ -197,6 +197,31 @@ describe('[guard] 主 Agent 启动链集成守卫', () => {
     await agent.teardown();
   });
 
+  it('[3b] CLI 延迟扫描完成但仍不可用 — 不死循环', async () => {
+    // 复现 bug：ready() resolve 后 isAvailable 仍 false → 旧代码无条件 reboot() → 无限循环
+    clearCli();
+    const resolveReady = setControlledReady();
+    const bus = new EventBus();
+    const runtime = new FakeRuntime();
+    const agent = new PrimaryAgent(bus, runtime, new DriverRegistry());
+
+    // boot 进入 wait-cli
+    agent.boot();
+    expect(agent.isRunning()).toBe(false);
+
+    // 扫描完成，但 CLI 仍不可用（snapshot 标记 available=false）
+    stubCli(false);
+    resolveReady();
+    // 让 microtask 和宏任务 flush
+    await new Promise((r) => setTimeout(r, 50));
+
+    // 不应死循环，应停在 stopped 状态
+    expect(agent.isRunning()).toBe(false);
+    expect(runtime.handles).toHaveLength(0);
+
+    await agent.teardown();
+  });
+
   it('[4] driver.start 失败：status 回 STOPPED、registry 不留驻', async () => {
     const bus = new EventBus();
     const events = collect(bus);

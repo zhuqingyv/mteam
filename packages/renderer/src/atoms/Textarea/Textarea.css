@@ -1,0 +1,83 @@
+.textarea {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: linear-gradient(
+    135deg,
+    rgba(40, 44, 56, 0.65) 0%,
+    rgba(28, 30, 38, 0.72) 100%
+  );
+  backdrop-filter: blur(50px) saturate(150%);
+  -webkit-backdrop-filter: blur(50px) saturate(150%);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.28),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.25),
+    inset 0 0 18px rgba(180, 190, 220, 0.22),
+    inset 0 0 40px rgba(150, 160, 200, 0.14),
+    0 0 6px rgba(160, 170, 200, 0.22),
+    0 0 16px rgba(140, 150, 180, 0.14),
+    0 0 30px rgba(120, 130, 170, 0.08);
+  transition:
+    border-color var(--duration-base, 200ms) var(--easing-standard, ease),
+    box-shadow var(--duration-base, 200ms) var(--easing-standard, ease);
+  -webkit-app-region: no-drag;
+}
+
+.textarea:hover:not(.textarea--disabled) {
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.34),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.25),
+    inset 0 0 22px rgba(180, 190, 220, 0.28),
+    inset 0 0 44px rgba(150, 160, 200, 0.18),
+    0 0 8px rgba(160, 170, 200, 0.28),
+    0 0 20px rgba(140, 150, 180, 0.18),
+    0 0 36px rgba(120, 130, 170, 0.1);
+}
+
+.textarea:focus-within:not(.textarea--disabled) {
+  border-color: rgba(var(--color-accent-primary-rgb, 74, 163, 255), 0.5);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.34),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.25),
+    inset 0 0 18px rgba(180, 190, 220, 0.26),
+    0 0 0 3px rgba(var(--color-accent-primary-rgb, 74, 163, 255), 0.14),
+    0 0 18px rgba(var(--color-accent-primary-rgb, 74, 163, 255), 0.2);
+}
+
+.textarea__field {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  resize: vertical;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  font: 400 13px/1.55 var(--font-family-ui, "SF Pro Display", -apple-system, system-ui, sans-serif);
+  padding: 0;
+  min-height: 22px;
+}
+
+.textarea__field::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+}
+
+.textarea__field:disabled {
+  cursor: not-allowed;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.textarea--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.textarea__counter {
+  align-self: flex-end;
+  margin-top: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
