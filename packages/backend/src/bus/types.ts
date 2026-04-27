@@ -13,6 +13,7 @@
 import type { DriverBusEvent } from './driver-events.js';
 import type { TurnBusEvent } from './turn-events.js';
 import type { PrimaryAgentRow } from '../primary-agent/types.js';
+import type { ActionItem, ActorId } from '../action-item/types.js';
 
 // ---------- 事件类型联合（全部事件域并入）----------
 
@@ -67,7 +68,12 @@ export type BusEventType =
   | 'notification.delivered'
   | 'runtime.fatal'
   | 'memory.warn'
-  | 'process.reaped';
+  | 'process.reaped'
+  | 'action_item.created'
+  | 'action_item.updated'
+  | 'action_item.reminder'
+  | 'action_item.resolved'
+  | 'action_item.timeout';
 
 export interface BusEventBase {
   type: BusEventType;
@@ -342,6 +348,41 @@ export interface ProcessReapedEvent extends BusEventBase {
   reason: 'orphan' | 'stale_temp';
 }
 
+// ---------- action_item 域（Phase 4 · C-4）----------
+// source 约定为 'action-item'。created/updated/resolved/timeout 由 ws-broadcaster
+// 按 creator/assignee/teamId 三个维度投递；reminder 仅投递给 assignee。
+
+export interface ActionItemCreatedEvent extends BusEventBase {
+  type: 'action_item.created';
+  item: ActionItem;
+}
+
+export interface ActionItemUpdatedEvent extends BusEventBase {
+  type: 'action_item.updated';
+  item: ActionItem;
+  /** 本次变更的字段清单，便于前端增量更新。 */
+  changed: Array<'status' | 'title' | 'description' | 'deadline' | 'remindedAt' | 'resolution'>;
+}
+
+export interface ActionItemReminderEvent extends BusEventBase {
+  type: 'action_item.reminder';
+  itemId: string;
+  assignee: ActorId;
+  /** 剩余时间（ms）。 */
+  remainingMs: number;
+}
+
+export interface ActionItemResolvedEvent extends BusEventBase {
+  type: 'action_item.resolved';
+  item: ActionItem;
+  outcome: 'done' | 'rejected' | 'cancelled';
+}
+
+export interface ActionItemTimeoutEvent extends BusEventBase {
+  type: 'action_item.timeout';
+  item: ActionItem;
+}
+
 // ---------- BusEvent 总联合 ----------
 
 export type BusEvent =
@@ -377,4 +418,9 @@ export type BusEvent =
   | NotificationDeliveredEvent
   | RuntimeFatalEvent
   | MemoryWarnEvent
-  | ProcessReapedEvent;
+  | ProcessReapedEvent
+  | ActionItemCreatedEvent
+  | ActionItemUpdatedEvent
+  | ActionItemReminderEvent
+  | ActionItemResolvedEvent
+  | ActionItemTimeoutEvent;

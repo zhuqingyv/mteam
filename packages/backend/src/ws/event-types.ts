@@ -48,4 +48,9 @@ export const WS_EVENT_TYPES: ReadonlySet<BusEventType> = new Set<BusEventType>([
   'container.exited',
   'container.crashed',
   'notification.delivered',
+  'action_item.created',
+  'action_item.updated',
+  'action_item.reminder',
+  'action_item.resolved',
+  'action_item.timeout',
 ]);
