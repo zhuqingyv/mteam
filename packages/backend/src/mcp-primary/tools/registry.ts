@@ -1,5 +1,7 @@
 import type { PrimaryMcpEnv } from '../config.js';
 import { createLeaderSchema, runCreateLeader } from './create_leader.js';
+import { searchSettingsSchema, runSearchSettings } from './search_settings.js';
+import { callSettingSchema, runCallSetting } from './call_setting.js';
 
 export interface ToolSchema {
   name: string;
@@ -27,6 +29,14 @@ export const ALL_TOOLS: ToolEntry[] = [
   {
     schema: createLeaderSchema,
     handler: ({ env }, args) => runCreateLeader(env, args),
+  },
+  {
+    schema: searchSettingsSchema,
+    handler: (_deps, args) => runSearchSettings(args),
+  },
+  {
+    schema: callSettingSchema,
+    handler: (_deps, args) => runCallSetting(args),
   },
 ];
 
