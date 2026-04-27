@@ -48,12 +48,14 @@ var import_node_path = require("node:path");
 var import_node_url = require("node:url");
 var __dirname2 = import_node_path.dirname(import_node_url.fileURLToPath("file:///Users/zhuqingyu/project/mcp-team-hub/packages/renderer/electron-main/backend.ts"));
 var BACKEND_ENTRY = import_node_path.resolve(__dirname2, "..", "..", "backend", "src", "http", "server.ts");
+var KILL_GRACE_MS = 2000;
 var child = null;
 function startBackend() {
   if (child && child.exitCode === null)
     return child;
   child = import_node_child_process.spawn("bun", ["run", BACKEND_ENTRY], {
-    stdio: ["ignore", "inherit", "inherit"],
+    detached: true,
+    stdio: ["pipe", "inherit", "inherit"],
     env: { ...process.env }
   });
   child.on("exit", (code, signal) => {
@@ -64,10 +66,15 @@ function startBackend() {
   return child;
 }
 function stopBackend() {
-  if (!child)
+  if (!child || typeof child.pid !== "number")
     return;
-  try {
-    child.kill("SIGTERM");
-  } catch {}
+  const pid = child.pid;
   child = null;
+  const kill = (sig) => {
+    try {
+      process.kill(-pid, sig);
+    } catch {}
+  };
+  kill("SIGTERM");
+  setTimeout(() => kill("SIGKILL"), KILL_GRACE_MS).unref?.();
 }

@@ -1,6 +1,9 @@
 import { runLookup } from './lookup.js';
-import type { CommClient } from '../comm-client.js';
+import type { CommLike } from '../comm-like.js';
 import type { MteamEnv } from '../config.js';
+
+const ALLOWED_KINDS = ['chat', 'task'] as const;
+type AllowedKind = (typeof ALLOWED_KINDS)[number];
 
 export const sendMsgSchema = {
   name: 'send_msg',
@@ -10,10 +13,12 @@ export const sendMsgSchema = {
     type: 'object' as const,
     properties: {
       to: { type: 'string', description: 'Target: address, alias, member_name, or instanceId.' },
-      summary: { type: 'string', maxLength: 200, description: 'Short summary.' },
+      summary: { type: 'string', maxLength: 200, description: 'Short summary. Defaults to "给你发了一条消息" when omitted.' },
       content: { type: 'string', description: 'Full message body.' },
+      kind: { type: 'string', enum: ALLOWED_KINDS, description: 'Message kind; defaults to "chat". system/broadcast are not allowed from this tool.' },
+      replyTo: { type: 'string', description: 'Optional envelope id this message replies to.' },
     },
-    required: ['to', 'summary', 'content'],
+    required: ['to', 'content'],
     additionalProperties: false,
   },
 };
@@ -25,15 +30,22 @@ function isAddress(s: string): boolean {
 
 export async function runSendMsg(
   env: MteamEnv,
-  comm: CommClient,
-  args: { to?: unknown; summary?: unknown; content?: unknown },
+  comm: CommLike,
+  args: { to?: unknown; summary?: unknown; content?: unknown; kind?: unknown; replyTo?: unknown },
 ): Promise<unknown> {
   const to = typeof args.to === 'string' ? args.to : '';
-  const summary = typeof args.summary === 'string' ? args.summary : '';
   const content = typeof args.content === 'string' ? args.content : '';
   if (!to) return { error: 'to is required' };
-  if (!summary) return { error: 'summary is required' };
   if (!content) return { error: 'content is required' };
+  const summary = typeof args.summary === 'string' && args.summary.length > 0 ? args.summary : '给你发了一条消息';
+  let kind: AllowedKind = 'chat';
+  if (args.kind !== undefined) {
+    if (typeof args.kind !== 'string' || !(ALLOWED_KINDS as readonly string[]).includes(args.kind)) {
+      return { error: `kind must be one of ${ALLOWED_KINDS.join('/')}` };
+    }
+    kind = args.kind as AllowedKind;
+  }
+  const replyTo = typeof args.replyTo === 'string' && args.replyTo.length > 0 ? args.replyTo : undefined;
 
   let address: string;
   if (isAddress(to)) {
@@ -49,8 +61,10 @@ export async function runSendMsg(
     address = res.target.address;
   }
 
+  const payload: Record<string, unknown> = { summary, content, kind };
+  if (replyTo !== undefined) payload.replyTo = replyTo;
   try {
-    await comm.send({ to: address, payload: { summary, content } });
+    await comm.send({ to: address, payload });
   } catch (e) {
     return { error: `send failed: ${(e as Error).message}` };
   }

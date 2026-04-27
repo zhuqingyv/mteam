@@ -78,7 +78,7 @@ describe('EventBus', () => {
 
   // --- onPrefix 前缀过滤 ---
   describe('onPrefix', () => {
-    it('onPrefix("instance.") 收到所有 instance.* 但不收 pty.*', () => {
+    it('onPrefix("instance.") 收到所有 instance.* 但不收 driver.*', () => {
       const received: string[] = [];
       const sub = bus.onPrefix('instance.').subscribe((e) => received.push(e.type));
 
@@ -101,11 +101,10 @@ describe('EventBus', () => {
         actor: null,
       });
       bus.emit({
-        type: 'pty.spawned',
+        type: 'driver.started',
         ts: 't',
         source: 'test',
-        instanceId: 'i1',
-        pid: 123,
+        driverId: 'd1',
       });
 
       expect(received).toEqual(['instance.created', 'instance.activated']);

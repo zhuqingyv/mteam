@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import ToolCallItem from '../../atoms/ToolCallItem';
+import Icon from '../../atoms/Icon';
 import './ToolCallList.css';
 
 export interface ToolCall {
@@ -17,7 +18,6 @@ interface ToolCallListProps {
 
 export default function ToolCallList({ calls, defaultCollapsed = false }: ToolCallListProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
-  const visible = collapsed ? calls.slice(-1) : calls;
   return (
     <div className="tool-list">
       <button
@@ -25,21 +25,25 @@ export default function ToolCallList({ calls, defaultCollapsed = false }: ToolCa
         className="tool-list__header"
         onClick={() => setCollapsed((c) => !c)}
       >
-        <span className={`tool-list__chevron ${collapsed ? '' : 'tool-list__chevron--open'}`}>▸</span>
+        <span className={`tool-list__chevron ${collapsed ? '' : 'tool-list__chevron--open'}`}>
+          <Icon name="chevron" size={10} />
+        </span>
         <span>工具调用</span>
         <span className="tool-list__count">{calls.length}</span>
       </button>
-      <div className={`tool-list__body ${collapsed ? 'tool-list__body--collapsed' : ''}`}>
-        {visible.map((c) => (
-          <ToolCallItem
-            key={c.id}
-            toolName={c.toolName}
-            status={c.status}
-            summary={c.summary}
-            duration={c.duration}
-          />
-        ))}
-      </div>
+      {!collapsed && (
+        <div className="tool-list__body">
+          {calls.map((c) => (
+            <ToolCallItem
+              key={c.id}
+              toolName={c.toolName}
+              status={c.status}
+              summary={c.summary}
+              duration={c.duration}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

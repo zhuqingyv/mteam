@@ -2,12 +2,23 @@ import net from 'node:net';
 import { existsSync, unlinkSync } from 'node:fs';
 import { CommRegistry } from './registry.js';
 import { CommRouter } from './router.js';
+import type { DriverDispatcher } from './router.js';
 import { deserialize, serialize } from './protocol.js';
 import type { AnyMessage, SystemHandler } from './types.js';
+import { createMessageStore, type MessageStore } from './message-store.js';
+import { socketMessageToEnvelope } from './socket-envelope.js';
+import type { EventBus } from '../bus/events.js';
 
 interface ConnectionState {
   address: string | null;
   buffer: string;
+}
+
+export interface CommServerOptions {
+  driverDispatcher?: DriverDispatcher;
+  /** 可选：测试可注入 spy；默认走 createMessageStore()（真实 SQLite）。 */
+  messageStore?: MessageStore;
+  eventBus?: EventBus;
 }
 
 export class CommServer {
@@ -17,9 +28,14 @@ export class CommServer {
   readonly router: CommRouter;
   private states = new WeakMap<net.Socket, ConnectionState>();
 
-  constructor() {
+  constructor(opts: CommServerOptions = {}) {
     this.registry = new CommRegistry();
-    this.router = new CommRouter({ registry: this.registry });
+    this.router = new CommRouter({
+      registry: this.registry,
+      messageStore: opts.messageStore ?? createMessageStore(),
+      eventBus: opts.eventBus,
+      driverDispatcher: opts.driverDispatcher,
+    });
   }
 
   setSystemHandler(handler: SystemHandler | null): void {
@@ -120,7 +136,7 @@ export class CommServer {
       st.address = msg.address;
       this.registry.register(msg.address, sock);
       this.write(sock, { type: 'ack', ref: msg.address });
-      this.router.replay(msg.address);
+      void this.router.replay(msg.address);
       return;
     }
     if (msg.type === 'ping') {
@@ -128,7 +144,19 @@ export class CommServer {
       return;
     }
     if (msg.type === 'message') {
-      this.router.dispatch(msg);
+      let env;
+      try {
+        env = socketMessageToEnvelope(msg);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn(`[comm] build envelope failed: ${(e as Error).message}`);
+        this.write(sock, { type: 'ack', ref: msg.id });
+        return;
+      }
+      this.router.dispatch(env).catch((e: Error) => {
+        // eslint-disable-next-line no-console
+        console.warn(`[comm] dispatch error: ${e.message}`);
+      });
       this.write(sock, { type: 'ack', ref: msg.id });
       return;
     }

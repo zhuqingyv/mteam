@@ -15,8 +15,6 @@ export type {
   InstanceOfflineRequestedEvent,
   InstanceDeletedEvent,
   InstanceSessionRegisteredEvent,
-  PtySpawnedEvent,
-  PtyExitedEvent,
   CommRegisteredEvent,
   CommDisconnectedEvent,
   CommMessageSentEvent,
@@ -42,7 +40,19 @@ export type {
   DriverTextEvent,
   DriverToolCallEvent,
   DriverToolResultEvent,
+  DriverToolUpdateEvent,
+  DriverPlanEvent,
+  DriverCommandsEvent,
+  DriverModeEvent,
+  DriverConfigEvent,
+  DriverSessionInfoEvent,
+  DriverUsageEvent,
+  DriverTurnStartEvent,
   DriverTurnDoneEvent,
+  TurnStartedEvent,
+  TurnBlockUpdatedEvent,
+  TurnCompletedEvent,
+  TurnErrorEvent,
 } from './types.js';
 
 export class EventBus {

@@ -6,6 +6,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { McpManager } from '../mcp-store/mcp-manager.js';
+import type { ResolvedMcpSpec } from '../mcp-store/types.js';
 
 const originalHome = process.env.HOME;
 
@@ -22,6 +23,13 @@ afterAll(() => {
   else process.env.HOME = originalHome;
 });
 
+function findSpec(
+  specs: ResolvedMcpSpec[],
+  name: string,
+): ResolvedMcpSpec | undefined {
+  return specs.find((s) => s.name === name);
+}
+
 describe('McpManager.resolve searchTools 注入', () => {
   it('空模板时也注入 searchTools', () => {
     const mgr = new McpManager();
@@ -32,15 +40,17 @@ describe('McpManager.resolve searchTools 注入', () => {
       commSock: '/tmp/x.sock',
       isLeader: false,
     });
-    expect(r.configJson.mcpServers.searchTools).toBeDefined();
-    const cfg = r.configJson.mcpServers.searchTools;
-    expect(cfg?.env.ROLE_INSTANCE_ID).toBe('inst-1');
-    expect(cfg?.env.V2_SERVER_URL).toBe('http://localhost:58580');
-    expect(cfg?.command).toBe(process.execPath);
+    const spec = findSpec(r.specs, 'searchTools');
+    expect(spec).toBeDefined();
+    expect(spec?.kind).toBe('builtin');
+    if (spec?.kind === 'builtin') {
+      expect(spec.env.ROLE_INSTANCE_ID).toBe('inst-1');
+      expect(spec.env.V2_SERVER_URL).toBe('http://localhost:58580');
+    }
     mgr.teardown();
   });
 
-  it('searchTools 不进 visibility（它不是模板管理的 MCP）', () => {
+  it('resolve 产物只含 specs + skipped（已无 configJson / visibility 顶层字段）', () => {
     const mgr = new McpManager();
     mgr.boot();
     const r = mgr.resolve([], {
@@ -49,7 +59,7 @@ describe('McpManager.resolve searchTools 注入', () => {
       commSock: '/tmp/y.sock',
       isLeader: false,
     });
-    expect(r.visibility).toEqual({});
+    expect(Object.keys(r).sort()).toEqual(['skipped', 'specs']);
     mgr.teardown();
   });
 

@@ -13,7 +13,7 @@ export interface SearchEnv {
   hubUrl: string;
 }
 
-function readEnv(): SearchEnv {
+export function readSearchEnv(): SearchEnv {
   const instanceId = process.env.ROLE_INSTANCE_ID ?? '';
   if (!instanceId) throw new Error('ROLE_INSTANCE_ID env is required');
   const port = process.env.V2_PORT ?? '58580';
@@ -84,8 +84,8 @@ function toTextResult(
   };
 }
 
-// 纯构造：给 env，返回挂好 list/call handler 的 Server。
-// transport / signal / 日志由调用方负责（mcp-http listener、单测、stdio 入口）。
+// 构造 searchTools MCP Server：注册 ListTools / CallTool，不 connect、不绑 signal。
+// 由调用方负责挂 transport 与清理。
 export function createSearchToolsServer(env: SearchEnv): Server {
   const server = new Server(
     { name: 'searchTools', version: '0.1.0' },
@@ -110,8 +110,9 @@ export function createSearchToolsServer(env: SearchEnv): Server {
   return server;
 }
 
-export async function runSearchToolsServer(): Promise<void> {
-  const env = readEnv();
+// stdio 入口：子进程被 CLI 拉起时调用。
+export async function runSearchToolsServerStdio(): Promise<void> {
+  const env = readSearchEnv();
   const server = createSearchToolsServer(env);
 
   process.on('SIGINT', () => process.exit(0));

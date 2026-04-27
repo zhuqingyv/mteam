@@ -15,6 +15,7 @@ export {
 } from './client';
 
 export * from './cli';
+export * from './driver-turn-history';
 export * from './driver-turns';
 export * from './instances';
 export * from './mcp';

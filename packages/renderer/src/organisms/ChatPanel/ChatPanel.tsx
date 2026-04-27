@@ -1,8 +1,10 @@
+import type { ReactNode } from 'react';
 import MessageRow from '../../molecules/MessageRow';
 import AgentSwitcher from '../../molecules/AgentSwitcher';
 import ChatInput from '../../molecules/ChatInput';
 import VirtualList from '../../atoms/VirtualList';
 import type { ToolCall } from '../../molecules/ToolCallList';
+import type { TurnBlock } from '../../store/messageStore';
 import './ChatPanel.css';
 
 interface Message {
@@ -14,6 +16,9 @@ interface Message {
   agentName?: string;
   thinking?: boolean;
   toolCalls?: ToolCall[];
+  turnId?: string;
+  blocks?: TurnBlock[];
+  streaming?: boolean;
 }
 
 interface Agent {
@@ -30,6 +35,7 @@ interface ChatPanelProps {
   onInputChange?: (v: string) => void;
   onSend?: () => void;
   onSelectAgent?: (id: string) => void;
+  toolBar?: ReactNode;
 }
 
 export default function ChatPanel({
@@ -40,6 +46,7 @@ export default function ChatPanel({
   onInputChange,
   onSend,
   onSelectAgent,
+  toolBar,
 }: ChatPanelProps) {
   const activeId = agents.find((a) => a.active)?.id;
   return (
@@ -58,13 +65,18 @@ export default function ChatPanel({
                 agentName={m.agentName}
                 thinking={m.thinking}
                 toolCalls={m.toolCalls}
+                blocks={m.blocks}
+                streaming={m.streaming}
               />
             </div>
           )}
         />
       </div>
       <div className="chat-panel__footer">
-        <AgentSwitcher agents={agents} activeId={activeId} onSelect={onSelectAgent} />
+        {agents.length > 0 ? (
+          <AgentSwitcher agents={agents} activeId={activeId} onSelect={onSelectAgent} />
+        ) : null}
+        {toolBar}
         <ChatInput
           placeholder={inputPlaceholder}
           value={inputValue}

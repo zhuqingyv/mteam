@@ -10,6 +10,14 @@ const VITE_DEV_URL = process.env.VITE_DEV_URL;
 const IS_DEV = !!VITE_DEV_URL;
 const PET_SIZE = { width: 380, height: 120 };
 
+// dev 模式开启 CDP，便于 e2e 通过 Chrome DevTools Protocol 连接。
+// MTEAM_CDP_PORT 可覆盖默认端口，用于多 agent 并行 CDP 验证时避让冲突。
+if (IS_DEV) {
+  const CDP_PORT = process.env.MTEAM_CDP_PORT || '9222';
+  app.commandLine.appendSwitch('remote-debugging-port', CDP_PORT);
+  app.commandLine.appendSwitch('remote-allow-origins', '*');
+}
+
 let mainWindow: BrowserWindow | null = null;
 let teamPanelWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
@@ -64,12 +72,40 @@ function createWindow(): void {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
+// team 面板由 WS team.created 自动唤起，500ms 内多次触发去重。
+let lastTeamOpenAt = 0;
+const TEAM_OPEN_DEBOUNCE_MS = 500;
+
 function openPanel(key: 'team' | 'settings'): void {
   const cfg = key === 'team'
-    ? { ref: teamPanelWindow, w: 1200, h: 800, title: 'mteam — 团队面板', q: '?window=team' }
-    : { ref: settingsWindow, w: 600, h: 500, title: 'mteam — 设置', q: '?window=settings' };
-  if (cfg.ref && !cfg.ref.isDestroyed()) { cfg.ref.focus(); return; }
-  const win = new BrowserWindow({ ...baseGlassOptions, width: cfg.w, height: cfg.h, title: cfg.title });
+    ? { ref: teamPanelWindow, w: 1200, h: 800, minW: 800, minH: 600, title: 'mteam — 团队面板', q: '?window=team' }
+    : { ref: settingsWindow, w: 600, h: 500, minW: 400, minH: 300, title: 'mteam — 设置', q: '?window=settings' };
+  // stale ref 保险：on('closed') 已置 null，但防止异步时序或异常路径留下的已 destroy ref
+  if (cfg.ref && cfg.ref.isDestroyed()) {
+    if (key === 'team') teamPanelWindow = null;
+    else settingsWindow = null;
+    cfg.ref = null;
+  }
+  if (cfg.ref && !cfg.ref.isDestroyed()) {
+    if (key === 'team') {
+      const now = Date.now();
+      if (now - lastTeamOpenAt < TEAM_OPEN_DEBOUNCE_MS) return;
+      lastTeamOpenAt = now;
+      cfg.ref.focus();
+    } else {
+      cfg.ref.close();
+    }
+    return;
+  }
+  if (key === 'team') lastTeamOpenAt = Date.now();
+  const win = new BrowserWindow({
+    ...baseGlassOptions,
+    width: cfg.w,
+    height: cfg.h,
+    minWidth: cfg.minW,
+    minHeight: cfg.minH,
+    title: cfg.title,
+  });
   if (key === 'team') teamPanelWindow = win; else settingsWindow = win;
   loadRenderer(win, cfg.q);
   win.on('closed', () => { if (key === 'team') teamPanelWindow = null; else settingsWindow = null; });
@@ -99,6 +135,7 @@ ipcMain.on('window:resize', (_e, payload: { width: number; height: number; ancho
     newX = x + w - payload.width;
     newY = y + h - payload.height;
   }
+  // 以窗口当前所在屏幕为锚点 clamp，避免跨屏时被挤回主屏
   const wa = screen.getDisplayMatching({ x, y, width: w, height: h }).workArea;
   newX = Math.max(wa.x + 8, Math.min(newX, wa.x + wa.width - payload.width - 8));
   newY = Math.max(wa.y + 8, Math.min(newY, wa.y + wa.height - payload.height - 8));

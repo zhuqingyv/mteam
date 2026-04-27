@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS primary_agent (
   mcp_config    TEXT NOT NULL DEFAULT '[]',
   status        TEXT NOT NULL DEFAULT 'STOPPED'
                 CHECK(status IN ('STOPPED','RUNNING')),
+  -- 主 Agent 默认走沙箱 + 权限全自动（秘书身份，不需要人看着）
+  sandbox       INTEGER NOT NULL DEFAULT 1 CHECK(sandbox IN (0,1)),
+  auto_approve  INTEGER NOT NULL DEFAULT 1 CHECK(auto_approve IN (0,1)),
   created_at    TEXT NOT NULL,
   updated_at    TEXT NOT NULL
 );

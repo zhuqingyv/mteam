@@ -1,5 +1,3 @@
-import type { Socket } from 'node:net';
-
 export type Address = `${string}:${string}`;
 
 export interface ParsedAddress {
@@ -47,6 +45,14 @@ export type AnyMessage =
   | PongMessage
   | AckMessage;
 
-export type Connection = Socket;
+/**
+ * CommRouter/Registry 对连接的最小契约。
+ * net.Socket 结构兼容；WS 侧可用 SocketShim 伪装成 Connection 接入。
+ */
+export interface Connection {
+  write(data: string | Buffer): boolean;
+  destroyed: boolean;
+  destroy(): void;
+}
 
 export type SystemHandler = (msg: Message) => void;

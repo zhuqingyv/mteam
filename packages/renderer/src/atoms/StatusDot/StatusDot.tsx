@@ -1,7 +1,7 @@
 import './StatusDot.css';
 
 interface StatusDotProps {
-  status?: 'online' | 'busy' | 'offline';
+  status?: 'online' | 'busy' | 'offline' | 'thinking' | 'responding';
   size?: 'sm' | 'md' | 'lg';
 }
 

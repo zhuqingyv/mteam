@@ -10,13 +10,13 @@ import { closeDb, getDb } from '../db/connection.js';
 import { RoleTemplate } from '../domain/role-template.js';
 import { RoleInstance } from '../domain/role-instance.js';
 import type { CommRouter, DispatchOutcome } from '../comm/router.js';
-import type { Message } from '../comm/types.js';
+import type { MessageEnvelope } from '../comm/envelope.js';
 
-function makeFakeRouter(): { router: CommRouter; sent: Message[] } {
-  const sent: Message[] = [];
+function makeFakeRouter(): { router: CommRouter; sent: MessageEnvelope[] } {
+  const sent: MessageEnvelope[] = [];
   const router = {
-    dispatch: (msg: Message): DispatchOutcome => {
-      sent.push(msg);
+    dispatch: (env: MessageEnvelope): DispatchOutcome => {
+      sent.push(env);
       return { route: 'system' };
     },
   } as unknown as CommRouter;
@@ -26,7 +26,7 @@ function makeFakeRouter(): { router: CommRouter; sent: Message[] } {
 let bus: EventBus;
 let sub: { unsubscribe(): void };
 let router: CommRouter;
-let sent: Message[];
+let sent: MessageEnvelope[];
 
 beforeEach(() => {
   closeDb();
@@ -66,15 +66,13 @@ describe('subscribeCommNotify — instance.activated', () => {
     });
 
     expect(sent.length).toBe(1);
-    const msg = sent[0];
-    expect(msg.type).toBe('message');
-    expect(msg.from).toBe('local:system');
-    expect(msg.to).toBe(`local:${leader.id}`);
-    expect(msg.payload.kind).toBe('system');
-    expect(msg.payload.action).toBe('member_activated');
-    expect(msg.payload.summary).toBe('alice 上线了');
-    expect(msg.payload.instanceId).toBe(member.id);
-    expect(msg.payload.memberName).toBe('alice');
+    const env = sent[0];
+    expect(env.from.kind).toBe('system');
+    expect(env.from.address).toBe('local:system');
+    expect(env.to.address).toBe(`local:${leader.id}`);
+    expect(env.kind).toBe('system');
+    expect(env.summary).toBe('alice 上线了');
+    expect(env.content).toBe(`member_activated:${member.id}`);
   });
 
   it('leader 自己激活 → 不发通知', () => {
@@ -169,7 +167,8 @@ describe('subscribeCommNotify — instance.offline_requested（回归）', () =>
     });
 
     expect(sent.length).toBe(1);
-    expect(sent[0].to).toBe(`local:${member.id}`);
-    expect(sent[0].payload.action).toBe('deactivate');
+    expect(sent[0].to.address).toBe(`local:${member.id}`);
+    expect(sent[0].from.kind).toBe('system');
+    expect(sent[0].content).toBe('deactivate');
   });
 });

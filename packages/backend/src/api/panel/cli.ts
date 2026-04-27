@@ -7,6 +7,6 @@ export function handleListCli(): ApiResponse {
   return { status: 200, body: cliManager.getAll() };
 }
 
-export function handleRefreshCli(): ApiResponse {
-  return { status: 200, body: cliManager.refresh() };
+export async function handleRefreshCli(): Promise<ApiResponse> {
+  return { status: 200, body: await cliManager.refresh() };
 }

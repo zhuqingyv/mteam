@@ -3,7 +3,7 @@ import StatusDot from '../../atoms/StatusDot';
 import CapsuleCard from '../../organisms/CapsuleCard';
 import './AgentCard.css';
 
-type AgentStatus = 'working' | 'idle' | 'shutdown';
+type AgentStatus = 'idle' | 'thinking' | 'responding' | 'offline';
 interface AgentCardProps {
   name: string;
   status: AgentStatus;
@@ -11,8 +11,8 @@ interface AgentCardProps {
   x?: number; y?: number;
   onDragEnd?: (x: number, y: number) => void;
 }
-const DOT: Record<AgentStatus, 'online' | 'busy' | 'offline'> = {
-  working: 'busy', idle: 'online', shutdown: 'offline',
+const DOT: Record<AgentStatus, 'online' | 'thinking' | 'responding' | 'offline'> = {
+  idle: 'online', thinking: 'thinking', responding: 'responding', offline: 'offline',
 };
 
 export default function AgentCard({ name, status, lastMessage, x = 0, y = 0, onDragEnd }: AgentCardProps) {
@@ -48,7 +48,7 @@ export default function AgentCard({ name, status, lastMessage, x = 0, y = 0, onD
     <div className={cls.join(' ')} style={{ left: pos.x, top: pos.y }}>
       {expanded ? (
         <CapsuleCard name={name} agentCount={0} taskCount={0} messageCount={0}
-          online={status !== 'shutdown'} expanded onToggle={() => setExpanded(false)} />
+          online={status !== 'offline'} expanded onToggle={() => setExpanded(false)} />
       ) : (
         <div className="agent-card__capsule" onMouseDown={down}>
           <div className="agent-card__head">

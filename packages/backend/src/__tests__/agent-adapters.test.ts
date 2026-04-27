@@ -1,10 +1,11 @@
-// Claude/Codex adapter 分支覆盖：prepareSpawn / sessionParams / parseUpdate / cleanup。
-// 不 spawn 真实子进程，只验证数据流与文件落盘/清理。
+// Claude/Codex adapter 分支覆盖：prepareLaunch / sessionParams / parseUpdate / cleanup。
+// 不起真实子进程，只验证数据流与文件落盘/清理。
 import { describe, it, expect } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { ClaudeAdapter } from '../agent-driver/adapters/claude.js';
 import { CodexAdapter } from '../agent-driver/adapters/codex.js';
 import type { DriverConfig } from '../agent-driver/types.js';
+import { isLaunchSpec } from '../process-runtime/types.js';
 
 function baseConfig(overrides: Partial<DriverConfig> = {}): DriverConfig {
   return {
@@ -16,16 +17,33 @@ function baseConfig(overrides: Partial<DriverConfig> = {}): DriverConfig {
   };
 }
 
-describe('ClaudeAdapter.prepareSpawn', () => {
-  it('command=npx + args 含 @agentclientprotocol/claude-agent-acp + cwd/env 透传', () => {
+describe('ClaudeAdapter.prepareLaunch', () => {
+  it('runtime=host + command=process.execPath + args 含 acp 入口 + cwd/env 透传', () => {
     const a = new ClaudeAdapter();
-    const spec = a.prepareSpawn(
+    const spec = a.prepareLaunch(
       baseConfig({ cwd: '/workdir', env: { FOO: 'bar' } }),
     );
-    expect(spec.command).toBe('npx');
-    expect(spec.args).toEqual(['-y', '@agentclientprotocol/claude-agent-acp']);
+    expect(isLaunchSpec(spec)).toBe(true);
+    expect(spec.runtime).toBe('host');
+    expect(spec.command).toBe(process.execPath);
+    expect(spec.args.length).toBe(1);
+    expect(spec.args[0]).toContain('claude-agent-acp');
+    expect(spec.args[0]).toMatch(/\.js$/);
     expect(spec.cwd).toBe('/workdir');
-    expect(spec.env.FOO).toBe('bar');
+    expect(spec.env).toEqual({ FOO: 'bar' });
+  });
+
+  it('不 spread process.env — env 只含 config.env 的 key（合并父 env 由 glue 层负责）', () => {
+    const a = new ClaudeAdapter();
+    const spec = a.prepareLaunch(baseConfig({ env: { FOO: 'bar' } }));
+    expect(Object.keys(spec.env).sort()).toEqual(['FOO']);
+    expect(spec.env.PATH).toBeUndefined();
+  });
+
+  it('config.env 缺省 → env 为空对象', () => {
+    const a = new ClaudeAdapter();
+    const spec = a.prepareLaunch(baseConfig({}));
+    expect(spec.env).toEqual({});
   });
 });
 
@@ -44,81 +62,36 @@ describe('ClaudeAdapter.sessionParams', () => {
   });
 });
 
-describe('ClaudeAdapter.parseUpdate', () => {
-  const a = new ClaudeAdapter();
+// ClaudeAdapter.parseUpdate 11 种 sessionUpdate 分支覆盖 —— 详见 claude-parse-update.test.ts。
+// 此处仅保留跨 adapter 通用的 smoke（非对象 / 未知 sessionUpdate）。
 
-  it('agent_thought_chunk → driver.thinking(content)', () => {
-    expect(
-      a.parseUpdate({
-        sessionUpdate: 'agent_thought_chunk',
-        content: { type: 'text', text: '思考中' },
-      }),
-    ).toEqual({ type: 'driver.thinking', content: '思考中' });
-  });
-
-  it('agent_message_chunk → driver.text(content)', () => {
-    expect(
-      a.parseUpdate({
-        sessionUpdate: 'agent_message_chunk',
-        content: { type: 'text', text: '你好' },
-      }),
-    ).toEqual({ type: 'driver.text', content: '你好' });
-  });
-
-  it('tool_call → driver.tool_call(toolCallId/name/input)', () => {
-    expect(
-      a.parseUpdate({
-        sessionUpdate: 'tool_call',
-        toolCallId: 'tc-1',
-        title: 'Read',
-        rawInput: { path: '/a' },
-      }),
-    ).toEqual({
-      type: 'driver.tool_call',
-      toolCallId: 'tc-1',
-      name: 'Read',
-      input: { path: '/a' },
-    });
-  });
-
-  it('tool_call_update status=completed → driver.tool_result(ok=true)', () => {
-    expect(
-      a.parseUpdate({
-        sessionUpdate: 'tool_call_update',
-        toolCallId: 'tc-1',
-        status: 'completed',
-        rawOutput: { bytes: 42 },
-      }),
-    ).toEqual({
-      type: 'driver.tool_result',
-      toolCallId: 'tc-1',
-      output: { bytes: 42 },
-      ok: true,
-    });
-  });
-
-  it('tool_call_update status=pending → null（非终态忽略）', () => {
-    expect(
-      a.parseUpdate({
-        sessionUpdate: 'tool_call_update',
-        toolCallId: 'tc-1',
-        status: 'pending',
-      }),
-    ).toBeNull();
-  });
-
-  it('未知 / 非对象 → null', () => {
-    expect(a.parseUpdate({ sessionUpdate: 'unknown_type' })).toBeNull();
-    expect(a.parseUpdate(null)).toBeNull();
-    expect(a.parseUpdate('str')).toBeNull();
+describe('ClaudeAdapter.listTempFiles', () => {
+  it('始终返回空数组（不落盘）', () => {
+    const a = new ClaudeAdapter();
+    expect(a.listTempFiles()).toEqual([]);
+    a.prepareLaunch(baseConfig({ systemPrompt: 'hello' }));
+    expect(a.listTempFiles()).toEqual([]);
   });
 });
 
-describe('CodexAdapter.prepareSpawn + cleanup', () => {
-  it('写临时文件 + args 含 model_instructions_file=<path> + cleanup 删除文件', () => {
-    const a = new CodexAdapter();
-    const spec = a.prepareSpawn(baseConfig({ systemPrompt: 'codex prompt' }));
+describe('ClaudeAdapter.parseUpdate smoke', () => {
+  const a = new ClaudeAdapter();
 
+  it('未知 sessionUpdate / 非对象 → null', () => {
+    expect(a.parseUpdate({ sessionUpdate: 'unknown' })).toBeNull();
+    expect(a.parseUpdate(null)).toBeNull();
+    expect(a.parseUpdate('x')).toBeNull();
+    expect(a.parseUpdate({})).toBeNull();
+  });
+});
+
+describe('CodexAdapter.prepareLaunch + cleanup', () => {
+  it('runtime=host + 写临时文件 + args 含 model_instructions_file=<path> + cleanup 删除文件', () => {
+    const a = new CodexAdapter();
+    const spec = a.prepareLaunch(baseConfig({ systemPrompt: 'codex prompt' }));
+
+    expect(isLaunchSpec(spec)).toBe(true);
+    expect(spec.runtime).toBe('host');
     expect(spec.command).toBe('npx');
     expect(spec.args[0]).toBe('-y');
     expect(spec.args[1]).toBe('@zed-industries/codex-acp');
@@ -138,11 +111,35 @@ describe('CodexAdapter.prepareSpawn + cleanup', () => {
 
   it('无 systemPrompt → 不落盘、args 不含 model_instructions_file；cleanup 幂等', () => {
     const a = new CodexAdapter();
-    const spec = a.prepareSpawn(baseConfig({ systemPrompt: '' }));
+    const spec = a.prepareLaunch(baseConfig({ systemPrompt: '' }));
+    expect(isLaunchSpec(spec)).toBe(true);
     expect(
       spec.args.some((x) => x.startsWith('model_instructions_file=')),
     ).toBe(false);
     expect(() => a.cleanup()).not.toThrow();
+  });
+
+  it('listTempFiles —— 有 systemPrompt 返回 promptFile；无返回空；cleanup 后清零（W2-8）', () => {
+    const a = new CodexAdapter();
+    expect(a.listTempFiles()).toEqual([]);
+
+    const spec = a.prepareLaunch(baseConfig({ systemPrompt: 'hi' }));
+    const kv = spec.args[spec.args.indexOf('-c') + 1]!;
+    const path = kv.slice('model_instructions_file='.length);
+    expect(a.listTempFiles()).toEqual([path]);
+
+    a.cleanup();
+    expect(a.listTempFiles()).toEqual([]);
+  });
+
+  it('不 spread process.env — env 只含 config.env 的 key', () => {
+    const a = new CodexAdapter();
+    const spec = a.prepareLaunch(
+      baseConfig({ systemPrompt: '', env: { CODEX_KEY: 'x' } }),
+    );
+    expect(Object.keys(spec.env).sort()).toEqual(['CODEX_KEY']);
+    expect(spec.env.PATH).toBeUndefined();
+    a.cleanup();
   });
 });
 
@@ -153,39 +150,16 @@ describe('CodexAdapter.sessionParams', () => {
   });
 });
 
-describe('CodexAdapter.parseUpdate', () => {
+// CodexAdapter.parseUpdate 11 种 sessionUpdate 分支覆盖 —— 详见 codex-parse-update.test.ts。
+// 此处仅保留跨 adapter 通用的 smoke（非对象 / 未知 sessionUpdate）。
+
+describe('CodexAdapter.parseUpdate smoke', () => {
   const a = new CodexAdapter();
 
-  it('agent_message_chunk → driver.text', () => {
-    expect(
-      a.parseUpdate({
-        sessionUpdate: 'agent_message_chunk',
-        content: { type: 'text', text: 'codex 回答' },
-      }),
-    ).toEqual({ type: 'driver.text', content: 'codex 回答' });
-  });
-
-  it('agent_thought_chunk → driver.thinking', () => {
-    expect(
-      a.parseUpdate({
-        sessionUpdate: 'agent_thought_chunk',
-        content: { type: 'text', text: 'r' },
-      }),
-    ).toEqual({ type: 'driver.thinking', content: 'r' });
-  });
-
-  it('tool_call_update status=failed → driver.tool_result(ok=false)', () => {
-    expect(
-      a.parseUpdate({
-        sessionUpdate: 'tool_call_update',
-        toolCallId: 'tc-2',
-        status: 'failed',
-      }),
-    ).toEqual({
-      type: 'driver.tool_result',
-      toolCallId: 'tc-2',
-      output: null,
-      ok: false,
-    });
+  it('未知 sessionUpdate / 非对象 → null', () => {
+    expect(a.parseUpdate({ sessionUpdate: 'unknown' })).toBeNull();
+    expect(a.parseUpdate(null)).toBeNull();
+    expect(a.parseUpdate('x')).toBeNull();
+    expect(a.parseUpdate({})).toBeNull();
   });
 });

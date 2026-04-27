@@ -1,5 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import ChatPanel from '../ChatPanel/ChatPanel';
+import ToolBar from '../../molecules/ToolBar';
+import type { DropdownOption } from '../../atoms/Dropdown';
+import { listCli, type CliInfo } from '../../api/cli';
 import {
   useMessageStore,
   selectMessages,
@@ -30,9 +33,33 @@ export default function ExpandedView() {
   const clearText = useInputStore(selectClearInput);
 
   const config = usePrimaryAgentStore(selectPaConfig);
+  const currentModel = config?.cliType ?? 'claude';
 
-  const cliType = config?.cliType ?? 'claude';
-  const agentList = [{ id: cliType, name: config?.name ?? 'MTEAM', active: true }];
+  const [cliList, setCliList] = useState<CliInfo[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listCli().then((res) => {
+      if (cancelled) return;
+      if (res.ok && res.data) setCliList(res.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const modelOptions = useMemo<DropdownOption[]>(
+    () => cliList.map((c) => ({ value: c.name, label: c.name })),
+    [cliList],
+  );
+
+  const handleModelChange = useCallback((value: string) => {
+    void usePrimaryAgentStore.getState().configure({ cliType: value });
+  }, []);
+
+  const handleSettings = useCallback(() => {
+    window.electronAPI?.openSettings();
+  }, []);
 
   const handleSend = useCallback(() => {
     const text = useInputStore.getState().text.trim();
@@ -44,40 +71,35 @@ export default function ExpandedView() {
       return;
     }
 
-    const userMsg: Message = { id: `u-${Date.now()}`, role: 'user', content: text, time: fmtTime(), read: true };
+    const ts = Date.now();
+    const userMsg: Message = { id: `u-${ts}`, role: 'user', content: text, time: fmtTime(), read: true };
     addMessage(userMsg);
+    // 先占位 thinking 气泡，避免 turn.started 到达前的空白期。
+    // turn.started 会把这条 pending-* 替换成正式的 turnId 消息。
+    addMessage({ id: `pending-${ts}`, role: 'agent', content: '', time: fmtTime(), thinking: true, streaming: true });
     clearText();
 
+    // 不检查 readyState：ws.ts 的 send 内部有 pending 队列，
+    // CONNECTING 期的 prompt 会在 onopen 时 flush。硬检查会静默吞消息。
     const wsClient = useWsStore.getState().client;
-    if (wsClient && wsClient.readyState() === WebSocket.OPEN) {
-      wsClient.prompt(iid, text, `req-${Date.now()}`);
-    }
+    if (wsClient) wsClient.prompt(iid, text, `req-${ts}`);
   }, [addMessage, clearText]);
 
   return (
     <div className="expanded-view">
-      <button
-        type="button"
-        className="open-settings-btn"
-        aria-label="Settings"
-        title="Settings"
-        onClick={() => window.electronAPI?.openSettings()}
-      >
-        ⚙
-      </button>
-      <button
-        type="button"
-        className="open-team-panel-btn"
-        onClick={() => window.electronAPI?.openTeamPanel()}
-      >
-        Team Panel
-      </button>
       <ChatPanel
         messages={messages}
-        agents={agentList}
         inputValue={inputText}
         onInputChange={setInputText}
         onSend={handleSend}
+        toolBar={
+          <ToolBar
+            modelOptions={modelOptions}
+            currentModel={currentModel}
+            onModelChange={handleModelChange}
+            onSettings={handleSettings}
+          />
+        }
       />
     </div>
   );

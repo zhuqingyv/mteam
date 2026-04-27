@@ -5,7 +5,10 @@
 //   - scope='local' 的成员对应 role_instances 表；scope='remote' 对应 remote_peers（未实现，返回空）。
 //   - add 是幂等 upsert：存在就更新 alias，不存在就插入（domain 层通常已经插好行，这里只覆盖 alias）。
 //   - 所有读操作每次都查 DB，不缓存。
-import { getDb } from '../db/connection.js';
+//
+// prepare 提升：固定 SQL 走 lazy init；update/搜索里拼列的动态 SQL 逐次 prepare。
+import type { Statement } from 'bun:sqlite';
+import { getDb, registerCloseHook } from '../db/connection.js';
 import type { RosterEntry, SearchResult, SearchScope } from './types.js';
 
 // role_instances 表一行的裸结构。
@@ -35,20 +38,31 @@ function rowToEntry(r: RoleInstanceRow): RosterEntry {
 // 统一的 SELECT 字段，避免各处重复拼列名。
 const SELECT_COLS = `id, member_name, alias, status, team_id, task`;
 
-// 读取某 instanceId 对应的 local 成员（role_instances 行）。
+// lazy-prepared statements；closeDb 清空后，下一次使用重新 prepare。
+let sById: Statement | null = null;
+let sAll: Statement | null = null;
+let sUpdAlias: Statement | null = null;
+let sDel: Statement | null = null;
+registerCloseHook(() => { sById = null; sAll = null; sUpdAlias = null; sDel = null; });
+
 function selectLocalById(id: string): RosterEntry | null {
-  const row = getDb()
-    .prepare(`SELECT ${SELECT_COLS} FROM role_instances WHERE id = ?`)
-    .get(id) as RoleInstanceRow | undefined;
+  const stmt = (sById ??= getDb().prepare(`SELECT ${SELECT_COLS} FROM role_instances WHERE id = ?`));
+  const row = stmt.get(id) as RoleInstanceRow | undefined;
   return row ? rowToEntry(row) : null;
 }
 
-// 读取全部 local 成员。
 function selectAllLocal(): RosterEntry[] {
-  const rows = getDb()
-    .prepare(`SELECT ${SELECT_COLS} FROM role_instances`)
-    .all() as RoleInstanceRow[];
-  return rows.map(rowToEntry);
+  const stmt = (sAll ??= getDb().prepare(`SELECT ${SELECT_COLS} FROM role_instances`));
+  return (stmt.all() as RoleInstanceRow[]).map(rowToEntry);
+}
+
+function updateAlias(alias: string, id: string): void {
+  (sUpdAlias ??= getDb().prepare(`UPDATE role_instances SET alias = ? WHERE id = ?`))
+    .run(alias, id);
+}
+
+function deleteById(id: string): void {
+  (sDel ??= getDb().prepare(`DELETE FROM role_instances WHERE id = ?`)).run(id);
 }
 
 export class Roster {
@@ -59,16 +73,13 @@ export class Roster {
   add(entry: RosterEntry): void {
     const alias = entry.alias || entry.memberName;
     if (entry.scope === 'local') {
-      // upsert 语义：存在就把 alias 写进去，不存在就抛错提示调用方先 create role_instance。
       const existed = selectLocalById(entry.instanceId);
       if (!existed) {
         throw new Error(
           `instance '${entry.instanceId}' not in role_instances; create it first`,
         );
       }
-      getDb()
-        .prepare(`UPDATE role_instances SET alias = ? WHERE id = ?`)
-        .run(alias, entry.instanceId);
+      updateAlias(alias, entry.instanceId);
       return;
     }
     // remote: 当前不支持，静默忽略，等 remote_peers 表落地再补。
@@ -78,10 +89,8 @@ export class Roster {
   // 注意：domain 层 RoleInstance.delete() 已会 DELETE，这里属补偿路径。
   remove(instanceId: string): void {
     const existed = selectLocalById(instanceId);
-    if (!existed) {
-      throw new Error(`instance '${instanceId}' not in roster`);
-    }
-    getDb().prepare(`DELETE FROM role_instances WHERE id = ?`).run(instanceId);
+    if (!existed) throw new Error(`instance '${instanceId}' not in roster`);
+    deleteById(instanceId);
   }
 
   // get：按 instanceId 查单条，没有返回 null。
@@ -93,20 +102,17 @@ export class Roster {
   setAlias(instanceId: string, alias: string): void {
     const existed = selectLocalById(instanceId);
     if (!existed) throw new Error(`instance '${instanceId}' not in roster`);
-    getDb()
-      .prepare(`UPDATE role_instances SET alias = ? WHERE id = ?`)
-      .run(alias, instanceId);
+    updateAlias(alias, instanceId);
   }
 
   // update：支持 status / address / teamId / task 四个字段。
   //   - address 当前仅按约定 local:<id>，没有独立列，写入被忽略但不报错。
   //   - 其余三项直接映射到 role_instances 列。
+  //   - SQL 依输入列集动态拼接，不做 prepare 缓存。
   update(instanceId: string, fields: Partial<RosterEntry>): void {
     const existed = selectLocalById(instanceId);
     if (!existed) throw new Error(`instance '${instanceId}' not in roster`);
     const sets: string[] = [];
-    // bun:sqlite 的 run(...args) 参数类型比 better-sqlite3 更严格；此处 status/teamId/task/id
-    // 均为 string | null，显式类型收窄避免 TS 报 SQLQueryBindings 相关错误。
     const args: (string | null)[] = [];
     if (fields.status !== undefined) {
       sets.push('status = ?');
@@ -120,7 +126,6 @@ export class Roster {
       sets.push('task = ?');
       args.push(fields.task);
     }
-    // address 暂无独立列，按语义忽略；若将来有 remote_peers 再扩展。
     if (sets.length === 0) return;
     args.push(instanceId);
     getDb()

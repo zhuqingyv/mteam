@@ -1,5 +1,5 @@
 # ToolCallList
-可折叠工具调用列表，折叠时只显示最后一条。
+可折叠工具调用列表，折叠时只保留 header，body 完全隐藏（1 条也能收起）。
 
 ## Props
 | Prop | Type | Default | Description |

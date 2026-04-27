@@ -9,6 +9,8 @@ import Logo from '../src/atoms/Logo';
 import NotificationCard from '../src/atoms/NotificationCard';
 import MessageBubble from '../src/molecules/MessageBubble';
 
+const PLAYGROUND_VERSION = '1.5.0';
+
 const LAYER_ORDER: Layer[] = ['atoms', 'molecules', 'organisms'];
 const LAYER_TITLE: Record<Layer, string> = {
   atoms: 'Atoms',
@@ -45,7 +47,10 @@ export default function App() {
   return (
     <div className="playground">
       <header className="playground__header">
-        <h1 className="playground__title">MTEAM Component Library</h1>
+        <h1 className="playground__title">
+          MTEAM Component Library
+          <span className="playground__version">v{PLAYGROUND_VERSION}</span>
+        </h1>
         <p className="playground__subtitle">
           Dark glass components · atoms · molecules · organisms · scenes
         </p>
@@ -117,11 +122,12 @@ export default function App() {
             </div>
           </div>
           <div className="states__item">
-            <div className="states__label">Logo · 在线/离线</div>
-            <div className="states__stage">
+            <div className="states__label">Logo · 三态（online / connecting 呼吸 / offline）</div>
+            <div className="states__stage" data-testid="logo-states-stage">
               <div style={{ display: 'flex', gap: 16 }}>
-                <Logo size={44} online={true} />
-                <Logo size={44} online={false} />
+                <span data-testid="logo-online"><Logo size={44} status="online" /></span>
+                <span data-testid="logo-connecting"><Logo size={44} status="connecting" /></span>
+                <span data-testid="logo-offline"><Logo size={44} status="offline" /></span>
               </div>
             </div>
           </div>

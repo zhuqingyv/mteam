@@ -1,10 +1,10 @@
 // Team 级联下线辅助函数。
 // 被 team.subscriber 调用，用来把"某个 instance 该下线"翻译成：
-//   ACTIVE         → requestOffline（优雅下线，PTY 还跑，给成员收尾窗口）
+//   ACTIVE         → requestOffline（优雅下线，driver 还跑，给成员收尾窗口）
 //   PENDING        → delete（还没激活，没有"优雅"必要，直接清理）
 //   PENDING_OFFLINE→ delete（已在下线流程，直接完成）
 //   其他状态       → 跳过（已 DELETED / 未知状态，不乱动）
-// 每个动作都补发对应 bus 事件，让 pty / roster / ws subscriber 正常联动。
+// 每个动作都补发对应 bus 事件，让 member-driver / roster / ws subscriber 正常联动。
 import { RoleInstance } from '../../domain/role-instance.js';
 import type { EventBus } from '../events.js';
 import { makeBase } from '../helpers.js';

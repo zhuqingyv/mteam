@@ -28,6 +28,7 @@
   flex: 1;
   min-height: 22px;
   max-height: 120px;
+  overflow-y: auto;
   resize: none;
   border: 0;
   outline: 0;

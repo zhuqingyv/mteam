@@ -6,7 +6,7 @@
   "scripts": {
     "start": "bun run --cwd packages/renderer start",
     "dev": "bun run start",
-    "dev:backend": "bun run --cwd packages/backend src/server.ts",
+    "dev:backend": "bun run --cwd packages/backend src/http/server.ts",
     "dev:frontend": "bun run --cwd packages/renderer dev",
     "test": "bun test packages/backend/"
   },

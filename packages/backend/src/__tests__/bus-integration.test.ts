@@ -1,7 +1,7 @@
 // 集成测试：handler → bus → subscriber → 副作用（roster 写入）。
 // 真实 bus + 真实 subscriber + 真实 in-memory SQLite，不 mock。
 // 例外：commRouter 走空壳（测试不起 comm 服务器，也不起真 CLI 进程）；
-//       pty.subscriber spawn 失败被其自身 try-catch 吞掉，不影响 roster 断言。
+//       member-driver 若在本进程注册会被其 try-catch 吞掉 spawn 失败，不影响 roster 断言。
 // 注意：bus 是模块级单例，destroy() 会让 Subject 永久 complete，
 //       所以 boot/teardown 放 beforeAll/afterAll，DB 重置放 beforeEach。
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';

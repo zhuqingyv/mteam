@@ -1,7 +1,10 @@
-import Logo from '../../atoms/Logo';
+import Logo, { type LogoStatus } from '../../atoms/Logo';
 import StatusDot from '../../atoms/StatusDot';
+import Button from '../../atoms/Button';
+import Icon from '../../atoms/Icon';
 import TitleBlock from '../../molecules/TitleBlock';
 import MenuDots from '../../molecules/MenuDots';
+import DragHandle from '../../molecules/DragHandle';
 import './CapsuleCard.css';
 
 interface CapsuleCardProps {
@@ -10,33 +13,41 @@ interface CapsuleCardProps {
   taskCount: number;
   messageCount: number;
   online?: boolean;
+  logoStatus?: LogoStatus;
   expanded?: boolean;
   animating?: boolean;
+  bodyVisible?: boolean;
   onToggle?: () => void;
   children?: React.ReactNode;
 }
 
 export default function CapsuleCard({
-  name = 'M-TEAM', agentCount, taskCount, messageCount, online,
-  expanded = false, animating = false, onToggle, children,
+  name = 'M-TEAM', agentCount, taskCount, messageCount, online, logoStatus,
+  expanded = false, animating = false, bodyVisible = false, onToggle, children,
 }: CapsuleCardProps) {
+  const resolvedLogoStatus: LogoStatus = logoStatus ?? (online ? 'online' : 'offline');
   const cls = ['card'];
   if (expanded) cls.push('card--expanded');
   if (animating) cls.push('card--animating');
+  if (bodyVisible) cls.push('card--body-visible');
 
   return (
     <div className={cls.join(' ')}>
-      <div className="card__drag"><div className="card__drag-pill" /></div>
-      <div className="card__logo"><Logo size={expanded ? 24 : 44} online={online} /></div>
+      <div className="card__drag"><DragHandle /></div>
+      <div className="card__logo"><Logo size={expanded ? 24 : 44} status={resolvedLogoStatus} /></div>
       <div className="card__collapsed">
-        <TitleBlock title={name} subtitle={`${agentCount} Agents · ${taskCount} Tasks`} badgeText={`${messageCount} New messages`} badgeCount={messageCount} />
-        <MenuDots onClick={onToggle} />
+        <TitleBlock title={name} subtitle={`${agentCount} Agents · ${taskCount} Tasks`} badgeText={messageCount > 0 ? `${messageCount} New messages` : undefined} badgeCount={messageCount} />
+        <MenuDots onClick={onToggle} disabled={online === false} />
       </div>
       <div className="card__expanded-head">
         <span className="card__expanded-name">{name}</span>
-        <StatusDot status="online" size="sm" />
+        <StatusDot status={online ? 'online' : 'offline'} size="sm" />
       </div>
-      <button className="card__close" onClick={onToggle}>×</button>
+      <div className="card__close">
+        <Button variant="icon" size="sm" onClick={onToggle}>
+          <Icon name="close" size={16} />
+        </Button>
+      </div>
       <div className="card__body">{children}</div>
     </div>
   );

@@ -1,5 +1,5 @@
 export * from './domain/index.js';
-export { createServer, startServer } from './server.js';
+export { createServer, startServer } from './http/server.js';
 export {
   handleCreateTemplate,
   handleListTemplates,

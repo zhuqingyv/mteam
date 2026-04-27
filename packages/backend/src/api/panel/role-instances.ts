@@ -1,9 +1,9 @@
 // 角色实例 HTTP 接口。负责实例生命周期（创建/激活/请求下线/删除）。
-// 副作用（roster 同步 / PTY spawn / PTY kill）由 bus subscriber 自动处理：
-//   instance.created → pty.spawn + roster.add + pty.spawned → domain-sync 回写 session_pid
+// 副作用（roster 同步 / driver 启停）由 bus subscriber 自动处理：
+//   instance.created → member-driver.start + roster.add
 //   instance.activated → roster.update ACTIVE
 //   instance.offline_requested → roster.update PENDING_OFFLINE
-//   instance.deleted → pty.kill + roster.remove
+//   instance.deleted → member-driver.stop + roster.remove
 import { RoleTemplate } from '../../domain/role-template.js';
 import { RoleInstance } from '../../domain/role-instance.js';
 import type { CreateRoleInstanceInput } from '../../domain/role-instance.js';
@@ -47,7 +47,7 @@ function validateCreateBody(body: Record<string, unknown>): string | null {
 }
 
 // 创建角色实例：校验 → 查模板 → 入库 → 发 instance.created。
-// 副作用（PTY spawn / roster.add / session_pid 回写）由 bus subscriber 自动处理。
+// 副作用（member-driver 启动 / roster.add / session_pid 回写）由 bus subscriber 自动处理。
 export function handleCreateInstance(body: unknown): ApiResponse {
   if (!isPlainObject(body)) return errRes(400, 'body must be a JSON object');
   const verr = validateCreateBody(body);
@@ -151,7 +151,7 @@ export function handleActivate(id: string): ApiResponse {
 //   PENDING / PENDING_OFFLINE -> 正常删（PENDING 尚未激活可撤销；PENDING_OFFLINE 已批准下线）
 //   ACTIVE                    -> 拒绝 409（必须先 request-offline）
 //   ?force=1                  -> 强制删（crash 语义，用于清理脏数据/僵尸）
-// 副作用（PTY kill / roster.remove）由 bus subscriber 自动处理。
+// 副作用（member-driver 停止 / roster.remove）由 bus subscriber 自动处理。
 export function handleDeleteInstance(id: string, force = false): ApiResponse {
   const instance = RoleInstance.findById(id);
   if (!instance) return errRes(404, `role instance '${id}' not found`);

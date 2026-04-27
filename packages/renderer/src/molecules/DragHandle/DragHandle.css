@@ -3,7 +3,11 @@
   justify-content: center;
   padding: 8px 0 4px;
   -webkit-app-region: drag;
+  cursor: grab;
   transition: opacity 180ms ease;
+}
+.drag-handle:active {
+  cursor: grabbing;
 }
 
 .drag-handle__pill {

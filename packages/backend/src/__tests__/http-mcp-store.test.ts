@@ -34,7 +34,7 @@ async function waitReady(): Promise<void> {
 }
 
 beforeAll(async () => {
-  serverProc = Bun.spawn(['bun', 'run', 'packages/backend/src/server.ts'], {
+  serverProc = Bun.spawn(['bun', 'run', 'packages/backend/src/http/server.ts'], {
     env: {
       ...process.env,
       V2_PORT: String(PORT),

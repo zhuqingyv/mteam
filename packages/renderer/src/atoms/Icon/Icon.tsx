@@ -1,6 +1,14 @@
 import './Icon.css';
 
-type IconName = 'close' | 'send' | 'chevron' | 'settings' | 'plus' | 'check-double';
+type IconName =
+  | 'close'
+  | 'send'
+  | 'chevron'
+  | 'chevron-down'
+  | 'settings'
+  | 'plus'
+  | 'check'
+  | 'check-double';
 
 interface IconProps {
   name: IconName;
@@ -12,9 +20,11 @@ const PATHS: Record<IconName, string> = {
   close: 'M6 6l12 12M18 6L6 18',
   send: 'M3 12l18-9-7 18-3-8-8-1z',
   chevron: 'M9 6l6 6-6 6',
+  'chevron-down': 'M6 9l6 6 6-6',
   settings:
     'M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7zm7.4-2.1l1.7 1.3-2 3.5-2-.7a7.6 7.6 0 01-1.8 1l-.3 2.1h-4l-.3-2.1a7.6 7.6 0 01-1.8-1l-2 .7-2-3.5 1.7-1.3a7.5 7.5 0 010-2.1L2.9 9l2-3.5 2 .7a7.6 7.6 0 011.8-1l.3-2.1h4l.3 2.1c.6.3 1.2.6 1.8 1l2-.7 2 3.5-1.7 1.3a7.5 7.5 0 010 2.1z',
   plus: 'M12 5v14M5 12h14',
+  check: 'M5 12l5 5L20 7',
   'check-double': 'M1 12l5 5L16 7M8 12l5 5L22 7',
 };
 

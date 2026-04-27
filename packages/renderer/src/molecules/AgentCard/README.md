@@ -5,7 +5,7 @@
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | name | string | — | Agent 名称 |
-| status | 'working' \| 'idle' \| 'shutdown' | — | 运行状态（映射到 StatusDot 的 busy/online/offline） |
+| status | 'idle' \| 'thinking' \| 'responding' \| 'offline' | — | 运行状态（对齐后端 agent 状态集；映射到 StatusDot 的 online/thinking/responding/offline） |
 | lastMessage | string | — | 最新一条消息预览（可选） |
 | x | number | 0 | 初始横坐标（px） |
 | y | number | 0 | 初始纵坐标（px） |
@@ -17,7 +17,7 @@ import AgentCard from './AgentCard';
 
 <AgentCard
   name="Claude"
-  status="working"
+  status="thinking"
   lastMessage="正在读取 agent-status.json"
   x={120}
   y={80}

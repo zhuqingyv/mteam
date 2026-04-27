@@ -8,9 +8,11 @@ import Button from '../src/atoms/Button';
 import Icon from '../src/atoms/Icon';
 import TypingDots from '../src/atoms/TypingDots';
 import MessageMeta from '../src/atoms/MessageMeta';
+import TextBlock from '../src/atoms/TextBlock';
 import ToolCallItem from '../src/atoms/ToolCallItem';
 import NotificationCard from '../src/atoms/NotificationCard';
 import VirtualList from '../src/atoms/VirtualList';
+import Dropdown from '../src/atoms/Dropdown';
 import ToolCallList from '../src/molecules/ToolCallList';
 import NotificationStack from '../src/molecules/NotificationStack';
 import Avatar from '../src/molecules/Avatar';
@@ -21,6 +23,7 @@ import MessageRow from '../src/molecules/MessageRow';
 import ChatHeader from '../src/molecules/ChatHeader';
 import ChatInput from '../src/molecules/ChatInput';
 import AgentSwitcher from '../src/molecules/AgentSwitcher';
+import ToolBar from '../src/molecules/ToolBar';
 import DragHandle from '../src/molecules/DragHandle';
 import MessageBadge from '../src/molecules/MessageBadge';
 import TeamSidebarItem from '../src/atoms/TeamSidebarItem';
@@ -92,7 +95,7 @@ export const registry: ComponentEntry[] = [
       {
         name: 'status',
         type: 'enum',
-        options: ['online', 'busy', 'offline'],
+        options: ['online', 'busy', 'offline', 'thinking', 'responding'],
         default: 'online',
         description: '状态颜色',
       },
@@ -112,9 +115,15 @@ export const registry: ComponentEntry[] = [
     component: Logo,
     props: [
       { name: 'size', type: 'number', default: 56, description: '尺寸 px' },
-      { name: 'online', type: 'boolean', default: true, description: '在线状态（false=灰度）' },
+      {
+        name: 'status',
+        type: 'enum',
+        options: ['online', 'connecting', 'offline'],
+        default: 'online',
+        description: '三态：online 彩色 / connecting 灰+呼吸 / offline 灰度静态',
+      },
     ],
-    defaults: { size: 56, online: true },
+    defaults: { size: 56, status: 'online' },
   },
   {
     name: 'Text',
@@ -164,7 +173,7 @@ export const registry: ComponentEntry[] = [
       {
         name: 'name',
         type: 'enum',
-        options: ['close', 'send', 'chevron', 'settings', 'plus', 'check-double'],
+        options: ['close', 'send', 'chevron', 'chevron-down', 'settings', 'plus', 'check', 'check-double'],
         default: 'send',
         description: '图标名',
       },
@@ -181,6 +190,17 @@ export const registry: ComponentEntry[] = [
       { name: 'color', type: 'string', default: 'rgba(230,237,247,0.8)', description: '点颜色' },
     ],
     defaults: { color: 'rgba(230,237,247,0.8)' },
+  },
+  {
+    name: 'TextBlock',
+    layer: 'atoms',
+    component: TextBlock,
+    props: [
+      { name: 'content', type: 'string', default: '你好，我是团队 Agent', description: '文本内容' },
+      { name: 'streaming', type: 'boolean', default: true, description: '流式（尾部光标）' },
+    ],
+    defaults: { content: '你好，我是团队 Agent', streaming: true },
+    note: '流式输出时尾部闪烁光标',
   },
   {
     name: 'MessageMeta',
@@ -229,6 +249,31 @@ export const registry: ComponentEntry[] = [
     defaults: { title: 'Claude 完成任务', message: 'UI Bug 已修复，等待确认', time: '刚刚', type: 'task' },
   },
   {
+    name: 'Dropdown',
+    layer: 'atoms',
+    component: Dropdown,
+    props: [
+      {
+        name: 'value',
+        type: 'enum',
+        options: ['claude', 'codex'],
+        default: 'claude',
+        description: '当前选中项 value',
+      },
+    ],
+    defaults: {
+      value: 'claude',
+      options: [
+        { value: 'claude', label: 'Claude' },
+        { value: 'codex', label: 'Codex' },
+      ],
+    },
+    note: '发光玻璃胶囊触发器 + 下拉面板；点击外部关闭',
+    handlers: (setValues) => ({
+      onChange: (v: unknown) => setValues((p) => ({ ...p, value: v as string })),
+    }),
+  },
+  {
     name: 'VirtualList',
     layer: 'atoms',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -241,11 +286,11 @@ export const registry: ComponentEntry[] = [
       ),
     props: [
       { name: 'itemEstimateHeight', type: 'number', default: 60, description: '预估行高 px' },
-      { name: 'overscan', type: 'number', default: 3, description: '上下额外渲染条数' },
+      { name: 'overscan', type: 'number', default: 5, description: '上下额外渲染条数' },
     ],
     defaults: {
       itemEstimateHeight: 60,
-      overscan: 3,
+      overscan: 5,
       items: Array.from({ length: 100 }, (_, i) => ({
         id: String(i),
         text: `第 ${i + 1} 条消息 · ${'内容'.repeat((i % 5) + 1)}`,
@@ -400,6 +445,31 @@ export const registry: ComponentEntry[] = [
     note: 'agents 列表为 mock 数据',
   },
   {
+    name: 'ToolBar',
+    layer: 'molecules',
+    component: ToolBar,
+    props: [
+      {
+        name: 'currentModel',
+        type: 'enum',
+        options: ['claude', 'codex'],
+        default: 'claude',
+        description: '当前选中的模型 value',
+      },
+    ],
+    defaults: {
+      currentModel: 'claude',
+      modelOptions: [
+        { value: 'claude', label: 'Claude' },
+        { value: 'codex', label: 'Codex' },
+      ],
+    },
+    note: 'ChatPanel footer 工具条：左侧模型下拉 + 右侧齿轮',
+    handlers: (setValues) => ({
+      onModelChange: (v: unknown) => setValues((p) => ({ ...p, currentModel: v as string })),
+    }),
+  },
+  {
     name: 'DragHandle',
     layer: 'molecules',
     component: DragHandle,
@@ -452,8 +522,15 @@ export const registry: ComponentEntry[] = [
       { name: 'taskCount', type: 'number', default: 2, description: 'Task 数' },
       { name: 'messageCount', type: 'number', default: 5, description: '消息数' },
       { name: 'online', type: 'boolean', default: true, description: '在线' },
+      {
+        name: 'logoStatus',
+        type: 'enum',
+        options: ['online', 'connecting', 'offline'],
+        default: 'online',
+        description: 'Logo 三态；未传则回落到 online 布尔',
+      },
     ],
-    defaults: { name: 'M-TEAM', agentCount: 3, taskCount: 2, messageCount: 5, online: true },
+    defaults: { name: 'M-TEAM', agentCount: 3, taskCount: 2, messageCount: 5, online: true, logoStatus: 'online' },
     note: '展开动画依赖 Electron，Playground 仅展示收起态',
   },
   {
@@ -486,8 +563,16 @@ export const registry: ComponentEntry[] = [
         { id: 'qwen', name: 'Qwen' },
       ],
       inputPlaceholder: '给 MTEAM 发送消息...',
+      toolBar: React.createElement(ToolBar, {
+        modelOptions: [
+          { value: 'claude', label: 'Claude' },
+          { value: 'codex', label: 'Codex' },
+        ],
+        currentModel: 'claude',
+        onModelChange: () => {},
+      }),
     },
-    note: '消息/Agent 列表为 mock 数据',
+    note: '消息/Agent 列表为 mock；footer 注入 ToolBar slot（模型切换+齿轮）',
   },
   {
     name: 'TeamSidebarItem',
@@ -529,15 +614,15 @@ export const registry: ComponentEntry[] = [
       {
         name: 'status',
         type: 'enum',
-        options: ['working', 'idle', 'shutdown'],
-        default: 'working',
+        options: ['idle', 'thinking', 'responding', 'offline'],
+        default: 'thinking',
         description: '状态',
       },
       { name: 'lastMessage', type: 'string', default: '正在修复 UI Bug…', description: '最后消息' },
       { name: 'x', type: 'number', default: 0, description: 'X 位置' },
       { name: 'y', type: 'number', default: 0, description: 'Y 位置' },
     ],
-    defaults: { name: 'Claude', status: 'working', lastMessage: '正在修复 UI Bug…', x: 0, y: 0 },
+    defaults: { name: 'Claude', status: 'thinking', lastMessage: '正在修复 UI Bug…', x: 0, y: 0 },
     note: '可拖拽（mousedown/move/up），点击可展开为 400×400 CapsuleCard，× 回到胶囊态',
   },
   {
@@ -547,9 +632,10 @@ export const registry: ComponentEntry[] = [
     props: [],
     defaults: {
       agents: [
-        { id: 'a1', name: 'Claude', status: 'working', lastMessage: '修复 UI Bug', x: 40, y: 40 },
-        { id: 'a2', name: 'Codex', status: 'idle', lastMessage: '等待任务', x: 240, y: 160 },
-        { id: 'a3', name: 'Qwen', status: 'shutdown', x: 80, y: 280 },
+        { id: 'a1', name: 'Claude', status: 'thinking', lastMessage: '正在思考', x: 40, y: 40 },
+        { id: 'a2', name: 'Codex', status: 'responding', lastMessage: '正在回复…', x: 240, y: 160 },
+        { id: 'a3', name: 'Qwen', status: 'idle', lastMessage: '等待任务', x: 80, y: 280 },
+        { id: 'a4', name: 'Gemini', status: 'offline', x: 440, y: 40 },
       ],
     },
     note: '画布式布局，卡片可拖拽',
@@ -560,21 +646,26 @@ export const registry: ComponentEntry[] = [
     component: TeamMonitorPanel,
     props: [
       { name: 'activeTeamId', type: 'string', default: 'frontend', description: '激活 team id' },
+      { name: 'collapsed', type: 'boolean', default: false, description: '收起为胶囊态' },
     ],
     defaults: {
       activeTeamId: 'frontend',
+      collapsed: false,
       teams: [
         { id: 'frontend', name: 'Frontend', memberCount: 4 },
         { id: 'backend', name: 'Backend', memberCount: 3 },
         { id: 'devops', name: 'DevOps', memberCount: 2 },
       ],
       agents: [
-        { id: 'a1', name: 'Claude', status: 'working', lastMessage: '修复 UI Bug', x: 40, y: 40 },
-        { id: 'a2', name: 'Codex', status: 'idle', lastMessage: '等待任务', x: 260, y: 160 },
-        { id: 'a3', name: 'Qwen', status: 'shutdown', x: 100, y: 300 },
+        { id: 'a1', name: 'Claude', status: 'thinking', lastMessage: '正在思考', x: 40, y: 40 },
+        { id: 'a2', name: 'Codex', status: 'responding', lastMessage: '正在回复…', x: 260, y: 160 },
+        { id: 'a3', name: 'Qwen', status: 'idle', lastMessage: '等待任务', x: 100, y: 300 },
       ],
     },
-    note: '完整监控面板：侧边栏 + 画布',
+    note: '完整监控面板：侧边栏 + 画布；collapsed=true 显示胶囊态，点击胶囊/×触发 onToggleCollapsed',
+    handlers: (setValues) => ({
+      onToggleCollapsed: () => setValues((p) => ({ ...p, collapsed: !p.collapsed })),
+    }),
   },
   {
     name: 'CliList',
@@ -599,9 +690,19 @@ export const registry: ComponentEntry[] = [
     ],
     defaults: {
       running: false,
-      config: { model: 'claude-opus-4-7', maxTokens: 8192 },
+      inflightAction: null,
+      config: {
+        id: 'pa-1',
+        name: 'Primary Agent',
+        cliType: 'claude',
+        systemPrompt: '',
+        mcpConfig: [],
+        status: 'STOPPED',
+        createdAt: '2026-04-26T00:00:00Z',
+        updatedAt: '2026-04-26T00:00:00Z',
+      },
     },
-    note: 'Start/Stop 与 running 状态联动（disabled）',
+    note: 'Surface 发光容器；Start/Stop 与 running 状态联动（disabled）；inflightAction 非空时禁用所有按钮',
     handlers: (setValues) => ({
       onStart: () => setValues((p) => ({ ...p, running: true })),
       onStop: () => setValues((p) => ({ ...p, running: false })),
@@ -694,8 +795,26 @@ export const registry: ComponentEntry[] = [
       blocks: [
         { type: 'thinking', blockId: 'b1' },
         { type: 'text', blockId: 'b2', content: '我来分析一下这个文件...' },
-        { type: 'tool_call', blockId: 'b3', toolName: 'read_file', status: 'completed', summary: '读取 package.json' },
-        { type: 'tool_result', blockId: 'b4', toolName: 'read_file', status: 'done', summary: '返回 42 行' },
+        {
+          type: 'tool_call',
+          blockId: 'b3',
+          title: 'mcp__mteam-primary__create_leader',
+          status: 'completed',
+          input: { display: 'mcp__mteam-primary__create_leader' },
+          output: { display: '成功创建 Leader 实例' },
+          startTs: '2026-04-27T11:56:33.863Z',
+          updatedTs: '2026-04-27T11:56:34.687Z',
+        },
+        {
+          type: 'tool_call',
+          blockId: 'b4',
+          title: 'read_file',
+          status: 'failed',
+          input: { display: 'read_file' },
+          output: { display: 'Error: file not found' },
+          startTs: '2026-04-27T11:56:35.100Z',
+          updatedTs: '2026-04-27T11:56:35.420Z',
+        },
         { type: 'text', blockId: 'b5', content: '文件分析完毕，共 42 行代码。' },
       ],
     },

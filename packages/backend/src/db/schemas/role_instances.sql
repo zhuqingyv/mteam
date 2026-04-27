@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS role_instances (
   claude_session_id TEXT,
   leader_name       TEXT,
   task              TEXT,
+  -- 成员默认不走沙箱、不自动批准（保守侧，避免未经审查的 host 改动）
+  sandbox           INTEGER NOT NULL DEFAULT 0 CHECK(sandbox IN (0,1)),
+  auto_approve      INTEGER NOT NULL DEFAULT 0 CHECK(auto_approve IN (0,1)),
   created_at        TEXT NOT NULL
 );
 

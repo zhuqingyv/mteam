@@ -1,6 +1,6 @@
 // HTTP 端到端：起一个真实 http.Server（不跑 CommServer / reconcile），用 fetch 测全链路。
-// createInstance 涉及 pty spawn 真实进程；我们用 /usr/bin/true 作为 CLI（spawn 成功后立即退出）。
-// 注意：node-pty 会对非 macOS/非 Linux 平台行为不同，这里做保护：拿不到 true 就跳过 create 子集。
+// createInstance 涉及 member-driver 启动真实 CLI 子进程；我们用 /usr/bin/true 作为 CLI。
+// 取不到 /usr/bin/true 的平台跳过 create 子集。
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { existsSync } from 'node:fs';
@@ -9,7 +9,7 @@ import type { AddressInfo } from 'node:net';
 
 process.env.TEAM_HUB_V2_DB = ':memory:';
 
-import { createServer } from '../server.js';
+import { createServer } from '../http/server.js';
 import { RoleTemplate } from '../domain/role-template.js';
 import { RoleInstance } from '../domain/role-instance.js';
 import { closeDb, getDb } from '../db/connection.js';
@@ -50,7 +50,7 @@ function resetAll(): void {
 }
 
 beforeAll(async () => {
-  // 关键：让 pty 调用 /usr/bin/true，避免启动真实 claude
+  // 关键：让 CLI spawn 调用 /usr/bin/true，避免启动真实 claude
   process.env.TEAM_HUB_CLI_BIN = TRUE_BIN;
   server = createServer();
   await new Promise<void>((resolve) => server.listen(0, resolve));
@@ -148,7 +148,7 @@ describe('HTTP /api/role-templates', () => {
 });
 
 describe('HTTP /api/role-instances (不经 PTY)', () => {
-  // 通过 domain 层直接插实例，避免命中 create handler 的 pty spawn
+  // 通过 domain 层直接插实例，避免命中 create handler 的 driver spawn
   function seedInstance(params: { member: string; isLeader?: boolean; tpl?: string }): string {
     const tpl = params.tpl ?? 'tpl';
     if (!RoleTemplate.findByName(tpl)) {
@@ -357,9 +357,9 @@ describe('HTTP 未知路径', () => {
   });
 });
 
-// createInstance 涉及 pty spawn。只有在 /usr/bin/true 存在时才跑，
+// createInstance 涉及 driver spawn。只有在 /usr/bin/true 存在时才跑，
 // 并且这里对结果做弱断言——只要不崩就算通过（主要验证 spawn 路径可达）。
-describe('HTTP POST /api/role-instances (PTY spawn 路径)', () => {
+describe('HTTP POST /api/role-instances (driver spawn 路径)', () => {
   beforeEach(() => {
     if (!HAS_TRUE) return;
     // 本子集需要预置模板
@@ -371,7 +371,7 @@ describe('HTTP POST /api/role-instances (PTY spawn 路径)', () => {
       method: 'POST',
       body: { templateName: 'tpl-e2e', memberName: 'e2e-user' },
     });
-    // spawn 成功即 201；若 node-pty 在当前环境有问题则 500，且实例会被回滚
+    // instance.created handler 成功返 201；若异步 driver 启动在当前环境失败只打 stderr，不影响 handler
     expect([201, 500]).toContain(r.status);
     if (r.status === 201) {
       const body = r.body as { id: string; status: string };

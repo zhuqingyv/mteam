@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react';
+import Icon from '../../atoms/Icon';
 import './ChatInput.css';
 
 interface ChatInputProps {
@@ -24,6 +25,7 @@ export default function ChatInput({
   }, [value]);
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       onSend?.();
@@ -48,9 +50,7 @@ export default function ChatInput({
         disabled={!value.trim()}
         aria-label="发送"
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M3 8h9M8 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <Icon name="send" size={16} />
       </button>
     </div>
   );

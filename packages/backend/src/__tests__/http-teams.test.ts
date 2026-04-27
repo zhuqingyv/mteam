@@ -8,7 +8,7 @@ import type { AddressInfo } from 'node:net';
 
 process.env.TEAM_HUB_V2_DB = ':memory:';
 
-import { createServer } from '../server.js';
+import { createServer } from '../http/server.js';
 import { RoleTemplate } from '../domain/role-template.js';
 import { RoleInstance } from '../domain/role-instance.js';
 import { closeDb, getDb } from '../db/connection.js';

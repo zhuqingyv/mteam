@@ -110,6 +110,44 @@ packages/
 - [x] mcp-server → backend 改名
 - [x] V1 特效迁移到 fx/
 
+### Phase 5 — 沙箱化 + ACP 统一（34 模块）
+- [x] process-runtime 抽象层（HostRuntime / DockerRuntime 双实现，统一 RuntimeHandle 接口）
+- [x] AgentDriver 解耦 runtime（注入 RuntimeHandle，不再直接依赖 PTY）
+- [x] 成员 Agent 迁移 ACP 协议（完全废弃 PTY 通信路径）
+- [x] 内置 mteam MCP 迁移 Streamable HTTP（stdio → HTTP，支持远程接入）
+- [x] 安全策略订阅器（container.subscriber 生命周期管理 + policy.subscriber 权限校验）
+- [x] server.ts 拆包（423 行 → 11 个文件，职责单一）
+- [x] node-pty 依赖标记废弃（pty.subscriber 删除）
+
+### Phase 6 — 通信管道（14 模块）
+- [x] MessageEnvelope + ActorRef 统一数据结构（取代裸 string 地址）
+- [x] 消息三路分发（agent 通知行 / 前端 JSON / DB 持久化并行）
+- [x] mteam MCP 工具改造（send_msg / read_message / check_inbox 适配 envelope）
+- [x] 前端 HTTP API（消息 CRUD + 按会话分页查询）
+- [x] DB migration（messages 表 + 索引）
+
+### Phase 7 — WS 双工 + 过滤器 + 通知（14+ 模块）
+- [x] WS 精细订阅协议（subscribe / unsubscribe / prompt / ping 四类消息）
+- [x] 业务过滤器（visibility rules，按角色/团队/可见性裁剪事件流）
+- [x] 通知系统三种代理模式（direct / proxy_all / custom）
+- [x] 用户注册 comm 地址（SocketShim 把浏览器会话桥入 comm 网络）
+- [x] Turn 聚合器（11 种 sessionUpdate → 9 种 TurnBlock，前端渲染友好）
+- [x] Claude adapter 补全（4 → 11 种 sessionUpdate 全覆盖）
+- [x] Codex adapter 补全（4 → 11 种 sessionUpdate 全覆盖）
+- [x] HTTP Turn 快照接口（GET /api/panel/driver/:id/turns，断线重连恢复）
+- [x] WS 白名单切换（driver.* 生命周期保留 + turn.* 聚合事件替换零散事件）
+
+### 前端对接文档（14 份）
+- [x] `docs/architecture-overview.md` — 整体架构总览 + 大 ASCII 图 + 关键设计决策
+- [x] `docs/frontend-api/ws-protocol.md` — WS 上下行协议 + 4 种错误码
+- [x] `docs/frontend-api/bus-events.md` — 34+ bus 事件类型
+- [x] `docs/frontend-api/message-flow.md` — 消息三路分发（DB / agent / 前端）
+- [x] `docs/frontend-api/turn-events.md` — Turn 聚合前端对接 + 9 种 block 渲染
+- [x] `docs/frontend-api/notification-and-visibility.md` — 通知 + 可见性规则
+- [x] `docs/frontend-api/notification-config.md` — 通知配置接口（HTTP 端点建议）
+- [x] `docs/frontend-api/messages-api.md` / `roster-api.md` / `teams-api.md` / `instances-api.md`
+- [x] `docs/frontend-api/templates-and-mcp.md` / `primary-agent-api.md` / `sessions-and-auth.md`
+
 ## 已知 Bug / 技术债
 
 | # | 类型 | 描述 | 优先级 | 状态 |
@@ -118,28 +156,22 @@ packages/
 | 2 | ~~Bug~~ | ~~roster.update 静默失败~~ | ~~低~~ | ✅ 已修（改纯 DB） |
 | 3 | Bug | handleUpdateRoster 非法类型静默丢弃 | 低 | 待修 |
 | 4 | Known Limitation | SqliteError code 字符串依赖 | 极低 | 不动 |
-| 5 | Bug | 删 leader instance 返回 500（pty.subscriber kill 相关） | 中 | 待修 |
+| 5 | ~~Bug~~ | ~~删 leader instance 返回 500（pty.subscriber kill 相关）~~ | ~~中~~ | ✅ 已修（Phase 5 废弃 PTY） |
 | 6 | Known Limitation | team.create 不自动加 leader 到 team_members，需手动 addMember | 低 | 设计如此，可优化 |
 
 ## 待做
 
 ### 近期
-- [ ] 前端接入 WebSocket 实时推送（useEventBus hook + Jotai atom invalidation）
-- [ ] 端到端联调（启动 server → 创建实例 → agent 用 mteam-mcp 工具完成任务）
-- [ ] MCP 动态注入 + 工具分层 — 设计见 docs/mcp-dynamic-injection-design.md
-  - [ ] Phase 1 MCP 管理器 + 模板升级：resolve() + availableMcps 类型升级 + pty 重构
-  - [ ] Phase 2 工具注册表 + 可见性：registry.ts + visibility.ts + IS_LEADER 过滤
-  - [ ] Phase 3 searchTools 元工具：search_tools + listChanged 动态注册
-  - [ ] Phase 4 可用性检查器（可选）：McpAvailabilityChecker + 前端标注
-- [ ] Project 模块（更高层业务概念，与 team 解耦）
+- [ ] comm + mlink 多机通信（Issue #20 + MessageGateway，远端 peer 路由）
+- [ ] 前端正式 UI（聊天界面 + Turn 渲染，替换当前测试面板）
+- [ ] 端到端联调（启动 server → 创建团队 → agent 完成真实任务闭环）
+- [ ] 通知配置 HTTP 端点（三种代理模式可配置）
+- [ ] node-pty 依赖清理确认（package.json + import 残留扫描）
 - [ ] Bug #3 修复（handleUpdateRoster 非法类型静默丢弃）
-- [ ] Bug: 删 leader instance 500（pty 相关）
-- [ ] comm 跨机（mlink 接入 + remote_peers + system handler）
+- [ ] Project 模块（更高层业务概念，与 team 解耦）
 
 ### 中期
-- [ ] 前端终端渲染（xterm.js + WebSocket 连 PTY）
 - [ ] mnemo 内置（git submodule）
-- [ ] 多 CLI adapter（Gemini/Codex/Trae 支持）
 - [ ] 前端特效接入（liquid border + 触手）
 
 ### 长期
@@ -168,6 +200,11 @@ packages/
 | Team 模块技术方案 | docs/teams/team-manager-design.md |
 | Team 生命周期联动方案 | docs/teams/team-lifecycle-sync.md |
 | MCP 动态注入机制 | docs/mcp-dynamic-injection-design.md |
+| 整体架构总览 | docs/architecture-overview.md |
+| Phase ws 任务清单 | docs/phase-ws/TASK-LIST.md |
+| Phase ws Turn 聚合方案 | docs/phase-ws/turn-aggregator-design.md |
+| Phase comm 任务清单 | docs/phase-comm/TASK-LIST.md |
+| 前端对接目录 | docs/frontend-api/ |
 
 ## 关键设计决策
 

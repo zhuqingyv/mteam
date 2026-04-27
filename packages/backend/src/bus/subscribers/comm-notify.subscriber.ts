@@ -8,7 +8,7 @@
 import { Subscription } from 'rxjs';
 import { EventBus, bus } from '../events.js';
 import type { CommRouter } from '../../comm/router.js';
-import type { Message, Address } from '../../comm/types.js';
+import { buildEnvelope } from '../../comm/envelope-builder.js';
 import { RoleInstance } from '../../domain/role-instance.js';
 
 export function subscribeCommNotify(
@@ -20,19 +20,28 @@ export function subscribeCommNotify(
   sub.add(
     eventBus.on('instance.offline_requested').subscribe((e) => {
       try {
-        const msg: Message = {
-          type: 'message',
-          id: `sys-offline-${e.instanceId}-${Date.now()}`,
-          from: 'local:system' as Address,
-          to: `local:${e.instanceId}` as Address,
-          payload: {
-            kind: 'system',
+        const env = buildEnvelope(
+          {
+            fromKind: 'system',
+            fromAddress: 'local:system',
+            toAddress: `local:${e.instanceId}`,
+            toLookup: {
+              instanceId: e.instanceId,
+              memberName: e.instanceId,
+              displayName: e.instanceId,
+            },
             summary: 'Leader has approved your offline request',
-            action: 'deactivate',
+            content: 'deactivate',
+            kind: 'system',
+            now: () => new Date(e.ts),
           },
-          ts: e.ts,
-        };
-        router.dispatch(msg);
+          { allowSystemKind: true },
+        );
+        void Promise.resolve(router.dispatch(env)).catch((err: Error) => {
+          process.stderr.write(
+            `[bus] comm-notify dispatch rejection: ${err.message}\n`,
+          );
+        });
       } catch (err) {
         process.stderr.write(
           `[bus] comm-notify dispatch failed for ${e.instanceId}: ${(err as Error).message}\n`,
@@ -50,21 +59,28 @@ export function subscribeCommNotify(
         if (inst.isLeader) return;
         if (!inst.leaderName) return;
 
-        const msg: Message = {
-          type: 'message',
-          id: `sys-activated-${e.instanceId}-${Date.now()}`,
-          from: 'local:system' as Address,
-          to: `local:${inst.leaderName}` as Address,
-          payload: {
-            kind: 'system',
+        const env = buildEnvelope(
+          {
+            fromKind: 'system',
+            fromAddress: 'local:system',
+            toAddress: `local:${inst.leaderName}`,
+            toLookup: {
+              instanceId: inst.leaderName,
+              memberName: inst.leaderName,
+              displayName: inst.leaderName,
+            },
             summary: `${inst.memberName} 上线了`,
-            action: 'member_activated',
-            instanceId: e.instanceId,
-            memberName: inst.memberName,
+            content: `member_activated:${e.instanceId}`,
+            kind: 'system',
+            now: () => new Date(e.ts),
           },
-          ts: e.ts,
-        };
-        router.dispatch(msg);
+          { allowSystemKind: true },
+        );
+        void Promise.resolve(router.dispatch(env)).catch((err: Error) => {
+          process.stderr.write(
+            `[bus] comm-notify dispatch rejection: ${err.message}\n`,
+          );
+        });
       } catch (err) {
         process.stderr.write(
           `[bus] comm-notify activate dispatch failed for ${e.instanceId}: ${(err as Error).message}\n`,

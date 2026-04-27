@@ -6,11 +6,12 @@ export function makeBase<T extends BusEventType>(
   type: T,
   source: string,
   correlationId?: string,
-): { type: T; ts: string; source: string; correlationId?: string } {
+): { type: T; ts: string; source: string; correlationId?: string; eventId: string } {
   return {
     type,
     ts: new Date().toISOString(),
     source,
+    eventId: randomUUID(),
     ...(correlationId ? { correlationId } : {}),
   };
 }

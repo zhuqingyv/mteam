@@ -4,42 +4,28 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { readEnv, type MteamEnv } from './config.js';
+import type { MteamEnv } from './config.js';
+import { readEnv } from './config.js';
 import { CommClient } from './comm-client.js';
 import type { CommLike } from './comm-like.js';
 import { findTool, visibleTools, type ToolDeps } from './tools/registry.js';
 
-function toTextResult(data: unknown): { content: Array<{ type: 'text'; text: string }>; isError?: boolean } {
+function toTextResult(
+  data: unknown,
+): { content: Array<{ type: 'text'; text: string }>; isError?: boolean } {
   const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
   const isError =
     data !== null &&
     typeof data === 'object' &&
     'error' in (data as Record<string, unknown>);
-  return { content: [{ type: 'text', text }], ...(isError ? { isError: true } : {}) };
+  return {
+    content: [{ type: 'text', text }],
+    ...(isError ? { isError: true } : {}),
+  };
 }
 
-async function connectCommWithRetry(comm: CommClient, address: string): Promise<void> {
-  const MAX_ATTEMPTS = 3;
-  const DELAY_MS = 500;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    try {
-      await comm.ensureReady();
-      process.stderr.write(`[mteam] comm ready address=${address} attempt=${attempt}\n`);
-      return;
-    } catch (e) {
-      const msg = (e as Error).message;
-      process.stderr.write(`[mteam] comm connect failed attempt=${attempt}/${MAX_ATTEMPTS} err=${msg}\n`);
-      if (attempt < MAX_ATTEMPTS) {
-        await new Promise((r) => setTimeout(r, DELAY_MS));
-      }
-    }
-  }
-  process.stderr.write(`[mteam] comm connect gave up address=${address} — send_msg will retry on demand\n`);
-}
-
-// 纯构造：给 env + 任意 CommLike 实现，返回挂好两个 handler 的 Server。
-// 不碰 transport / process signal / 日志 —— 由调用方负责（mcp-http listener、
-// 单测的 InMemoryTransport、stdio 入口）。每个 session 应单独 new 一个 Server。
+// 构造 mteam MCP Server：注册 ListTools / CallTool，不 connect、不绑 signal。
+// 由调用方负责挂 transport 与清理。
 export function createMteamServer(env: MteamEnv, comm: CommLike): Server {
   const deps: ToolDeps = { env, comm };
 
@@ -56,9 +42,7 @@ export function createMteamServer(env: MteamEnv, comm: CommLike): Server {
     const name = req.params.name;
     const args = (req.params.arguments ?? {}) as Record<string, unknown>;
     const entry = findTool(name);
-    if (!entry) {
-      return toTextResult({ error: `unknown tool: ${name}` });
-    }
+    if (!entry) return toTextResult({ error: `unknown tool: ${name}` });
     if (entry.leaderOnly && !env.isLeader) {
       return toTextResult({ error: `tool '${name}' is leader-only` });
     }
@@ -72,7 +56,37 @@ export function createMteamServer(env: MteamEnv, comm: CommLike): Server {
   return server;
 }
 
-export async function runMteamServer(): Promise<void> {
+async function connectCommWithRetry(
+  comm: CommClient,
+  address: string,
+): Promise<void> {
+  const MAX_ATTEMPTS = 3;
+  const DELAY_MS = 500;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await comm.ensureReady();
+      process.stderr.write(
+        `[mteam] comm ready address=${address} attempt=${attempt}\n`,
+      );
+      return;
+    } catch (e) {
+      const msg = (e as Error).message;
+      process.stderr.write(
+        `[mteam] comm connect failed attempt=${attempt}/${MAX_ATTEMPTS} err=${msg}\n`,
+      );
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, DELAY_MS));
+      }
+    }
+  }
+  process.stderr.write(
+    `[mteam] comm connect gave up address=${address} — send_msg will retry on demand\n`,
+  );
+}
+
+// stdio 入口：子进程被 CLI 拉起时调用。负责 env 读取、CommClient 构造、
+// StdioServerTransport 连接与 signal 清理。HTTP 变体在 mcp-http/ 里独立实现。
+export async function runMteamServerStdio(): Promise<void> {
   const env = readEnv();
   const selfAddress = `local:${env.instanceId}`;
   const comm = new CommClient(env.commSock, selfAddress);
@@ -89,6 +103,7 @@ export async function runMteamServer(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  // 启动就绪日志标签保留 [mteam]，与 pty manager 日志前缀对齐
-  process.stderr.write(`[mteam] ready instance=${env.instanceId} hub=${env.hubUrl} leader=${env.isLeader ? 1 : 0}\n`);
+  process.stderr.write(
+    `[mteam] ready instance=${env.instanceId} hub=${env.hubUrl} leader=${env.isLeader ? 1 : 0}\n`,
+  );
 }

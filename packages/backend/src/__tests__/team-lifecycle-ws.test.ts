@@ -29,7 +29,7 @@ async function waitReady(): Promise<void> {
 }
 
 beforeAll(async () => {
-  serverProc = Bun.spawn(['bun', 'run', 'packages/backend/src/server.ts'], {
+  serverProc = Bun.spawn(['bun', 'run', 'packages/backend/src/http/server.ts'], {
     env: {
       ...process.env, V2_PORT: String(PORT), TEAM_HUB_V2_DB: ':memory:',
       TEAM_HUB_CLI_BIN: '/usr/bin/true', TEAM_HUB_COMM_SOCK: SOCK,
@@ -43,8 +43,12 @@ beforeAll(async () => {
     ws!.onopen = (): void => { clearTimeout(timer); resolve(); };
     ws!.onerror = (): void => { clearTimeout(timer); reject(new Error('ws connect error')); };
   });
+  ws.send(JSON.stringify({ op: 'subscribe', scope: 'global' }));
   ws.onmessage = (msg: MessageEvent): void => {
-    try { events.push(JSON.parse(msg.data as string)); } catch { /* ignore non-JSON */ }
+    try {
+      const m = JSON.parse(msg.data as string);
+      if (m?.type === 'event' && m.event) events.push(m.event as Record<string, unknown>);
+    } catch { /* ignore non-JSON */ }
   };
 });
 

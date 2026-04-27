@@ -23,7 +23,7 @@ async function waitReady(): Promise<void> {
 }
 
 beforeAll(async () => {
-  serverProc = Bun.spawn(['bun', 'run', 'packages/backend/src/server.ts'], {
+  serverProc = Bun.spawn(['bun', 'run', 'packages/backend/src/http/server.ts'], {
     env: {
       ...process.env,
       V2_PORT: String(PORT),
@@ -120,17 +120,15 @@ describe('HTTP /api/role-templates', () => {
   it('DELETE 被引用的模板 → 409', async () => {
     const name = `tpl-ref-${Date.now()}`;
     await post('/api/role-templates', { name, role: 'dev' });
-    // 造一个引用该模板的实例（避免走 PTY 的 create instance 接口，这里只测 delete 409）
-    // 通过在同一 server 进程创建 instance 来保证 FK 命中，用 role-instances API 会触发 PTY，
-    // 因此我们改用一个取巧方式：利用 request-offline/activate 不会触发真的 PTY，
-    // 但 create 必须走 handler。该接口在有 /usr/bin/true 环境下会 201（子进程启动 true 立即退出）。
+    // 造一个引用该模板的实例（要让 create instance 真的走 handler 建 FK 引用）。
+    // create 会触发 member-driver 真实 spawn；该接口在有 /usr/bin/true 环境下会 201（子进程启动 true 立即退出）。
     const instRes = await fetch(`${BASE}/api/role-instances`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ templateName: name, memberName: 'refuser' }),
       signal: AbortSignal.timeout(5000),
     });
-    // 若环境起不了 pty，create 可能 500 —— 那么就没 FK 压力，不能验证 409。
+    // 若环境起不了 driver，create 可能 500 —— 那么就没 FK 压力，不能验证 409。
     if (instRes.status !== 201) {
       // 跳过：spawn 失败环境无法构造被引用场景
       return;
@@ -148,5 +146,23 @@ describe('HTTP /api/role-templates', () => {
     expect(first.status).toBe(201);
     const second = await post('/api/role-templates', { name, role: 'dev' });
     expect(second.status).toBe(409);
+  });
+
+  // P2-4：readBody 加了 1MB 封顶。小 body 走原路径，大 body 立刻 413。
+  it('POST 正常 body → 201（不受 size 限制影响）', async () => {
+    const res = await post('/api/role-templates', {
+      name: `tpl-small-${Date.now()}`,
+      role: 'dev',
+      systemPrompt: 'x'.repeat(1024),
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('POST body > 1MB → 413', async () => {
+    const payload = { name: `tpl-big-${Date.now()}`, role: 'dev', systemPrompt: 'x'.repeat(1 << 21) };
+    const res = await post('/api/role-templates', payload);
+    expect(res.status).toBe(413);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('exceeds');
   });
 });

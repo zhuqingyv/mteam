@@ -1,5 +1,5 @@
 import type { MteamEnv } from '../config.js';
-import type { CommClient } from '../comm-client.js';
+import type { CommLike } from '../comm-like.js';
 import { activateSchema, runActivate } from './activate.js';
 import { deactivateSchema, runDeactivate } from './deactivate.js';
 import { requestOfflineSchema, runRequestOffline } from './request_offline.js';
@@ -8,6 +8,7 @@ import { checkInboxSchema, runCheckInbox } from './check_inbox.js';
 import { lookupSchema, runLookup } from './lookup.js';
 import { addMemberSchema, runAddMember } from './add_member.js';
 import { listMembersSchema, runListMembers } from './list_members.js';
+import { readMessageSchema, runReadMessage } from './read_message.js';
 
 export interface ToolSchema {
   name: string;
@@ -17,7 +18,7 @@ export interface ToolSchema {
 
 export interface ToolDeps {
   env: MteamEnv;
-  comm: CommClient;
+  comm: CommLike;
 }
 
 export type ToolHandler = (
@@ -70,6 +71,11 @@ export const ALL_TOOLS: ToolEntry[] = [
   {
     schema: listMembersSchema,
     handler: ({ env }) => runListMembers(env),
+    leaderOnly: false,
+  },
+  {
+    schema: readMessageSchema,
+    handler: ({ env }, args) => runReadMessage(env, args),
     leaderOnly: false,
   },
 ];

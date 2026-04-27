@@ -38,3 +38,24 @@
   background: rgba(255, 255, 255, 0.28);
   box-shadow: 0 0 0 1.5px rgba(13, 15, 20, 0.8);
 }
+
+.status-dot--thinking {
+  background: #a78bfa;
+  box-shadow:
+    0 0 0 1.5px rgba(13, 15, 20, 0.8),
+    0 0 6px rgba(167, 139, 250, 0.6);
+  animation: status-dot-pulse 1.4s ease-in-out infinite;
+}
+
+.status-dot--responding {
+  background: #3b82f6;
+  box-shadow:
+    0 0 0 1.5px rgba(13, 15, 20, 0.8),
+    0 0 6px rgba(59, 130, 246, 0.6);
+  animation: status-dot-pulse 1s ease-in-out infinite;
+}
+
+@keyframes status-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}

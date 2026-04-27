@@ -180,7 +180,7 @@ describe('role-instances API handler (不经 PTY)', () => {
     closeDb();
   });
 
-  // 工具：用 domain 层造一个 PENDING 实例并入 roster（跳过 pty 和 bus）
+  // 工具：用 domain 层造一个 PENDING 实例并入 roster（跳过 driver 和 bus）
   function seedPendingInstance(memberName = 'm', isLeader = false): string {
     const inst = RoleInstance.create({
       templateName: 'tpl',

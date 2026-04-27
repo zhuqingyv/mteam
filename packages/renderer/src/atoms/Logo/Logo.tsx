@@ -1,11 +1,17 @@
 import logoSrc from '../../assets/logo-m.png';
+import './Logo.css';
+
+export type LogoStatus = 'online' | 'connecting' | 'offline';
 
 interface LogoProps {
   size?: number;
+  status?: LogoStatus;
+  /** @deprecated 用 status 替代；true→online，false→offline */
   online?: boolean;
 }
 
-export default function Logo({ size = 56, online = true }: LogoProps) {
+export default function Logo({ size = 56, status, online }: LogoProps) {
+  const resolved: LogoStatus = status ?? (online === false ? 'offline' : 'online');
   const shift = Math.max(1, Math.round(size * 0.06));
   return (
     <img
@@ -13,14 +19,8 @@ export default function Logo({ size = 56, online = true }: LogoProps) {
       width={size}
       height={size}
       alt="M"
-      style={{
-        display: 'block',
-        objectFit: 'contain',
-        transform: `translateY(${shift}px)`,
-        filter: online ? 'none' : 'grayscale(1)',
-        opacity: online ? 1 : 0.6,
-        transition: 'filter 300ms ease, opacity 300ms ease',
-      }}
+      className={`logo logo--${resolved}`}
+      style={{ transform: `translateY(${shift}px)` }}
     />
   );
 }

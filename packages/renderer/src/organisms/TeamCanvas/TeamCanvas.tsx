@@ -22,7 +22,7 @@ export default function TeamCanvas({ agents, onAgentDragEnd }: TeamCanvasProps) 
         <AgentCard
           key={a.id}
           name={a.name}
-          status={a.status as 'working' | 'idle' | 'shutdown'}
+          status={a.status as 'idle' | 'thinking' | 'responding' | 'offline'}
           lastMessage={a.lastMessage}
           x={a.x}
           y={a.y}

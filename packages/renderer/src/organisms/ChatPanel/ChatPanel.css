@@ -9,15 +9,17 @@
 .chat-panel__messages {
   flex: 1;
   min-height: 0;
-  padding: 28px 16px 8px;
+  padding: 0 16px 8px;
   display: flex;
   flex-direction: column;
 }
 
 /* 让 VirtualList 内容在内容不足时贴底、超出时从顶部滚出。
-   作用于 VirtualList 的内部 wrapper（scrollRef 的直接子），不影响 scrollRef 本身的 overflow 行为。 */
+   作用于 VirtualList 的内部 wrapper（scrollRef 的直接子），不影响 scrollRef 本身的 overflow 行为。
+   padding-top 放在内层 wrapper 上，让顶部第一条滚到顶时也保留安全距离，不被窗口边缘裁切。 */
 .chat-panel__messages .virtual-list > div {
   min-height: 100%;
+  padding-top: 32px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;

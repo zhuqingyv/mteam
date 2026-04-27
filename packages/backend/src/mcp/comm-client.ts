@@ -1,6 +1,7 @@
 import net from 'node:net';
 import { randomUUID } from 'node:crypto';
 import type { AnyMessage, Message } from '../comm/types.js';
+import type { CommLike } from './comm-like.js';
 
 const ACK_TIMEOUT_MS = 5000;
 
@@ -9,7 +10,7 @@ export interface SendOpts {
   payload: Record<string, unknown>;
 }
 
-export class CommClient {
+export class CommClient implements CommLike {
   private sock: net.Socket | null = null;
   private registered = false;
   private buffer = '';

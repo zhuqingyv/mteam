@@ -1,12 +1,14 @@
-// Driver Turn 快照 —— 当前 /api/panel/ 下唯一合规端点（PRD §1.2、SERVER-API-INDEX §11）。
-// 前端在聊天面板打开 / WS 重连后调用，用于补齐 Turn 视图。
+// Driver Turn 类型与快照接口。
 //
-// 类型与服务端 packages/backend/src/agent-driver/turn-types.ts 的 Turn / TurnBlock / TurnStatus
-// 保持字段一致。前端只需要一个结构一致的本地声明，便于解耦和不跨包导入。
+// 类型对齐服务端 packages/backend/src/agent-driver/turn-types.ts 的 Turn / TurnBlock / TurnStatus，
+// 前端只需要一个结构一致的本地声明，便于解耦、不跨包导入。
+//
+// 注意：主 Agent 热快照走 WS op `get_turns`（见 ws.ts getTurns），
+// HTTP getDriverTurns 仅保留供调试/旧调用点使用。
 
 import { panelGet, type ApiResult } from './client';
 
-export type TurnStatus = 'running' | 'completed' | 'failed' | 'canceled';
+export type TurnStatus = 'active' | 'done' | 'error';
 
 export interface TurnUsage {
   totalTokens?: number;

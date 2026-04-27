@@ -1,5 +1,5 @@
 // HTTP 集成测试：/api/sessions/register。
-// 起独立 server 子进程，:memory: DB + 随机端口。用 TEAM_HUB_CLI_BIN=/usr/bin/true 让 pty 不真实拉起 claude。
+// 起独立 server 子进程，:memory: DB + 随机端口。用 TEAM_HUB_CLI_BIN=/usr/bin/true 让 driver 不真实拉起 claude。
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { existsSync } from 'node:fs';
 
@@ -26,7 +26,7 @@ async function waitReady(): Promise<void> {
 }
 
 beforeAll(async () => {
-  serverProc = Bun.spawn(['bun', 'run', 'packages/backend/src/server.ts'], {
+  serverProc = Bun.spawn(['bun', 'run', 'packages/backend/src/http/server.ts'], {
     env: {
       ...process.env,
       V2_PORT: String(PORT),

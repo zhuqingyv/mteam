@@ -1,26 +1,67 @@
+// 主 Agent 对前端只暴露 WS 接口（推送 + 主动请求），不新增 HTTP 端点。
+// 配置/启停/快照/历史全部走 WS op，HTTP 层只保留 /ws/events upgrade 本身。
 import type { Subscription } from 'rxjs';
 import { bus as defaultBus, type EventBus } from '../bus/events.js';
 import { makeBase } from '../bus/helpers.js';
 import { cliManager } from '../cli-scanner/manager.js';
 import { AgentDriver } from '../agent-driver/driver.js';
+import { attachDriverToBus } from '../agent-driver/bus-bridge.js';
+import { driverRegistry as defaultDriverRegistry, type DriverRegistry } from '../agent-driver/registry.js';
+import { HostRuntime } from '../process-runtime/host-runtime.js';
+import type { ProcessRuntime } from '../process-runtime/types.js';
 import { readRow, upsertConfig, setStatus } from './repo.js';
-import { buildDriverConfig } from './driver-config.js';
-import type { PrimaryAgentConfig, PrimaryAgentRow } from './types.js';
+import { spawnForRow } from './runtime-select.js';
+import { prepareStart, waitForCliScan, type CliWaitHost } from './bootstrap.js';
+import { subscribeDriverEvents, type DriverLifecycleHost } from './driver-lifecycle.js';
+import { buildHistoryPromptBlock, DEFAULT_HISTORY_LIMIT } from './history-injector.js';
+import { listRecentByDriver } from '../turn-history/repo.js';
+import type { PrimaryAgentConfig, PrimaryAgentRow, AgentState } from './types.js';
 
-export class PrimaryAgent {
+export class PrimaryAgent implements DriverLifecycleHost, CliWaitHost {
   private driver: AgentDriver | null = null;
   private driverSub: Subscription | null = null;
+  private driverBusSub: Subscription | null = null;
+  private cliSub: Subscription | null = null;
+  private _agentState: AgentState = 'idle';
 
-  constructor(private readonly eventBus: EventBus = defaultBus) {}
+  get agentState(): AgentState { return this._agentState; }
+  getAgentState(): AgentState { return this._agentState; }
+  getDriver(): AgentDriver | null { return this.driver; }
+  clearDriver(): void { this.driver = null; }
+  getCliSub(): Subscription | null { return this.cliSub; }
+  setCliSub(sub: Subscription | null): void { this.cliSub = sub; }
+  reboot(): void { this.boot(); }
+
+  setAgentState(state: AgentState): void {
+    if (this._agentState === state) return;
+    this._agentState = state;
+    const row = readRow();
+    if (row) {
+      this.eventBus.emit({
+        ...makeBase('primary_agent.state_changed', 'primary-agent'),
+        agentId: row.id,
+        agentState: state,
+      });
+    }
+  }
+
+  // 显式注入 runtime（测试 FakeRuntime）时不动它；未注入时 start() 按 row.sandbox 动态切换。
+  private runtime: ProcessRuntime;
+  private readonly hasInjectedRuntime: boolean;
+  constructor(
+    readonly eventBus: EventBus = defaultBus,
+    runtime?: ProcessRuntime,
+    readonly driverRegistry: DriverRegistry = defaultDriverRegistry,
+  ) {
+    this.hasInjectedRuntime = runtime !== undefined;
+    this.runtime = runtime ?? new HostRuntime();
+  }
 
   boot(): void {
-    const row = readRow();
-    if (!row) return;
-    if (row.status === 'RUNNING') setStatus(row.id, 'STOPPED');
-    if (!cliManager.isAvailable(row.cliType)) {
-      process.stderr.write(
-        `[primary-agent] boot: cli '${row.cliType}' unavailable, skip auto-start\n`,
-      );
+    if (this.driver) return; // 幂等
+    const res = prepareStart();
+    if (res.kind === 'wait-cli') {
+      waitForCliScan(this);
       return;
     }
     this.start().catch((err) => {
@@ -31,6 +72,10 @@ export class PrimaryAgent {
   }
 
   async teardown(): Promise<void> {
+    if (this.cliSub) {
+      this.cliSub.unsubscribe();
+      this.cliSub = null;
+    }
     if (this.isRunning()) await this.stop();
   }
 
@@ -42,6 +87,7 @@ export class PrimaryAgent {
       agentId: next.id,
       cliType: next.cliType,
       name: next.name,
+      row: next,
     });
 
     // 切换 cliType 时：跑着就先停再按新配置起。
@@ -65,24 +111,45 @@ export class PrimaryAgent {
       throw new Error(`cli '${row.cliType}' is not available`);
     }
 
-    const { config, skipped } = buildDriverConfig({ row });
-    for (const name of skipped) {
+    let historyPromptBlock = '';
+    try {
+      const { items } = listRecentByDriver(row.id, { limit: DEFAULT_HISTORY_LIMIT });
+      historyPromptBlock = buildHistoryPromptBlock(items);
+    } catch (err) {
       process.stderr.write(
-        `[primary-agent] mcp '${name}' not found in store, skip\n`,
+        `[primary-agent] history inject failed (continuing): ${(err as Error).message}\n`,
       );
     }
 
-    const driver = new AgentDriver(row.id, config);
+    // runtime_select 封装：优先注入实例；未注入时按 row.sandbox 选 Host/Docker，带 docker→host 降级。
+    const res = await spawnForRow({
+      row,
+      historyPromptBlock,
+      injected: this.hasInjectedRuntime ? this.runtime : null,
+    });
+    for (const name of res.skipped) {
+      process.stderr.write(`[primary-agent] mcp '${name}' not found in store, skip\n`);
+    }
+    if (!this.hasInjectedRuntime) this.runtime = res.runtime;
+    const { config, adapter, handle } = res;
+
+    const driver = new AgentDriver(row.id, config, handle, adapter);
     this.driver = driver;
-    this.subscribeDriverEvents(row.id);
+    this.driverSub = subscribeDriverEvents(this, row.id);
+    // driver.events$ → bus 翻译桥：否则 driver.started / turn.* 永远到不了前端。
+    this.driverBusSub = attachDriverToBus(row.id, driver.events$, this.eventBus);
 
     try {
       await driver.start();
     } catch (err) {
       this.unsubscribeDriver();
       this.driver = null;
+      await handle.kill().catch(() => {});
       throw err;
     }
+
+    // 注册到全局 driverRegistry，供 ws-handler / commRouter / driverDispatcher 命中主 Agent。
+    this.driverRegistry.register(row.id, driver);
 
     setStatus(row.id, 'RUNNING');
     this.eventBus.emit({
@@ -98,10 +165,12 @@ export class PrimaryAgent {
     const driver = this.driver;
     this.unsubscribeDriver();
     this.driver = null;
+    this.setAgentState('idle');
     if (driver) {
       try { await driver.stop(); } catch { /* ignore */ }
     }
     if (row) {
+      this.driverRegistry.unregister(row.id);
       setStatus(row.id, 'STOPPED');
       this.eventBus.emit({
         ...makeBase('primary_agent.stopped', 'primary-agent'),
@@ -114,54 +183,15 @@ export class PrimaryAgent {
     return this.driver !== null;
   }
 
-  private subscribeDriverEvents(agentId: string): void {
-    // AgentDriver 事件走全局 bus（driver 模块硬编码）。
-    // 只订阅自己这个 driverId，防止多实例交叉触发。
-    const sub = defaultBus.events$.subscribe((ev) => {
-      if (ev.type === 'driver.error') {
-        if (ev.driverId !== agentId) return;
-        process.stderr.write(
-          `[primary-agent] driver error: ${ev.message}\n`,
-        );
-        void this.handleDriverFailure(agentId);
-      } else if (ev.type === 'driver.stopped') {
-        if (ev.driverId !== agentId) return;
-        this.handleDriverStopped(agentId);
-      }
-    });
-    this.driverSub = sub;
-  }
-
-  private unsubscribeDriver(): void {
+  unsubscribeDriver(): void {
     if (this.driverSub) {
       this.driverSub.unsubscribe();
       this.driverSub = null;
     }
-  }
-
-  private async handleDriverFailure(agentId: string): Promise<void> {
-    if (!this.driver) return;
-    const d = this.driver;
-    this.unsubscribeDriver();
-    this.driver = null;
-    try { await d.stop(); } catch { /* ignore */ }
-    setStatus(agentId, 'STOPPED');
-    this.eventBus.emit({
-      ...makeBase('primary_agent.stopped', 'primary-agent'),
-      agentId,
-    });
-  }
-
-  private handleDriverStopped(agentId: string): void {
-    if (!this.driver) return;
-    // driver 自己发的 stopped 事件：子进程挂了，同步 DB 状态。
-    this.unsubscribeDriver();
-    this.driver = null;
-    setStatus(agentId, 'STOPPED');
-    this.eventBus.emit({
-      ...makeBase('primary_agent.stopped', 'primary-agent'),
-      agentId,
-    });
+    if (this.driverBusSub) {
+      this.driverBusSub.unsubscribe();
+      this.driverBusSub = null;
+    }
   }
 }
 

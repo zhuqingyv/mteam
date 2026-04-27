@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import TypingDots from '../../atoms/TypingDots';
+import MessageMeta from '../../atoms/MessageMeta';
 import './MessageBubble.css';
 
 interface MessageBubbleProps {
@@ -23,18 +25,13 @@ export default function MessageBubble({
           <div className="bubble__name">{agentName}</div>
         )}
         {variant === 'thinking' ? (
-          <span className="bubble__dots" aria-label="typing">
-            <i />
-            <i />
-            <i />
-          </span>
+          <TypingDots color="rgba(255, 255, 255, 0.92)" />
         ) : (
           <div className="bubble__body">{children}</div>
         )}
         {time && variant !== 'thinking' && (
           <div className="bubble__meta">
-            <span>{time}</span>
-            {variant === 'user' && read && <span className="bubble__read">read</span>}
+            <MessageMeta time={time} read={variant === 'user' ? read : undefined} />
           </div>
         )}
       </div>

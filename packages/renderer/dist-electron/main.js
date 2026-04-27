@@ -48,12 +48,14 @@ var import_node_path = require("node:path");
 var import_node_url = require("node:url");
 var __dirname2 = import_node_path.dirname(import_node_url.fileURLToPath("file:///Users/zhuqingyu/project/mcp-team-hub/packages/renderer/electron-main/backend.ts"));
 var BACKEND_ENTRY = import_node_path.resolve(__dirname2, "..", "..", "backend", "src", "http", "server.ts");
+var KILL_GRACE_MS = 2000;
 var child = null;
 function startBackend() {
   if (child && child.exitCode === null)
     return child;
   child = import_node_child_process.spawn("bun", ["run", BACKEND_ENTRY], {
-    stdio: ["ignore", "inherit", "inherit"],
+    detached: true,
+    stdio: ["pipe", "inherit", "inherit"],
     env: { ...process.env }
   });
   child.on("exit", (code, signal) => {
@@ -64,12 +66,17 @@ function startBackend() {
   return child;
 }
 function stopBackend() {
-  if (!child)
+  if (!child || typeof child.pid !== "number")
     return;
-  try {
-    child.kill("SIGTERM");
-  } catch {}
+  const pid = child.pid;
   child = null;
+  const kill = (sig) => {
+    try {
+      process.kill(-pid, sig);
+    } catch {}
+  };
+  kill("SIGTERM");
+  setTimeout(() => kill("SIGKILL"), KILL_GRACE_MS).unref?.();
 }
 
 // electron-main/main.ts
@@ -81,6 +88,11 @@ var ICON_PATH = import_node_path2.resolve(__dirname3, "..", "build", "icon.png")
 var VITE_DEV_URL = process.env.VITE_DEV_URL;
 var IS_DEV = !!VITE_DEV_URL;
 var PET_SIZE = { width: 380, height: 120 };
+if (IS_DEV) {
+  const CDP_PORT = process.env.MTEAM_CDP_PORT || "9222";
+  import_electron.app.commandLine.appendSwitch("remote-debugging-port", CDP_PORT);
+  import_electron.app.commandLine.appendSwitch("remote-allow-origins", "*");
+}
 var mainWindow = null;
 var teamPanelWindow = null;
 var settingsWindow = null;
@@ -135,13 +147,39 @@ function createWindow() {
     mainWindow = null;
   });
 }
+var lastTeamOpenAt = 0;
+var TEAM_OPEN_DEBOUNCE_MS = 500;
 function openPanel(key) {
-  const cfg = key === "team" ? { ref: teamPanelWindow, w: 1200, h: 800, title: "mteam — 团队面板", q: "?window=team" } : { ref: settingsWindow, w: 600, h: 500, title: "mteam — 设置", q: "?window=settings" };
+  const cfg = key === "team" ? { ref: teamPanelWindow, w: 1200, h: 800, minW: 800, minH: 600, title: "mteam — 团队面板", q: "?window=team" } : { ref: settingsWindow, w: 600, h: 500, minW: 400, minH: 300, title: "mteam — 设置", q: "?window=settings" };
+  if (cfg.ref && cfg.ref.isDestroyed()) {
+    if (key === "team")
+      teamPanelWindow = null;
+    else
+      settingsWindow = null;
+    cfg.ref = null;
+  }
   if (cfg.ref && !cfg.ref.isDestroyed()) {
-    cfg.ref.focus();
+    if (key === "team") {
+      const now = Date.now();
+      if (now - lastTeamOpenAt < TEAM_OPEN_DEBOUNCE_MS)
+        return;
+      lastTeamOpenAt = now;
+      cfg.ref.focus();
+    } else {
+      cfg.ref.close();
+    }
     return;
   }
-  const win = new import_electron.BrowserWindow({ ...baseGlassOptions, width: cfg.w, height: cfg.h, title: cfg.title });
+  if (key === "team")
+    lastTeamOpenAt = Date.now();
+  const win = new import_electron.BrowserWindow({
+    ...baseGlassOptions,
+    width: cfg.w,
+    height: cfg.h,
+    minWidth: cfg.minW,
+    minHeight: cfg.minH,
+    title: cfg.title
+  });
   if (key === "team")
     teamPanelWindow = win;
   else

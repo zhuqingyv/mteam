@@ -1,22 +1,13 @@
-import Button from '../../atoms/Button';
 import StatusDot from '../../atoms/StatusDot';
+import type { PrimaryAgentRow } from '../../api/primaryAgent';
 import './PrimaryAgentSettings.css';
 
-export interface PrimaryAgentConfig {
-  model?: string;
-  maxTokens?: number;
-}
-
 interface PrimaryAgentSettingsProps {
-  config?: PrimaryAgentConfig;
-  running?: boolean;
-  onStart?: () => void;
-  onStop?: () => void;
+  config: PrimaryAgentRow | null;
+  running: boolean;
 }
 
-export default function PrimaryAgentSettings({
-  config, running = false, onStart, onStop,
-}: PrimaryAgentSettingsProps) {
+export default function PrimaryAgentSettings({ config, running }: PrimaryAgentSettingsProps) {
   return (
     <div className="pa-settings">
       <div className="pa-settings__head">
@@ -27,15 +18,11 @@ export default function PrimaryAgentSettings({
         <span className="pa-settings__state">{running ? 'Running' : 'Stopped'}</span>
       </div>
       <dl className="pa-settings__grid">
-        <dt>Model</dt>
-        <dd>{config?.model || '—'}</dd>
-        <dt>Max Tokens</dt>
-        <dd>{config?.maxTokens ?? '—'}</dd>
+        <dt>Name</dt>
+        <dd>{config?.name ?? '—'}</dd>
+        <dt>CLI</dt>
+        <dd>{config?.cliType ?? '—'}</dd>
       </dl>
-      <div className="pa-settings__actions">
-        <Button variant="primary" size="sm" onClick={onStart} disabled={running}>Start</Button>
-        <Button variant="ghost" size="sm" onClick={onStop} disabled={!running}>Stop</Button>
-      </div>
     </div>
   );
 }
