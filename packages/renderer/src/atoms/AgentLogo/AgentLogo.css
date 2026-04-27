@@ -1,0 +1,11 @@
+.agent-logo {
+  display: inline-block;
+  object-fit: contain;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.agent-logo--grayscale {
+  filter: grayscale(1);
+  opacity: 0.55;
+}

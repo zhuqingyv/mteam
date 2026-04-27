@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import ChatPanel from '../ChatPanel/ChatPanel';
 import ToolBar from '../../molecules/ToolBar';
+import AgentLogo from '../../atoms/AgentLogo';
 import type { DropdownOption } from '../../atoms/Dropdown';
 import { listCli, type CliInfo } from '../../api/cli';
 import {
@@ -49,7 +50,12 @@ export default function ExpandedView() {
   }, []);
 
   const modelOptions = useMemo<DropdownOption[]>(
-    () => cliList.map((c) => ({ value: c.name, label: c.name })),
+    () =>
+      cliList.map((c) => ({
+        value: c.name,
+        label: c.name,
+        icon: <AgentLogo cliType={c.name} size={14} />,
+      })),
     [cliList],
   );
 

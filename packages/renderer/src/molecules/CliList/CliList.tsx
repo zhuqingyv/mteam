@@ -1,3 +1,4 @@
+import AgentLogo from '../../atoms/AgentLogo';
 import Button from '../../atoms/Button';
 import StatusDot from '../../atoms/StatusDot';
 import './CliList.css';
@@ -31,6 +32,7 @@ export default function CliList({ clis, onRefresh }: CliListProps) {
         <ul className="cli-list__items">
           {clis.map((c) => (
             <li key={c.name} className="cli-list__item">
+              <AgentLogo cliType={c.name} size={18} grayscale={!c.available} />
               <StatusDot status={c.available ? 'online' : 'offline'} size="sm" />
               <span className="cli-list__name">{c.name}</span>
               <span className="cli-list__path" title={c.path}>{c.path || '—'}</span>

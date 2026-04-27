@@ -3,6 +3,7 @@ import type { ComponentType, ReactNode } from 'react';
 import Surface from '../src/atoms/Surface';
 import StatusDot from '../src/atoms/StatusDot';
 import Logo from '../src/atoms/Logo';
+import AgentLogo from '../src/atoms/AgentLogo';
 import Text from '../src/atoms/Text';
 import Button from '../src/atoms/Button';
 import Icon from '../src/atoms/Icon';
@@ -154,6 +155,29 @@ export const registry: ComponentEntry[] = [
     defaults: { size: 56, status: 'online' },
   },
   {
+    name: 'AgentLogo',
+    layer: 'atoms',
+    group: 'display',
+    component: AgentLogo,
+    props: [
+      {
+        name: 'cliType',
+        type: 'enum',
+        options: [
+          'claude', 'codex', 'openai', 'gemini', 'aider',
+          'cursor', 'devin', 'replit', 'windsurf', 'amazon-q', 'copilot',
+          'unknown',
+        ],
+        default: 'claude',
+        description: 'CLI 类型；未知回落到 M logo',
+      },
+      { name: 'size', type: 'number', default: 32, description: '尺寸 px' },
+      { name: 'grayscale', type: 'boolean', default: false, description: '灰度（offline 态）' },
+    ],
+    defaults: { cliType: 'claude', size: 32, grayscale: false },
+    note: 'cliType 支持 claude/codex(→openai)/gemini/aider/cursor/devin/replit/windsurf/amazon-q/copilot；未命中回落到默认 M logo',
+  },
+  {
     name: 'Text',
     layer: 'atoms',
     group: 'basic',
@@ -194,6 +218,7 @@ export const registry: ComponentEntry[] = [
     ],
     defaults: { variant: 'primary', size: 'md', disabled: false },
     renderChildren: (p) => (p.variant === 'dots' ? null : 'Click Me'),
+    handlers: () => ({ onClick: () => {} }),
   },
   {
     name: 'Icon',
@@ -533,8 +558,11 @@ export const registry: ComponentEntry[] = [
     layer: 'molecules',
     group: 'nav',
     component: MenuDots,
-    props: [],
-    defaults: {},
+    props: [
+      { name: 'disabled', type: 'boolean', default: false, description: '禁用' },
+    ],
+    defaults: { disabled: false },
+    handlers: () => ({ onClick: () => {} }),
   },
   {
     name: 'FormField',
@@ -665,7 +693,8 @@ export const registry: ComponentEntry[] = [
       { name: 'online', type: 'boolean', default: true, description: '在线' },
     ],
     defaults: { name: 'M-TEAM', online: true },
-    note: '展开态顶栏',
+    note: '展开态顶栏：Logo + 名称 + StatusDot + 右上 × 关闭按钮',
+    handlers: () => ({ onClose: () => {} }),
   },
   {
     name: 'ChatInput',
@@ -700,7 +729,12 @@ export const registry: ComponentEntry[] = [
         { id: 'gpt', name: 'GPT', icon: 'G' },
       ],
     },
-    note: 'agents 列表为 mock 数据',
+    note: 'agents 列表为 mock；onSelect 切换高亮 + 右侧 [+] 触发 onAdd',
+    handlers: () => ({
+      // onSelect 会走 CONTROLLED_PROP_BY_CALLBACK 自动更新 activeId
+      onSelect: () => {},
+      onAdd: () => {},
+    }),
   },
   {
     name: 'ToolBar',
@@ -726,11 +760,12 @@ export const registry: ComponentEntry[] = [
       currentModel: 'claude',
       teamPanelActive: false,
       modelOptions: [
-        { value: 'claude', label: 'Claude' },
-        { value: 'codex', label: 'Codex' },
+        { value: 'claude', label: 'Claude', icon: React.createElement(AgentLogo, { cliType: 'claude', size: 14 }) },
+        { value: 'codex', label: 'Codex', icon: React.createElement(AgentLogo, { cliType: 'codex', size: 14 }) },
+        { value: 'gemini', label: 'Gemini', icon: React.createElement(AgentLogo, { cliType: 'gemini', size: 14 }) },
       ],
     },
-    note: 'ChatPanel footer 工具条：左侧模型下拉 + 右侧 [👥 成员] [⚙ 设置]',
+    note: 'ChatPanel footer 工具条：左侧模型下拉（选项带 AgentLogo 图标）+ 右侧 [👥 成员] [⚙ 设置]',
     handlers: (setValues) => ({
       onModelChange: (v: unknown) => setValues((p) => ({ ...p, currentModel: v as string })),
       onTeamPanel: () => setValues((p) => ({ ...p, teamPanelActive: !p.teamPanelActive })),
@@ -832,16 +867,21 @@ export const registry: ComponentEntry[] = [
       ],
       agents: [],
       inputPlaceholder: '给 MTEAM 发送消息...',
+      inputValue: '',
       toolBar: React.createElement(ToolBar, {
         modelOptions: [
-          { value: 'claude', label: 'Claude' },
-          { value: 'codex', label: 'Codex' },
+          { value: 'claude', label: 'Claude', icon: React.createElement(AgentLogo, { cliType: 'claude', size: 14 }) },
+          { value: 'codex', label: 'Codex', icon: React.createElement(AgentLogo, { cliType: 'codex', size: 14 }) },
         ],
         currentModel: 'claude',
         onModelChange: () => {},
       }),
     },
-    note: '主 Agent 场景不显示 AgentSwitcher，模型切换走 ToolBar Dropdown',
+    note: '主 Agent 场景：agents=[] 抑制 AgentSwitcher，模型切换走 ToolBar 的 Dropdown；toolBar 插槽可自由定制。团队场景传入 agents[] 会顶部渲染 AgentSwitcher',
+    handlers: (setValues) => ({
+      onInputChange: (v: unknown) => setValues((p) => ({ ...p, inputValue: v as string })),
+      onSend: () => setValues((p) => ({ ...p, inputValue: '' })),
+    }),
   },
   {
     name: 'TeamSidebarItem',
@@ -855,6 +895,7 @@ export const registry: ComponentEntry[] = [
       { name: 'collapsed', type: 'boolean', default: false, description: '收起（只图标）' },
     ],
     defaults: { name: 'Frontend', memberCount: 3, active: false, collapsed: false },
+    handlers: () => ({ onClick: () => {} }),
   },
   {
     name: 'TeamSidebar',
@@ -874,7 +915,11 @@ export const registry: ComponentEntry[] = [
         { id: 'devops', name: 'DevOps', memberCount: 2 },
       ],
     },
-    note: 'teams 为 mock 数据',
+    note: 'teams 为 mock；点击 item 触发 onSelectTeam；底部 [+新建团队] 触发 onCreateTeam',
+    handlers: (setValues) => ({
+      onSelectTeam: (id: unknown) => setValues((p) => ({ ...p, activeTeamId: id as string })),
+      onCreateTeam: () => {},
+    }),
   },
   {
     name: 'AgentCard',
@@ -890,12 +935,20 @@ export const registry: ComponentEntry[] = [
         default: 'thinking',
         description: '状态',
       },
+      {
+        name: 'cliType',
+        type: 'enum',
+        options: ['claude', 'codex', 'gemini', 'aider', 'cursor', 'copilot', 'unknown'],
+        default: 'claude',
+        description: 'CLI 类型（AgentLogo 驱动）',
+      },
       { name: 'lastMessage', type: 'string', default: '正在修复 UI Bug…', description: '最后消息' },
       { name: 'x', type: 'number', default: 0, description: 'X 位置' },
       { name: 'y', type: 'number', default: 0, description: 'Y 位置' },
     ],
-    defaults: { name: 'Claude', status: 'thinking', lastMessage: '正在修复 UI Bug…', x: 0, y: 0 },
-    note: '可拖拽（mousedown/move/up），点击可展开为 400×400 CapsuleCard，× 回到胶囊态',
+    defaults: { name: 'Claude', status: 'thinking', cliType: 'claude', lastMessage: '正在修复 UI Bug…', x: 0, y: 0 },
+    note: '可拖拽（mousedown/move/up），点击可展开为 400×400 CapsuleCard，× 回到胶囊态；cliType 驱动 head 左侧 AgentLogo',
+    handlers: () => ({ onDragEnd: () => {} }),
   },
   {
     name: 'TeamCanvas',
@@ -905,13 +958,14 @@ export const registry: ComponentEntry[] = [
     props: [],
     defaults: {
       agents: [
-        { id: 'a1', name: 'Claude', status: 'thinking', lastMessage: '正在思考', x: 40, y: 40 },
-        { id: 'a2', name: 'Codex', status: 'responding', lastMessage: '正在回复…', x: 240, y: 160 },
-        { id: 'a3', name: 'Qwen', status: 'idle', lastMessage: '等待任务', x: 80, y: 280 },
-        { id: 'a4', name: 'Gemini', status: 'offline', x: 440, y: 40 },
+        { id: 'a1', name: 'Claude', status: 'thinking', cliType: 'claude', lastMessage: '正在思考', x: 40, y: 40 },
+        { id: 'a2', name: 'Codex', status: 'responding', cliType: 'codex', lastMessage: '正在回复…', x: 240, y: 160 },
+        { id: 'a3', name: 'Aider', status: 'idle', cliType: 'aider', lastMessage: '等待任务', x: 80, y: 280 },
+        { id: 'a4', name: 'Gemini', status: 'offline', cliType: 'gemini', x: 440, y: 40 },
       ],
     },
-    note: '画布式布局，卡片可拖拽',
+    note: '画布可平移(空白处拖)/缩放(滚轮,0.25~3,鼠标位置为中心)/双击重置；节点可拖拽(已按 zoom 换算)',
+    handlers: () => ({ onAgentDragEnd: () => {} }),
   },
   {
     name: 'TeamMonitorPanel',
@@ -931,14 +985,17 @@ export const registry: ComponentEntry[] = [
         { id: 'devops', name: 'DevOps', memberCount: 2 },
       ],
       agents: [
-        { id: 'a1', name: 'Claude', status: 'thinking', lastMessage: '正在思考', x: 40, y: 40 },
-        { id: 'a2', name: 'Codex', status: 'responding', lastMessage: '正在回复…', x: 260, y: 160 },
-        { id: 'a3', name: 'Qwen', status: 'idle', lastMessage: '等待任务', x: 100, y: 300 },
+        { id: 'a1', name: 'Claude', status: 'thinking', cliType: 'claude', lastMessage: '正在思考', x: 40, y: 40 },
+        { id: 'a2', name: 'Codex', status: 'responding', cliType: 'codex', lastMessage: '正在回复…', x: 260, y: 160 },
+        { id: 'a3', name: 'Gemini', status: 'idle', cliType: 'gemini', lastMessage: '等待任务', x: 100, y: 300 },
       ],
     },
     note: '完整监控面板：侧边栏 + 画布；collapsed=true 显示胶囊态，点击胶囊/×触发 onToggleCollapsed',
     handlers: (setValues) => ({
       onToggleCollapsed: () => setValues((p) => ({ ...p, collapsed: !p.collapsed })),
+      onSelectTeam: (id: unknown) => setValues((p) => ({ ...p, activeTeamId: id as string })),
+      onCreateTeam: () => {},
+      onAgentDragEnd: () => {},
     }),
   },
   {
@@ -951,10 +1008,12 @@ export const registry: ComponentEntry[] = [
       clis: [
         { name: 'claude', path: '/usr/local/bin/claude', available: true },
         { name: 'codex', path: '/usr/local/bin/codex', available: true },
-        { name: 'qwen', path: '', available: false },
+        { name: 'gemini', path: '/usr/local/bin/gemini', available: true },
+        { name: 'aider', path: '', available: false },
       ],
     },
-    note: 'clis 为 mock；Refresh 点击触发 onRefresh',
+    note: 'clis 为 mock；每行左侧 AgentLogo 按 name 映射，不可用态灰度；Refresh 点击触发 onRefresh',
+    handlers: () => ({ onRefresh: () => {} }),
   },
   {
     name: 'PrimaryAgentSettings',
@@ -962,11 +1021,10 @@ export const registry: ComponentEntry[] = [
     group: 'full',
     component: PrimaryAgentSettings,
     props: [
-      { name: 'running', type: 'boolean', default: false, description: '总控是否运行中' },
+      { name: 'running', type: 'boolean', default: false, description: '总控是否运行中（驱动状态点+文案）' },
     ],
     defaults: {
       running: false,
-      inflightAction: null,
       config: {
         id: 'pa-1',
         name: 'Primary Agent',
@@ -978,11 +1036,7 @@ export const registry: ComponentEntry[] = [
         updatedAt: '2026-04-26T00:00:00Z',
       },
     },
-    note: 'Surface 发光容器；Start/Stop 与 running 状态联动（disabled）；inflightAction 非空时禁用所有按钮',
-    handlers: (setValues) => ({
-      onStart: () => setValues((p) => ({ ...p, running: true })),
-      onStop: () => setValues((p) => ({ ...p, running: false })),
-    }),
+    note: '只读摘要：标题 + 状态点 + Name/CLI。Start/Stop 等交互由 SettingsPage 外层托管，不在本组件内',
   },
   {
     name: 'NotificationCenter',
@@ -1046,6 +1100,11 @@ export const registry: ComponentEntry[] = [
       ],
     },
     note: 'offline→Activate；其他→Offline；全部都有 Delete',
+    handlers: () => ({
+      onActivate: () => {},
+      onRequestOffline: () => {},
+      onDelete: () => {},
+    }),
   },
   {
     name: 'TemplateEditor',
@@ -1080,6 +1139,8 @@ export const registry: ComponentEntry[] = [
         const tpl = (prev.template as Record<string, unknown>) || {};
         return { ...prev, template: { ...tpl, avatar: pick.id } };
       }),
+      onSave: () => {},
+      onCancel: () => {},
     }),
     note: 'FormField/Input/Textarea/Tag/AvatarPicker 组合；isEdit=true 时名称只读；existingNames 用于查重',
   },
@@ -1135,6 +1196,12 @@ export const registry: ComponentEntry[] = [
       ],
     },
     note: '卡片网格；点击卡片 → onSelect；编辑/删除按钮；顶部 [新建模板]；空态与 loading 骨架屏',
+    handlers: () => ({
+      onSelect: () => {},
+      onEdit: () => {},
+      onDelete: () => {},
+      onCreate: () => {},
+    }),
   },
   {
     name: 'TurnRendering',

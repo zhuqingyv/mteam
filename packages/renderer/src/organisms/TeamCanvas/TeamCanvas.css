@@ -13,6 +13,12 @@
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
   box-shadow: inset 0 0 40px rgba(0,0,0,0.3);
+  cursor: grab;
+  user-select: none;
+}
+
+.team-canvas--panning {
+  cursor: grabbing;
 }
 
 .team-canvas::before {
@@ -24,4 +30,16 @@
     linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
   background-size: 32px 32px;
   pointer-events: none;
+}
+
+.team-canvas__viewport {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.team-canvas__viewport > * {
+  pointer-events: auto;
 }

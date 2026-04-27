@@ -21,18 +21,23 @@ const CONTROLLED_PROP_BY_CALLBACK: Record<string, string> = {
   onSelect: 'activeId',
 };
 
-const CALLBACK_NAMES = [
-  'onClick',
-  'onChange',
-  'onSend',
-  'onSelect',
-  'onAdd',
-  'onDismiss',
-  'onRandom',
-  'onModelChange',
-  'onTeamPanel',
-  'onSettings',
-];
+// 自动发现 entry 声明过的所有 on* 回调名：
+// defaults keys / props defs / entry.handlers() 返回的 keys 三者并集。
+// 凡是 /^on[A-Z]/ 的属性都会被注入日志 + 受控更新 + 自定义 handler。
+// 这样 registry 新加 handler 时无需再维护静态白名单。
+const CALLBACK_RE = /^on[A-Z]/;
+function collectCallbackNames(
+  defaults: Record<string, unknown>,
+  customHandlers: Record<string, (...args: unknown[]) => void>,
+  propNames: string[],
+): string[] {
+  const out = new Set<string>();
+  const feed = (k: string) => { if (CALLBACK_RE.test(k)) out.add(k); };
+  Object.keys(defaults).forEach(feed);
+  Object.keys(customHandlers).forEach(feed);
+  propNames.forEach(feed);
+  return Array.from(out);
+}
 
 function formatArg(arg: unknown): string {
   if (arg === undefined) return '';
@@ -70,9 +75,18 @@ export default function ComponentCard({ entry }: ComponentCardProps) {
     [entry],
   );
 
+  const callbackNames = useMemo(
+    () => collectCallbackNames(
+      entry.defaults,
+      customHandlers,
+      entry.props.map((p) => p.name),
+    ),
+    [entry, customHandlers],
+  );
+
   const injected = useMemo(() => {
     const out: Record<string, unknown> = {};
-    for (const cb of CALLBACK_NAMES) {
+    for (const cb of callbackNames) {
       const controlled = CONTROLLED_PROP_BY_CALLBACK[cb];
       const custom = customHandlers[cb];
       out[cb] = (...args: unknown[]) => {
@@ -85,7 +99,7 @@ export default function ComponentCard({ entry }: ComponentCardProps) {
       };
     }
     return out;
-  }, [appendLog, customHandlers]);
+  }, [appendLog, customHandlers, callbackNames]);
 
   const Component = entry.component;
   const children = useMemo(() => entry.renderChildren?.(values), [entry, values]);

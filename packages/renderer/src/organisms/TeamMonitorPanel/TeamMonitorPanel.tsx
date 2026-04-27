@@ -6,7 +6,7 @@ import './TeamMonitorPanel.css';
 
 interface Team { id: string; name: string; memberCount: number; }
 interface Agent {
-  id: string; name: string; status: string;
+  id: string; name: string; status: string; cliType?: string;
   lastMessage?: string; x: number; y: number;
 }
 
