@@ -1,7 +1,7 @@
 # Stage 3 — 成员 Agent 迁移 ACP / REGRESSION
 
-> 设计文档：`docs/phase-sandbox-acp/stage-3-member-acp.md`
-> TASK-LIST：`docs/phase-sandbox-acp/stage-3/TASK-LIST.md`
+> 设计文档：`packages/backend/docs/phase-sandbox-acp/stage-3-member-acp.md`
+> TASK-LIST：`packages/backend/docs/phase-sandbox-acp/stage-3/TASK-LIST.md`
 > 测试员按本清单**逐条**验证；每条必须注明 **PASS / FAIL + 证据**（日志片段 / 事件快照 / grep 输出）。
 > 全部 PASS 才能进入 Stage 4。任一 FAIL → 提修复员 task，重测循环。
 
@@ -251,7 +251,7 @@
 
 ## 5. 回归测试报告模板
 
-测试员每轮测试产出 `docs/phase-sandbox-acp/stage-3/test-report-<yyyymmdd-hhmm>.md`：
+测试员每轮测试产出 `packages/backend/docs/phase-sandbox-acp/stage-3/test-report-<yyyymmdd-hhmm>.md`：
 
 ```markdown
 # Stage 3 回归测试报告

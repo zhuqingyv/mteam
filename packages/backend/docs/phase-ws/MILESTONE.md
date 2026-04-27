@@ -392,11 +392,11 @@ gap replay 调用 `messageStore.listTeamHistory` / `listInstanceUnread`，仅对
 
 ## 7. 相关文档
 
-- 共享 Envelope：`docs/phase-sandbox-acp/comm-model-design.md`
-- 前端 API（本期会补订阅协议）：`docs/phase-sandbox-acp/comm-model-frontend.md`
-- 接口冻结：`docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md`
-- 工作流：`docs/phase-sandbox-acp/WORKFLOW.md`
-- phase-comm 断线修复与 envelope 落地：`docs/phase-comm/MILESTONE.md`
+- 共享 Envelope：`packages/backend/docs/phase-sandbox-acp/comm-model-design.md`
+- 前端 API（本期会补订阅协议）：`packages/backend/docs/phase-sandbox-acp/comm-model-frontend.md`
+- 接口冻结：`packages/backend/docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md`
+- 工作流：`packages/backend/docs/phase-sandbox-acp/WORKFLOW.md`
+- phase-comm 断线修复与 envelope 落地：`packages/backend/docs/phase-comm/MILESTONE.md`
 
 ---
 

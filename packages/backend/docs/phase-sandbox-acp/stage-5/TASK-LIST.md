@@ -1,7 +1,7 @@
 # Stage 5 — 任务清单
 
-> 源文档：`docs/phase-sandbox-acp/stage-5-security.md`
-> 流程：`docs/phase-sandbox-acp/WORKFLOW.md`
+> 源文档：`packages/backend/docs/phase-sandbox-acp/stage-5-security.md`
+> 流程：`packages/backend/docs/phase-sandbox-acp/WORKFLOW.md`
 >
 > **铁律**：
 > - 单文件 ≤ 200 行
@@ -260,7 +260,7 @@ export function mergeRules(
 **接口签名**
 
 ```ts
-// 接口以 docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md §1/§2 为准
+// 接口以 packages/backend/docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md §1/§2 为准
 import type { ProcessRuntime, RuntimeHandle } from '../../process-runtime/types.js';
 
 export interface ContainerEntry {

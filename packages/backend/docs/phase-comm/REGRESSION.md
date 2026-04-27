@@ -267,7 +267,7 @@
 测试员跑完后在 Stage 目录下留：
 
 ```
-docs/phase-comm/
+packages/backend/docs/phase-comm/
 ├── REGRESSION.md        ← 本文件
 └── regression-report-<date>.md   ← 测试员产出
 ```

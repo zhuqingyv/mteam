@@ -6,10 +6,10 @@
 > SDK 版本：`@agentclientprotocol/sdk@0.20.0`（两家共用同一套 schema）
 > 源：
 > - SDK `types.gen.d.ts`：`node_modules/.bun/@agentclientprotocol+sdk@0.20.0+.../schema/types.gen.d.ts`
-> - 历史调研：`docs/acp-research.md`、`docs/acp-deep-dive.md`、`docs/acp-verification-report.md`、`docs/cli-output-samples.md`
+> - 历史调研：`packages/backend/docs/acp-research.md`、`packages/backend/docs/acp-deep-dive.md`、`packages/backend/docs/acp-verification-report.md`、`packages/backend/docs/cli-output-samples.md`
 > - 现有 adapter：`packages/backend/src/agent-driver/adapters/codex.ts`
 > - mnemo 知识：id 300、id 294（prompt 注入走 model_instructions_file）、id 356、id 361
-> - Claude 对照：`docs/phase-ws/acp-claude-messages.md`（同一任务批次的姊妹文档）
+> - Claude 对照：`packages/backend/docs/phase-ws/acp-claude-messages.md`（同一任务批次的姊妹文档）
 
 ---
 
@@ -160,7 +160,7 @@ Codex 特有：
 ### 2.3 `agent_thought_chunk`
 
 - **Codex 实测**：**未观察到**（当前 ChatGPT auth 下 Codex 服务端不返回 reasoning summary → ACP 层面收到 0 条，与 `acp-verification-report.md` §3 一致）。
-- **源码级确认存在**（`docs/acp-deep-dive.md` §5.4 引的 `codex-acp/src/thread.rs`）：
+- **源码级确认存在**（`packages/backend/docs/acp-deep-dive.md` §5.4 引的 `codex-acp/src/thread.rs`）：
 
 ```rust
 EventMsg::AgentReasoningContentDelta { delta, .. } => {
@@ -373,9 +373,9 @@ Codex 的 prompt 响应 **只有 `stopReason` 一个字段**（实测）。Claud
 
 ## 4. Agent → Client 反向请求
 
-Codex 也会发 `fs/readTextFile`、`fs/writeTextFile`、`requestPermission`、`terminal/*` 这些反向请求（见 `docs/acp-deep-dive.md` §4.1）。本次 probe 中 Codex **没有发**这些请求（因为 Codex 自己有命令执行能力，且我们 `clientCapabilities.terminal=true` 没触发其 fallback）。
+Codex 也会发 `fs/readTextFile`、`fs/writeTextFile`、`requestPermission`、`terminal/*` 这些反向请求（见 `packages/backend/docs/acp-deep-dive.md` §4.1）。本次 probe 中 Codex **没有发**这些请求（因为 Codex 自己有命令执行能力，且我们 `clientCapabilities.terminal=true` 没触发其 fallback）。
 
-关键：**Codex 的 MCP 子进程是走白名单 env 隔离的**（`docs/acp-verification-report.md` §4）— 不像 Claude 全继承 process.env。mteam 往 Codex MCP 服务里传自定义 env 必须走 `session/new.mcpServers[].env` 白名单。
+关键：**Codex 的 MCP 子进程是走白名单 env 隔离的**（`packages/backend/docs/acp-verification-report.md` §4）— 不像 Claude 全继承 process.env。mteam 往 Codex MCP 服务里传自定义 env 必须走 `session/new.mcpServers[].env` 白名单。
 
 ---
 

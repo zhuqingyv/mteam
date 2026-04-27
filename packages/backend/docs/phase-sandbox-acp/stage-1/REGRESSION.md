@@ -1,6 +1,6 @@
 # Stage 1 — 回归测试清单
 
-> 依据：`docs/phase-sandbox-acp/stage-1-process-runtime.md` §9、`TASK-LIST.md` §1 契约。
+> 依据：`packages/backend/docs/phase-sandbox-acp/stage-1-process-runtime.md` §9、`TASK-LIST.md` §1 契约。
 > 执行者：测试员（与开发员不是同一人，遵循 WORKFLOW.md §6）。
 > 运行方式：`pnpm --filter backend test process-runtime`（或直接 `vitest run packages/backend/src/process-runtime`）。
 > 测试库：项目默认 Vitest，不 mock 任何依赖。

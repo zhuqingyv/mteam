@@ -5,7 +5,7 @@
 > Claude ACP wrapper：`@agentclientprotocol/claude-agent-acp@0.30.0`
 > 源：
 > - SDK types.gen.d.ts：`node_modules/.bun/@agentclientprotocol+sdk@0.20.0+.../schema/types.gen.d.ts`
-> - 历史调研：`docs/acp-research.md`、`docs/acp-deep-dive.md`、`docs/acp-verification-report.md`
+> - 历史调研：`packages/backend/docs/acp-research.md`、`packages/backend/docs/acp-deep-dive.md`、`packages/backend/docs/acp-verification-report.md`
 > - 现有 adapter：`packages/backend/src/agent-driver/adapters/claude.ts`
 > - mnemo 知识库：id 284 / 288 / 361
 
@@ -112,7 +112,7 @@ case "thinking_delta":
 
 - **前端渲染**：折叠思考块（可默认收起，点开展开）。
 - **当前 adapter**：已处理，走 `driver.thinking`。
-- **可靠性**：Claude 默认就开，实测稳定（`docs/acp-verification-report.md` §3）。Codex 在 ChatGPT auth 下实测 0 条。
+- **可靠性**：Claude 默认就开，实测稳定（`packages/backend/docs/acp-verification-report.md` §3）。Codex 在 ChatGPT auth 下实测 0 条。
 
 ---
 
@@ -404,8 +404,8 @@ prompt turn 结束（`session/prompt` 响应）还有：
 
 未在本次任务实跑（用户任务聚焦类型穷举）。历史调研文档已抓到 wire format 样本：
 
-- `docs/acp-deep-dive.md` §6 附录 D — agent_thought_chunk / agent_message_chunk / tool_call / requestPermission 四条 JSON
-- `docs/acp-verification-report.md` §3 — Claude 实测 agent_thought_chunk 默认开启有内容
+- `packages/backend/docs/acp-deep-dive.md` §6 附录 D — agent_thought_chunk / agent_message_chunk / tool_call / requestPermission 四条 JSON
+- `packages/backend/docs/acp-verification-report.md` §3 — Claude 实测 agent_thought_chunk 默认开启有内容
 
 Claude CLI 本地可用（`/Users/zhuqingyu/.local/bin/claude`），如需回归测试可跑：
 
@@ -422,7 +422,7 @@ ANTHROPIC_API_KEY=xxx npx -y @agentclientprotocol/claude-agent-acp@0.30.0
 
 ## 7. 与 Codex ACP 对照（research-codex 回传，2026-04-25）
 
-姊妹文档：`docs/phase-ws/acp-codex-messages.md`。Codex 侧实测 `@zed-industries/codex-acp@0.9.5`，Claude 侧本地无 API key 未实跑；以下对照结合 Codex 实测 + Claude ACP SDK 源码 + 历史调研（`acp-verification-report.md` §3）。
+姊妹文档：`packages/backend/docs/phase-ws/acp-codex-messages.md`。Codex 侧实测 `@zed-industries/codex-acp@0.9.5`，Claude 侧本地无 API key 未实跑；以下对照结合 Codex 实测 + Claude ACP SDK 源码 + 历史调研（`acp-verification-report.md` §3）。
 
 ### 7.1 大结论
 

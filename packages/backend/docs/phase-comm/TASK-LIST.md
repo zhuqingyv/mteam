@@ -2,7 +2,7 @@
 
 **版本**：v2 · **日期**：2026-04-25 · **架构师**：arch-comm-a · **对抗审查**：reviewer-comm-a
 
-> 本文件 = 模块清单 + 负责人 + 状态。每个模块都要交付 `代码 + README + 测试`（参考 `docs/phase-sandbox-acp/WORKFLOW.md` §3）。
+> 本文件 = 模块清单 + 负责人 + 状态。每个模块都要交付 `代码 + README + 测试`（参考 `packages/backend/docs/phase-sandbox-acp/WORKFLOW.md` §3）。
 > **代码引用行号基于当前 HEAD（2026-04-25）**，改造前请先 `git log <file>` 确认行号未漂移。
 >
 > **v2 审查修订要点**（见文末 §变更日志）：
@@ -576,7 +576,7 @@ recordVersion(db);
 - 如果实现者想动 `text`，在 `driver-dispatcher.README.md` 留一句"语义上是 notifyLine"即可。
 
 **Why 签名冻结**：
-- `INTERFACE-CONTRACTS.md` 里 DriverDispatcher 接口明确冻结（见 `docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md` §4）
+- `INTERFACE-CONTRACTS.md` 里 DriverDispatcher 接口明确冻结（见 `packages/backend/docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md` §4）
 - dispatcher 是非业务模块，入口一旦漂移会级联污染成员测试
 
 **完成判据**：

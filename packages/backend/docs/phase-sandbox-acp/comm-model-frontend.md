@@ -1,7 +1,7 @@
 # mteam 通信模型设计文档 — 前端 API + WebSocket 视角（Part B）
 
 > 作者：架构师 B（前端 / UI / bus 订阅）
-> 配套：架构师 A 的 Part A（`/Users/zhuqingyu/project/mcp-team-hub/docs/phase-sandbox-acp/comm-model-design.md`）
+> 配套：架构师 A 的 Part A（`/Users/zhuqingyu/project/mcp-team-hub/packages/backend/docs/phase-sandbox-acp/comm-model-design.md`）
 > 共享契约：`MessageEnvelope` / `ActorRef` / `MessageKind`（见 Part A §2.1 和本文件 §8）
 >
 > **本文档只写「前端 UI / 实时推送 / HTTP 查询」**。Envelope 数据结构、EnvelopeBuilder、MessageStore、工具层改造、messages 表扩列，全部以 Part A 为准；本文件直接吃 A 的契约，不重复定义，不偏离。

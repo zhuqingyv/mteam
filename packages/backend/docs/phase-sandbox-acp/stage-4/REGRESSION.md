@@ -1,7 +1,7 @@
 # Stage 4 · 回归测试清单
 
 > 测试员唯一依据。逐条跑，逐条标 ✅/❌；❌ 的交给修复员。
-> 产出物 `docs/phase-sandbox-acp/stage-4/TEST-REPORT.md`（格式：每条 case 的命令、输出、结论）。
+> 产出物 `packages/backend/docs/phase-sandbox-acp/stage-4/TEST-REPORT.md`（格式：每条 case 的命令、输出、结论）。
 > 测试员与开发员不得是同一人。
 
 ## 0. 准备

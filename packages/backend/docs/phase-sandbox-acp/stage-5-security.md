@@ -359,7 +359,7 @@ export interface PolicyViolatedEvent extends BusEventBase {
 
 ### 6.3 端到端测试
 
-两条关键链路各跑一次，结果落 `docs/phase-sandbox-acp/e2e-report.md`：
+两条关键链路各跑一次，结果落 `packages/backend/docs/phase-sandbox-acp/e2e-report.md`：
 
 **E2E-1：主 Agent 容器模式**
 ```
@@ -409,8 +409,8 @@ export interface PolicyViolatedEvent extends BusEventBase {
 - [ ] Stage 3 的 host 形态功能未回归（跑完整 `http-*.test.ts` 测试套件）
 
 **文档收尾**
-- [ ] `docs/phase-sandbox-acp/MILESTONE.md` 更新 Stage 5 状态为 DONE
-- [ ] `docs/phase-sandbox-acp/e2e-report.md` 两条链路结果记录
+- [ ] `packages/backend/docs/phase-sandbox-acp/MILESTONE.md` 更新 Stage 5 状态为 DONE
+- [ ] `packages/backend/docs/phase-sandbox-acp/e2e-report.md` 两条链路结果记录
 
 ---
 

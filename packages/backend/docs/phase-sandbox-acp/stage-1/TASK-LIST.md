@@ -1,6 +1,6 @@
 # Stage 1 — 任务清单
 
-> 依据：`docs/phase-sandbox-acp/stage-1-process-runtime.md`（设计文档）、`docs/phase-sandbox-acp/WORKFLOW.md`（流程规范）
+> 依据：`packages/backend/docs/phase-sandbox-acp/stage-1-process-runtime.md`（设计文档）、`packages/backend/docs/phase-sandbox-acp/WORKFLOW.md`（流程规范）
 > 原则：Stage 1 只**新增文件**、不改现有业务代码（`driver.ts`、`pty/manager.ts` 本 Stage 不动）。
 
 ---

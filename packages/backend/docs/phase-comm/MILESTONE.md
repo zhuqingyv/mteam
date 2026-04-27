@@ -14,7 +14,7 @@
    - `member-driver/index.ts` 聚合入口缺失 → bus 无统一挂载点
 
 2. **Envelope 通信模型**（本 Phase 核心）
-   基于 `docs/phase-sandbox-acp/comm-model-design.md` + `comm-model-frontend.md`：
+   基于 `packages/backend/docs/phase-sandbox-acp/comm-model-design.md` + `comm-model-frontend.md`：
    - 全链路单一数据结构 `MessageEnvelope` + `ActorRef`
    - 发送方身份（`from.kind`）在 hub 入口强注入，防伪造
    - `send_msg` / `read_message` / `check_inbox` 三件套分离"发 / 读全文 / 查未读摘要"
@@ -240,10 +240,10 @@
 
 ## 7. 相关文档
 
-- 必读后端设计：`/Users/zhuqingyu/project/mcp-team-hub/docs/phase-sandbox-acp/comm-model-design.md`
-- 必读前端设计：`/Users/zhuqingyu/project/mcp-team-hub/docs/phase-sandbox-acp/comm-model-frontend.md`
-- 接口契约：`/Users/zhuqingyu/project/mcp-team-hub/docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md`（driver/runtime 契约保持冻结，本 Phase 新增 envelope 契约另立）
-- 工作流：`/Users/zhuqingyu/project/mcp-team-hub/docs/phase-sandbox-acp/WORKFLOW.md`
+- 必读后端设计：`/Users/zhuqingyu/project/mcp-team-hub/packages/backend/docs/phase-sandbox-acp/comm-model-design.md`
+- 必读前端设计：`/Users/zhuqingyu/project/mcp-team-hub/packages/backend/docs/phase-sandbox-acp/comm-model-frontend.md`
+- 接口契约：`/Users/zhuqingyu/project/mcp-team-hub/packages/backend/docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md`（driver/runtime 契约保持冻结，本 Phase 新增 envelope 契约另立）
+- 工作流：`/Users/zhuqingyu/project/mcp-team-hub/packages/backend/docs/phase-sandbox-acp/WORKFLOW.md`
 - 上游断线：`packages/backend/src/bus/subscribers/member-driver/README.md`（lifecycle / replay / pid-writeback 已存，缺 index 聚合）
 
 ---

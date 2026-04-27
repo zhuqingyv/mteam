@@ -1,7 +1,7 @@
 # Stage 3 — 成员 Agent 迁移 ACP + 废弃 PTY / TASK-LIST
 
-> 设计文档：`docs/phase-sandbox-acp/stage-3-member-acp.md`
-> 工作流规范：`docs/phase-sandbox-acp/WORKFLOW.md`
+> 设计文档：`packages/backend/docs/phase-sandbox-acp/stage-3-member-acp.md`
+> 工作流规范：`packages/backend/docs/phase-sandbox-acp/WORKFLOW.md`
 > 依赖：Stage 1（process-runtime 抽象，供 DockerRuntime 扩展用，Stage 3 仍走默认 HostRuntime）+ Stage 2（AgentDriver 纯协议层，events$ 模式）
 > 下游：Stage 4（内置 MCP HTTP 化）
 

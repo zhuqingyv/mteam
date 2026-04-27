@@ -358,7 +358,7 @@ head -50 <file> | grep -E "^import " | grep -vE "from ['\"]node:|^import type|fr
 ---
 
 ### R6-6 · INTERFACE-CONTRACTS.md 未漂移
-**命令**: `git diff main -- docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md`
+**命令**: `git diff main -- packages/backend/docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md`
 **预期**: 空（本 Phase 不修该文件）
 
 ---

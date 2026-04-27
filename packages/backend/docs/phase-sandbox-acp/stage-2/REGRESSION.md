@@ -334,7 +334,7 @@
 
 ## 7. 报告模板
 
-测试员执行完后在 `docs/phase-sandbox-acp/stage-2/TEST-REPORT.md` 产出：
+测试员执行完后在 `packages/backend/docs/phase-sandbox-acp/stage-2/TEST-REPORT.md` 产出：
 
 ```markdown
 # Stage 2 测试报告

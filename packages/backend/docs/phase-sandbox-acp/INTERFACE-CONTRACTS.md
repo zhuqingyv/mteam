@@ -192,7 +192,7 @@ export type DriverOutputEvent = DriverEvent | DriverLifecycleEvent;
 2. **在本文档提 PR**：修改对应章节 + 在文末变更日志加一行（日期 / 改了哪个签名 / 原因）。
 3. **@ 架构师评审**：必须显式 approve。冻结的接口不允许未评审合入。
 4. **评审通过后**：
-   - 同步刷新所有引用该接口的 Stage 设计文档 / TASK-LIST（grep 全 `docs/phase-sandbox-acp/`）。
+   - 同步刷新所有引用该接口的 Stage 设计文档 / TASK-LIST（grep 全 `packages/backend/docs/phase-sandbox-acp/`）。
    - 同步刷新已落盘的实现（Stage 1 `types.ts`）。
    - 通知所有 in-flight 的 Stage 开发者。
 

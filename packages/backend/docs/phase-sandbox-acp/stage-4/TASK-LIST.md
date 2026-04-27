@@ -1,8 +1,8 @@
 # Stage 4 — 内置 MCP HTTP 化 + DockerRuntime · 模块清单
 
 > 架构师：已拆完，撤。
-> 设计文档：`docs/phase-sandbox-acp/stage-4-mcp-http.md`
-> 工作流：`docs/phase-sandbox-acp/WORKFLOW.md`
+> 设计文档：`packages/backend/docs/phase-sandbox-acp/stage-4-mcp-http.md`
+> 工作流：`packages/backend/docs/phase-sandbox-acp/WORKFLOW.md`
 
 ---
 

@@ -1,6 +1,6 @@
 # Stage 5 — 回归测试清单
 
-> 源文档：`docs/phase-sandbox-acp/stage-5-security.md`
+> 源文档：`packages/backend/docs/phase-sandbox-acp/stage-5-security.md`
 > 测试员读这一个文件就够了，**不要**再去看代码找"漏测没漏测"。本清单是**唯一依据**。
 >
 > 测试纪律：
@@ -247,7 +247,7 @@
 ## E · 端到端（E2E）
 
 > 放 `packages/backend/src/__tests__/` 目录，参考现有 `team-integration.test.ts` 风格。
-> E2E 测试**不跑真 docker**（测试环境没 docker），用 FakeRuntime 绕开。真 docker 场景由 `docs/phase-sandbox-acp/e2e-report.md` 手工验证。
+> E2E 测试**不跑真 docker**（测试环境没 docker），用 FakeRuntime 绕开。真 docker 场景由 `packages/backend/docs/phase-sandbox-acp/e2e-report.md` 手工验证。
 
 ### E2E-1 · 主 Agent host 模式 + 崩溃自愈
 
@@ -310,7 +310,7 @@
 
 ## 测试员交付
 
-测试员每轮出一份报告：`docs/phase-sandbox-acp/stage-5/TEST-REPORT-<轮次>.md`，格式：
+测试员每轮出一份报告：`packages/backend/docs/phase-sandbox-acp/stage-5/TEST-REPORT-<轮次>.md`，格式：
 
 ```markdown
 # Stage 5 测试报告 - 第 N 轮
@@ -345,7 +345,7 @@
 
 **明确记下来，避免测试员误扩范围：**
 
-1. **真 docker 容器启动**：测试环境无 docker 守护进程，用 FakeRuntime 覆盖事件语义即可。真 docker 验证走 `docs/phase-sandbox-acp/e2e-report.md` 手工。
+1. **真 docker 容器启动**：测试环境无 docker 守护进程，用 FakeRuntime 覆盖事件语义即可。真 docker 验证走 `packages/backend/docs/phase-sandbox-acp/e2e-report.md` 手工。
 2. **事前拦截工具调用**：Stage 5 policy 是"事后强制下线"（stage-5-security.md §3.1 明文）。期望"AgentDriver 把 tool_call 挂起等 policy 决策"的是下一个 Stage 的事。
 3. **重启计数持久化**：backend 重启后计数清零是已定妥协（stage-5-security.md §2.1.2）。测试不要为这条"找不 bug"。
 4. **driver→instance map 的 bind 责任**：policy.subscriber 只做 unbind。如果成员没下线，先查调用方有没有 bind，**不是** policy.subscriber 的 bug。

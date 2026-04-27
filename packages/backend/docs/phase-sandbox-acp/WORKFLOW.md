@@ -95,7 +95,7 @@ Wave 3: 测试
 ## 5. 文件组织
 
 ```
-docs/phase-sandbox-acp/
+packages/backend/docs/phase-sandbox-acp/
 ├── MILESTONE.md                 ← 总进度（leader 维护）
 ├── WORKFLOW.md                  ← 本文件
 ├── stage-1/
