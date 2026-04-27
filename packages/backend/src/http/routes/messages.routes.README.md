@@ -1,6 +1,6 @@
 # `http/routes/messages.routes.ts`（W2-I）
 
-对齐 `docs/phase-sandbox-acp/comm-model-frontend.md` §7；前端消息四端点。
+对齐 `packages/backend/docs/phase-sandbox-acp/comm-model-frontend.md` §7；前端消息四端点。
 
 ## 端点一览
 

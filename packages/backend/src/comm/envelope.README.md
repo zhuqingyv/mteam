@@ -6,7 +6,7 @@
 
 一句话：**定义 `MessageEnvelope` / `ActorRef` 两个数据结构，以及对应的 `isActorRef` / `isMessageEnvelope` 运行时守卫**。纯类型文件，零运行时依赖（不 import 项目内任何模块、不 import DB / bus）。
 
-对齐 `docs/phase-sandbox-acp/comm-model-design.md` §2.1 ~ §2.3。
+对齐 `packages/backend/docs/phase-sandbox-acp/comm-model-design.md` §2.1 ~ §2.3。
 
 ## 接口定义
 

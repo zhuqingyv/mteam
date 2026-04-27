@@ -2,7 +2,7 @@
 
 把 `mteam` / `searchTools` 两个内置 MCP 从 stdio 子进程模式搬到同进程 HTTP Streamable 模式。agent 侧无论 host 还是 docker runtime，统一通过 HTTP 访问这两条 MCP；不再为每个 agent session fork 子进程。
 
-设计文档：`docs/phase-sandbox-acp/stage-4-mcp-http.md`、`stage-4/TASK-LIST.md` §1.3 / §W1-B。
+设计文档：`packages/backend/docs/phase-sandbox-acp/stage-4-mcp-http.md`、`stage-4/TASK-LIST.md` §1.3 / §W1-B。
 
 ## 入口
 

@@ -1,7 +1,7 @@
 # notification.subscriber.ts — 通知路由胶水（W2-6）
 
 > 业务胶水模块。串接 `notification/proxy-router` 的路由决策 + `comm/router`
-> 的消息投递 + `bus` 的事件再发射。契约见 `docs/phase-ws/TASK-LIST.md §W2-6`。
+> 的消息投递 + `bus` 的事件再发射。契约见 `packages/backend/docs/phase-ws/TASK-LIST.md §W2-6`。
 
 ## 这个模块是什么
 

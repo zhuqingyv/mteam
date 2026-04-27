@@ -6,7 +6,7 @@
 
 ## 契约
 
-权威定义在 `types.ts`，跨 Stage 冻结，详见 `docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md`。对外导出：
+权威定义在 `types.ts`，跨 Stage 冻结，详见 `packages/backend/docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md`。对外导出：
 
 - `LaunchSpec` / `StdioConfig` / `StdioMode` — 启动规约
 - `RuntimeHandle` — 进程句柄（`stdin` / `stdout` / `pid` / `kill` / `onExit`）

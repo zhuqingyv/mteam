@@ -4,8 +4,8 @@
 （`rule-loader` / `rule-merger` / `rule-matcher`）做判定，违规时**直接**
 emit `instance.offline_requested(requestedBy='policy-enforcer', reason)`。
 
-> 权威设计：`docs/phase-sandbox-acp/stage-5/TASK-LIST.md` §M7
-> 设计文档：`docs/phase-sandbox-acp/stage-5-security.md` §3（注：该文档里的
+> 权威设计：`packages/backend/docs/phase-sandbox-acp/stage-5/TASK-LIST.md` §M7
+> 设计文档：`packages/backend/docs/phase-sandbox-acp/stage-5-security.md` §3（注：该文档里的
 > `policy.violated` 两跳链路已在 TASK-LIST M5/M7 处**取消**）
 
 ---

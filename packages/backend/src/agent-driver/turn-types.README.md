@@ -2,7 +2,7 @@
 
 Turn 聚合方案的共享数据模型。**纯类型 + 类型守卫**，零业务依赖（不 import `bus/*`、`comm/*`、`ws/*`、`db/*`），可被服务端 agent-driver / bus / ws-broadcaster 和前端同时引用。
 
-权威合约：`docs/phase-ws/turn-aggregator-design.md` §1.2 / §1.3。
+权威合约：`packages/backend/docs/phase-ws/turn-aggregator-design.md` §1.2 / §1.3。
 
 ## 模块定位
 

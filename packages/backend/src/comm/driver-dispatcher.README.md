@@ -1,7 +1,7 @@
 # comm / driver-dispatcher
 
 > **签名冻结 · W2-C 不改此文件**
-> `DriverDispatcher` 签名 `(memberInstanceId: string, text: string) => Promise<'delivered'|'not-ready'|'not-found'>` 已在 phase-comm W2-E 冻结（见 `docs/phase-comm/TASK-LIST.md` §W2-E、`docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md`）。
+> `DriverDispatcher` 签名 `(memberInstanceId: string, text: string) => Promise<'delivered'|'not-ready'|'not-found'>` 已在 phase-comm W2-E 冻结（见 `packages/backend/docs/phase-comm/TASK-LIST.md` §W2-E、`packages/backend/docs/phase-sandbox-acp/INTERFACE-CONTRACTS.md`）。
 > phase-comm 的 W2-C router 改造里，通知行拼接（`formatNotifyLine(envelope)`）在 router 内完成，调用 dispatcher 时原样作为 `text` 传入。**dispatcher 文件本身 0 代码改动**；任何对签名/返回字面量集合的改动必须先走 `INTERFACE-CONTRACTS.md` 的修订流程。
 > 语义备注：**v2 起 `text` 的语义是 notifyLine**，形如 `@<name>>${summary}  [msg_id=msg_xxx]`（由 router 调 `formatNotifyLine` 生成）。dispatcher 不做解析，仅透传。
 
@@ -23,7 +23,7 @@ type DriverDispatchResult = 'delivered' | 'not-ready' | 'not-found';
 type DriverDispatcher = (memberInstanceId: string, text: string) => Promise<DriverDispatchResult>;
 ```
 
-权威合约见 `docs/phase-sandbox-acp/stage-3/TASK-LIST.md` §1.2 / §1.3。
+权威合约见 `packages/backend/docs/phase-sandbox-acp/stage-3/TASK-LIST.md` §1.2 / §1.3。
 
 ## 使用示例
 

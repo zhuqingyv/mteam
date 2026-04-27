@@ -16,7 +16,7 @@ export class DriverRegistry {
 export const driverRegistry: DriverRegistry;  // 进程级单例
 ```
 
-权威合约见 `docs/phase-sandbox-acp/stage-3/TASK-LIST.md` §1.3。
+权威合约见 `packages/backend/docs/phase-sandbox-acp/stage-3/TASK-LIST.md` §1.3。
 
 ## 使用示例
 

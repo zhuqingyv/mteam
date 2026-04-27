@@ -3,7 +3,7 @@
 业务胶水订阅者。把 AgentDriver 层的零散事件聚合成一轮完整对话（Turn），
 产出 `turn.*` 事件供 ws-broadcaster 推送前端、供 HTTP 快照接口（T-10）查询。
 
-> 权威设计：`docs/phase-ws/turn-aggregator-design.md` §4
+> 权威设计：`packages/backend/docs/phase-ws/turn-aggregator-design.md` §4
 > 存储层：`turn-store.ts`（纯数据结构，零 bus 依赖）
 > 类型：`packages/backend/src/agent-driver/turn-types.ts`
 

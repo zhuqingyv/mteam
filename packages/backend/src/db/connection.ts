@@ -11,8 +11,8 @@ import { migrateMessagesDropInstanceFk } from './migrations/2026-04-26-messages-
 import { migrateSandboxAutoApprove } from './migrations/2026-04-27-sandbox-autoapprove.js';
 import { migrateRoleTemplatesAvatar } from './migrations/2026-04-27-role-templates-avatar.js';
 
-const SCHEMA_VERSION = 1;
-const SCHEMA_NOTE = 'phase1';
+const SCHEMA_VERSION = 2;
+const SCHEMA_NOTE = 'avatars';
 
 const DEFAULT_DB_PATH = join(homedir(), '.claude', 'team-hub', 'v2.db');
 const SCHEMAS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'schemas');
