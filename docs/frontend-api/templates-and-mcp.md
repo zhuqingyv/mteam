@@ -20,6 +20,7 @@ interface RoleTemplate {
   role: string;                 // 1~32 字符
   description: string | null;   // ≤1024
   persona: string | null;       // ≤8192
+  avatar: string | null;        // 头像 id，例如 "avatar-01"；指向头像库 AvatarRow.id
   availableMcps: McpToolVisibility[];
   createdAt: string;            // ISO
   updatedAt: string;
@@ -67,11 +68,14 @@ interface SearchHit {
   "role": "qa",
   "description": "code reviewer",
   "persona": "You review PRs...",
+  "avatar": "avatar-01",
   "availableMcps": [
     { "name": "mteam", "surface": ["send_msg"], "search": "*" }
   ]
 }
 ```
+
+`avatar` 可选，为头像库里的 `id`（见 [avatars-api.md](./avatars-api.md)）。不传或传 `null` 表示未指定。
 
 响应 `201`: `RoleTemplate`
 
@@ -79,7 +83,7 @@ interface SearchHit {
 响应 `200`: `RoleTemplate`；`404` 不存在。`name` 需 `encodeURIComponent`。
 
 ### `PUT /api/role-templates/:name`
-增量更新。请求体字段可选（`role` / `description` / `persona` / `availableMcps`），`name` 不可改。
+增量更新。请求体字段可选（`role` / `description` / `persona` / `avatar` / `availableMcps`），`name` 不可改。`avatar` 传 `null` 可清空头像。
 
 响应 `200`: `RoleTemplate`；`404` 不存在。
 

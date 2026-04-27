@@ -11,6 +11,7 @@ import { handleRosterRoute } from './roster.routes.js';
 import { handleTemplatesRoute } from './templates.routes.js';
 import { handlePrimaryAgentRoute } from './primary-agent.routes.js';
 import { handleCliRoute } from './cli.routes.js';
+import { handleAvatarsRoute } from './avatars.routes.js';
 import { notFound } from '../http-utils.js';
 
 const PREFIX = '/api/panel';
@@ -50,6 +51,10 @@ export async function handlePanelRoute(
   if (sub === '/cli' || sub.startsWith('/cli/')) {
     const forwarded = '/api/cli' + sub.slice('/cli'.length);
     return handleCliRoute(forwarded, method) ?? notFound;
+  }
+  if (sub === '/avatars' || sub.startsWith('/avatars/')) {
+    const forwarded = '/api/avatars' + sub.slice('/avatars'.length);
+    return (await handleAvatarsRoute(req, forwarded, method)) ?? notFound;
   }
 
   // /api/panel/messages[/...] → /api/messages[/...]（method 不卡，由底层判定）。

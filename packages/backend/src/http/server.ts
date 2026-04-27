@@ -7,6 +7,7 @@ import { createDriverDispatcher } from '../comm/driver-dispatcher.js';
 import { driverRegistry } from '../agent-driver/registry.js';
 import { ensureDefaults as ensureMcpDefaults } from '../mcp-store/store.js';
 import { ensureDefaultTemplates } from '../domain/default-templates.js';
+import { ensureBuiltinAvatars } from '../avatar/init.js';
 import { mcpManager } from '../mcp-store/mcp-manager.js';
 import { cliManager } from '../cli-scanner/manager.js';
 import { primaryAgent } from '../primary-agent/primary-agent.js';
@@ -49,6 +50,7 @@ export function createServer(): http.Server {
   getDb();
   ensureMcpDefaults();
   ensureDefaultTemplates();
+  ensureBuiltinAvatars();
   return http.createServer(async (req, res) => {
     try {
       const pathname = (req.url ?? '/').split('?')[0] ?? '/';
@@ -88,7 +90,11 @@ export function startServer(port?: number): http.Server {
     snapshotPath: PID_SNAPSHOT_PATH,
     emit: (payload) => defaultBus.emit({ ...makeBase('process.reaped', 'startup-reap'), ...payload }),
   }).catch((e) => process.stderr.write(`[v2] startup-reap failed: ${(e as Error).message}\n`));
-  if (process.env.TEAM_HUB_NO_LAUNCH === '1') watchStdinEnd(trigger); // W2-4：Electron spawn 时才启用
+  // W2-4 父死子随：stdin EOF 始终监听（父进程关 stdin → 立即触发 shutdown）。
+  // Electron backend.ts spawn 时 stdio[0] 是 'pipe'，Electron 退出即刻 EOF；
+  // 作为 MCP proxy 子进程跑时同样成立。唯一不适用的是纯 CLI 直跑 server，
+  // 此时 stdin 是 TTY，watchStdinEnd 内部 resume() 无副作用，'end' 不会触发。
+  watchStdinEnd(trigger);
   watchParentAlive(trigger);     // W2-4 兜底：ppid 变 1（500ms 轮询）
   const server = createServer();
   reconcileStaleInstances();
@@ -155,31 +161,40 @@ export function startServer(port?: number): http.Server {
     })
     .catch((e) => process.stderr.write(`[v2] startup failed: ${(e as Error).message}\n`));
 
+  // 硬兜底：15s 内若 shutdown 未完成，强制退出（防 hang 住留守驻进程）。
+  const SHUTDOWN_HARD_TIMEOUT_MS = 15_000;
   shutdown = (): void => {
-    broadcaster.stop();
-    teardownSubscribers();
-    const mcpHttpClose = mcpHttpHandle
-      ? mcpHttpHandle.close().catch((e) =>
-          process.stderr.write(`[v2] mcp-http close failed: ${(e as Error).message}\n`),
-        )
-      : Promise.resolve();
-    mcpHttpClose.finally(() => {
+    const hardKill = setTimeout(() => {
+      process.stderr.write('[v2] shutdown timeout, forcing exit\n');
+      process.exit(1);
+    }, SHUTDOWN_HARD_TIMEOUT_MS);
+    hardKill.unref?.();
+
+    void (async () => {
+      broadcaster.stop();
+      // teardownSubscribers → member-driver lifecycle 会 fire-and-forget 停 member driver；
+      // 不等它完成，下面 processManager.killAll 会把所有仍注册的进程组打掉。
+      teardownSubscribers();
+      if (mcpHttpHandle) {
+        try { await mcpHttpHandle.close(); }
+        catch (e) { process.stderr.write(`[v2] mcp-http close failed: ${(e as Error).message}\n`); }
+      }
       mcpManager.teardown();
       cliManager.teardown();
-      primaryAgent
-        .teardown()
-        .catch((e) =>
-          process.stderr.write(`[v2] primary-agent teardown failed: ${(e as Error).message}\n`),
-        );
+      try { await primaryAgent.teardown(); }
+      catch (e) { process.stderr.write(`[v2] primary-agent teardown failed: ${(e as Error).message}\n`); }
+      // 最后兜底：processManager 里还存活的全部 kill（SIGTERM → 2s → SIGKILL）。
+      // detached:true 让 agent driver 独立 PGID，-ppid 组播打不到，必须走这里。
+      try { await processManager.killAll(); }
+      catch (e) { process.stderr.write(`[v2] processManager killAll failed: ${(e as Error).message}\n`); }
       wss.close();
-      comm.stop().finally(() => {
-        server.close(() => {
-          removePidFile();
-          closeDb();
-          process.exit(0);
-        });
-      });
-    });
+      try { await comm.stop(); } catch { /* ignore */ }
+      await new Promise<void>((r) => server.close(() => r()));
+      removePidFile();
+      closeDb();
+      clearTimeout(hardKill);
+      process.exit(0);
+    })();
   };
   process.on('SIGINT', trigger);
   process.on('SIGTERM', trigger);

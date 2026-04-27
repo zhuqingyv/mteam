@@ -2,7 +2,7 @@
 import { app, BrowserWindow, ipcMain, screen, nativeImage } from 'electron';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startBackend, stopBackend } from './backend.js';
+import { startBackend, stopBackendAndWait } from './backend.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ICON_PATH = resolve(__dirname, '..', 'build', 'icon.png');
@@ -157,10 +157,18 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  stopBackend();
+  // 不在这里 stopBackend —— 让 before-quit 统一处理，避免双路径 race。
   app.quit();
 });
 
-app.on('before-quit', () => {
-  stopBackend();
+// before-quit 用 preventDefault + 异步等后端退出，确保 Cmd+Q 不留孤儿 bun/agent driver。
+let quitting = false;
+app.on('before-quit', (event) => {
+  if (quitting) return;
+  quitting = true;
+  event.preventDefault();
+  void stopBackendAndWait().finally(() => app.exit(0));
 });
+
+// 最终保险：quit 事件后强制退出，任何遗漏的 node-pty / timer 都不影响进程终止。
+app.on('quit', () => process.exit(0));

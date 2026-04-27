@@ -34,8 +34,23 @@ export interface WsConfigurePrimaryAgent {
   systemPrompt?: string;
   requestId?: string;
 }
+export interface WsGetTurns {
+  op: 'get_turns';
+  driverId: string;
+  limit?: number;
+  requestId?: string;
+}
+export interface WsGetTurnHistory {
+  op: 'get_turn_history';
+  driverId: string;
+  limit?: number;
+  beforeEndTs?: string;
+  beforeTurnId?: string;
+  requestId?: string;
+}
 export type WsUpstream =
-  | WsSubscribe | WsUnsubscribe | WsPrompt | WsPing | WsConfigurePrimaryAgent;
+  | WsSubscribe | WsUnsubscribe | WsPrompt | WsPing | WsConfigurePrimaryAgent
+  | WsGetTurns | WsGetTurnHistory;
 
 // ---- 下行 ----
 export interface WsEventDown { type: 'event';      id: string; event: Record<string, unknown> }
@@ -44,8 +59,22 @@ export interface WsPong      { type: 'pong';       ts: string }
 export interface WsAck       { type: 'ack';        requestId: string; ok: boolean; reason?: string }
 export interface WsErrorDown { type: 'error';      code: WsErrorCode; message: string }
 export interface WsSnapshot  { type: 'snapshot';   primaryAgent: PrimaryAgentRow | null }
+export interface WsGetTurnsResponse {
+  type: 'get_turns_response';
+  requestId: string;
+  active: Turn | null;
+  recent: Turn[];
+}
+export interface WsGetTurnHistoryResponse {
+  type: 'get_turn_history_response';
+  requestId: string;
+  items: Turn[];
+  hasMore: boolean;
+  nextCursor: { endTs: string; turnId: string } | null;
+}
 export type WsDownstream =
-  | WsEventDown | WsGapReplay | WsPong | WsAck | WsErrorDown | WsSnapshot;
+  | WsEventDown | WsGapReplay | WsPong | WsAck | WsErrorDown | WsSnapshot
+  | WsGetTurnsResponse | WsGetTurnHistoryResponse;
 ```
 
 ## 上行消息
@@ -105,6 +134,73 @@ export type WsDownstream =
 
 额外字段（schema 外的键）一律拒，后端回 `bad_request`。
 
+### get_turns — 拉 Turn 内存快照
+
+上行：
+```json
+{ "op": "get_turns", "driverId": "inst_01", "limit": 10, "requestId": "r1" }
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `driverId` | string | 必填；总控用 `PrimaryAgentRow.id`，成员用 `RoleInstance.id` |
+| `limit` | number | 可选，默认 10，上限 50；非法值回退默认 |
+| `requestId` | string | 可选；下行 `get_turns_response` 原样回填 |
+
+下行 `get_turns_response`：
+```json
+{
+  "type": "get_turns_response",
+  "requestId": "r1",
+  "active": { "turnId": "turn_cur", "status": "active", "userInput": {...}, "blocks": [...], "startTs": "..." },
+  "recent": [ { "turnId": "turn_prev", "status": "done", "stopReason": "end_turn", "blocks": [...], "endTs": "..." } ]
+}
+```
+
+- driver 从未跑过 → `active: null`, `recent: []`（不报错）
+- `recent` 按 `endTs` 降序（新在前），**不含** `active`
+- 详见 [turn-events.md §4 快照查询](./turn-events.md)
+
+### get_turn_history — 拉 Turn 持久化冷历史（keyset 翻页）
+
+上行：
+```json
+{
+  "op": "get_turn_history",
+  "driverId": "inst_01",
+  "limit": 10,
+  "beforeEndTs": "2026-04-26T12:00:00Z",
+  "beforeTurnId": "turn_abc",
+  "requestId": "r2"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `driverId` | string | 必填 |
+| `limit` | number | 可选，默认 10，上限 50；非法值回退默认 |
+| `beforeEndTs` | string | 游标：上一页最后一条的 `endTs`（ISO） |
+| `beforeTurnId` | string | 游标：上一页最后一条的 `turnId` |
+| `requestId` | string | 可选；下行 `get_turn_history_response` 原样回填 |
+
+- `beforeEndTs` 和 `beforeTurnId` **必须成对**，缺一方视为首页
+- 排序：`end_ts DESC, turn_id DESC`（新在前）
+
+下行 `get_turn_history_response`：
+```json
+{
+  "type": "get_turn_history_response",
+  "requestId": "r2",
+  "items": [ { "turnId": "turn_abc", "driverId": "inst_01", "status": "done", "blocks": [...], "startTs": "...", "endTs": "..." } ],
+  "hasMore": true,
+  "nextCursor": { "endTs": "2026-04-26T12:00:00Z", "turnId": "turn_abc" }
+}
+```
+
+- `hasMore: false` + `nextCursor: null` → 已到末尾
+- `items` 为空数组 → 该 driver 无历史记录（不报错）
+- 详见 [turn-events.md §8 冷历史接口](./turn-events.md)
+
 ## 下行消息
 
 ### event
@@ -143,7 +239,7 @@ export type WsDownstream =
 
 ### ack
 
-仅针对 `prompt`。`ok=false` 时 `reason` 带人类可读文案。
+多个上行 op 的确认回执：`prompt` / `subscribe` / `unsubscribe` / `configure_primary_agent`。`ok=false` 时 `reason` 带人类可读文案。
 
 ```json
 { "type": "ack", "requestId": "req_1", "ok": true }

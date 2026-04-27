@@ -120,6 +120,22 @@
 
 ---
 
+### 模块 6a：头像库
+
+**职责**：头像列表、添加/删除/还原、随机选择
+
+| 文档 | 路径 |
+|------|------|
+| 头像 API | [docs/frontend-api/avatars-api.md](../../../docs/frontend-api/avatars-api.md) |
+
+**接入要点**：
+- HTTP CRUD：`/api/panel/avatars`
+- 20 个内置头像在 `src/assets/avatars/avatar-01~20.png`（128x128 透明背景像素风）
+- 内置头像删除只隐藏，还原可恢复；自定义头像删除真删
+- 角色模板的 avatar 字段对应头像库的 id
+
+---
+
 ### 模块 7：通知 + 可见性
 
 **职责**：通知设置（三种代理模式）、可见性规则

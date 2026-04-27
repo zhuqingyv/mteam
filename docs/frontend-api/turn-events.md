@@ -213,7 +213,7 @@ async function onWsReconnect() {
 - `block.seq` 首次分配后不变；前端按 seq 定位，content/toolStatus 原地更新。
 - `seq` 每 turn 从 0 重开，不跨 turn 累加。
 - `Turn.usage`（turn 结束账单，仅 Claude）和 `UsageBlock`（context 进度条，两家都发）是两件事，可共存分别渲。
-- Hub 进程重启 → 内存丢失；冷历史走 turn-history HTTP 接口（§8），不需要 localStorage。
+- Hub 进程重启 → 内存丢失；冷历史走 WS `get_turn_history`（§8），不需要 localStorage。
 
 ---
 

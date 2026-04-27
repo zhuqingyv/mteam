@@ -145,19 +145,14 @@ interface WsPrompt {
 - `not_ready` — driver 尚未 READY（未 start 或在启动中）
 - `bad_request` — 字段缺失 / 类型错
 
-### 下行 driver 事件（订阅后推送）
+### 下行事件（订阅后推送）
 
-全部事件名：
+生命周期事件：
 - `driver.started` / `driver.stopped` / `driver.error`
-- `driver.thinking` — 模型思考中
-- `driver.text` — 文本输出片段
-- `driver.tool_call` — 调用工具
-- `driver.tool_result` — 工具结果
-- `driver.turn_done` — 本轮结束
-
-以及生命周期事件：
 - `primary_agent.configured` / `primary_agent.started` / `primary_agent.stopped`
 - `primary_agent.state_changed` — 总控工作状态变化（`agentState`：`idle` 空闲 / `thinking` 思考中，前端显示 loading / `responding` 回复中，前端做流式渲染）
+
+> `driver.thinking` / `driver.text` / `driver.tool_call` / `driver.tool_result` / `driver.turn_done` 已从 WS 白名单移除，前端改用 `turn.*` 聚合事件。详见 [turn-events.md](./turn-events.md)。
 
 ### 订阅建议
 

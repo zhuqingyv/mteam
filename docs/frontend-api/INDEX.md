@@ -130,6 +130,16 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | GET    | `/api/cli`                       | 读当前 CLI 快照（不触发扫描） | [templates-and-mcp §cli-GET](./templates-and-mcp.md) |
 | POST   | `/api/cli/refresh`               | 立即重新扫描并返回最新快照    | [templates-and-mcp §cli-refresh](./templates-and-mcp.md) |
 
+### 2.7a 头像库 ⚠️ 前端走 `/api/panel/avatars/*`
+
+| 方法 | 路径 | 一句话 | 详细 |
+|---|---|---|---|
+| GET    | `/api/panel/avatars`         | 列所有可见头像 | [avatars-api §GET](./avatars-api.md) |
+| POST   | `/api/panel/avatars`         | 添加自定义头像 | [avatars-api §POST](./avatars-api.md) |
+| DELETE | `/api/panel/avatars/:id`     | 删除/隐藏头像 | [avatars-api §DELETE](./avatars-api.md) |
+| POST   | `/api/panel/avatars/restore` | 还原内置头像 | [avatars-api §restore](./avatars-api.md) |
+| GET    | `/api/panel/avatars/random`  | 随机一个头像 | [avatars-api §random](./avatars-api.md) |
+
 ### 2.7 Primary Agent（总控）⚠️ 前端已改走 WS（下列 HTTP 仅内部/调试）
 
 > ## 🟢 设计原则（硬性约束）
@@ -171,6 +181,7 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 > /api/panel/templates      → /api/role-templates     (整树转发)
 > /api/panel/primary-agent  → /api/primary-agent      (整树转发)
 > /api/panel/cli            → /api/cli                (整树转发)
+> /api/panel/avatars        → /api/avatars            (整树转发)
 > /api/panel/driver/:id/turns                         (见 §2.8，Turn 内存快照；前端改走 WS get_turns)
 > /api/panel/driver/:id/turn-history                  (见 §2.8，Turn 冷历史翻页；前端改走 WS get_turn_history)
 > ```
@@ -186,6 +197,8 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | GET    | `/api/panel/mcp-tools`          | `/api/mcp-tools/search`   | 工具搜索（需 `instanceId` + `q`） |
 | GET    | `/api/panel/mcp/tools`          | `/api/mcp-tools/search`   | 等同上（旧路径保留） |
 | GET    | `/api/panel/mcp/store`          | `/api/mcp-store`          | 列 MCP 配置 |
+| POST   | `/api/panel/mcp/store/install`  | 待开放                    | MCP 安装暂走后端脚本 |
+| DELETE | `/api/panel/mcp/store/:name`    | 待开放                    | MCP 卸载暂走后端脚本 |
 | GET    | `/api/panel/roster`             | `/api/roster`             | 花名册 |
 | *      | `/api/panel/roster/*`           | `/api/roster/*`           | 完整花名册 CRUD 透传（search / :id / :id/alias） |
 | GET    | `/api/panel/templates`          | `/api/role-templates`     | 列模板 |
@@ -196,6 +209,11 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | POST   | `/api/panel/primary-agent/stop`   | `/api/primary-agent/stop`   | 停 driver（409 not running） |
 | GET    | `/api/panel/cli`                | `/api/cli`                | CLI 快照（不触发扫描） |
 | POST   | `/api/panel/cli/refresh`        | `/api/cli/refresh`        | 立即重新扫描 + diff，返回最新快照 |
+| GET    | `/api/panel/avatars`            | `/api/avatars`            | 列所有可见头像 |
+| POST   | `/api/panel/avatars`            | `/api/avatars`            | 添加自定义头像（只注册 DB 记录） |
+| DELETE | `/api/panel/avatars/:id`        | `/api/avatars/:id`        | 删除/隐藏头像（内置软删、自定义真删） |
+| POST   | `/api/panel/avatars/restore`    | `/api/avatars/restore`    | 还原所有被隐藏的内置头像 |
+| GET    | `/api/panel/avatars/random`     | `/api/avatars/random`     | 随机返回一个可见头像 |
 | GET    | `/api/panel/driver/:id/turns`   | —（独立实现）             | Turn 内存快照（**仅内部/调试**；前端走 WS `get_turns`，见 §2.8） |
 | GET    | `/api/panel/driver/:id/turn-history` | —（独立实现）        | Turn 冷历史翻页（**仅内部/调试**；前端走 WS `get_turn_history`，见 §2.8） |
 
@@ -213,6 +231,7 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | `RoleTemplate`    | templates HTTP            | 角色模板（含 `availableMcps`: `{name,surface,search}`）           | [templates-and-mcp §types](./templates-and-mcp.md) |
 | `McpConfig`       | mcp-store HTTP            | MCP 服务器配置                                                    | [templates-and-mcp §types](./templates-and-mcp.md) |
 | `CliInfo`         | cli HTTP                  | CLI 可用性快照                                                    | [templates-and-mcp §types](./templates-and-mcp.md) |
+| `AvatarRow`       | avatars HTTP              | 头像记录（id/filename/builtin/hidden/createdAt）                 | [avatars-api §types](./avatars-api.md) |
 | `PrimaryAgentRow` | primary-agent HTTP        | 总控配置（`mcpConfig`: `{serverName,mode,tools?}`，和模板不同！） | [primary-agent-api §types](./primary-agent-api.md) |
 | `Turn` / `TurnBlock` | WS `turn.*` / HTTP 快照 | Agent 工作流聚合块，按 `blockId` upsert                           | [turn-events §types](./turn-events.md) |
 | `NotificationConfig` / `ProxyMode` / `CustomRule` | 通知配置 | 通知代理策略（proxy_all/direct/custom）                          | [notification-config §types](./notification-config.md) · [notification-and-visibility.md](./notification-and-visibility.md) |
@@ -347,6 +366,7 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | [roster-api.md](./roster-api.md)                             | 花名册 HTTP |
 | [teams-api.md](./teams-api.md)                               | 团队 HTTP |
 | [templates-and-mcp.md](./templates-and-mcp.md)               | 模板 / MCP 商店 / CLI 扫描 / MCP 工具搜索 |
+| [avatars-api.md](./avatars-api.md)                           | 头像库 CRUD + 随机 |
 | [primary-agent-api.md](./primary-agent-api.md)               | 总控 Agent 生命周期 HTTP + WS 联动 |
 | [sessions-and-auth.md](./sessions-and-auth.md)               | WS `userId` 约定 / user scope 越权 / sessions/register |
 | [notification-and-visibility.md](./notification-and-visibility.md) | 通知代理 + 可见性过滤机制 |

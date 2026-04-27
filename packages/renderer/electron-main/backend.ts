@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND_ENTRY = resolve(__dirname, '..', '..', 'backend', 'src', 'http', 'server.ts');
 const KILL_GRACE_MS = 2000;
+const STOP_WAIT_MS = 4000;
 
 let child: ChildProcess | null = null;
 
@@ -26,6 +27,10 @@ export function startBackend(): ChildProcess {
   return child;
 }
 
+/**
+ * 同步触发 SIGTERM → 2s 后 SIGKILL。不等子进程退出（同步调用路径，before-quit 里用）。
+ * Electron 关闭 stdin pipe 也会让 backend 的 watchStdinEnd 触发优雅 shutdown。
+ */
 export function stopBackend(): void {
   if (!child || typeof child.pid !== 'number') return;
   const pid = child.pid;
@@ -35,4 +40,29 @@ export function stopBackend(): void {
   };
   kill('SIGTERM');
   setTimeout(() => kill('SIGKILL'), KILL_GRACE_MS).unref?.();
+}
+
+/**
+ * 等子进程真的退出（最多等 STOP_WAIT_MS 毫秒），超时 SIGKILL 进程组再返回。
+ * 用在 Electron before-quit 里 preventDefault + 等待，确保 Cmd+Q 不留孤儿。
+ */
+export async function stopBackendAndWait(): Promise<void> {
+  if (!child || typeof child.pid !== 'number') return;
+  const c = child;
+  const pid = c.pid!;
+  child = null;
+  const kill = (sig: NodeJS.Signals): void => {
+    try { process.kill(-pid, sig); } catch { /* ESRCH / EPERM 静默 */ }
+  };
+  const exited = new Promise<void>((resolve) => {
+    if (c.exitCode !== null || c.signalCode) { resolve(); return; }
+    c.once('exit', () => resolve());
+  });
+  kill('SIGTERM');
+  const timer = setTimeout(() => kill('SIGKILL'), KILL_GRACE_MS);
+  await Promise.race([
+    exited,
+    new Promise<void>((r) => setTimeout(r, STOP_WAIT_MS)),
+  ]);
+  clearTimeout(timer);
 }

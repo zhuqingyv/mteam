@@ -39,6 +39,7 @@ var __export = (target, all) => {
 // electron-main/backend.ts
 var exports_backend = {};
 __export(exports_backend, {
+  stopBackendAndWait: () => stopBackendAndWait,
   stopBackend: () => stopBackend,
   startBackend: () => startBackend
 });
@@ -49,6 +50,7 @@ var import_node_url = require("node:url");
 var __dirname2 = import_node_path.dirname(import_node_url.fileURLToPath("file:///Users/zhuqingyu/project/mcp-team-hub/packages/renderer/electron-main/backend.ts"));
 var BACKEND_ENTRY = import_node_path.resolve(__dirname2, "..", "..", "backend", "src", "http", "server.ts");
 var KILL_GRACE_MS = 2000;
+var STOP_WAIT_MS = 4000;
 var child = null;
 function startBackend() {
   if (child && child.exitCode === null)
@@ -77,4 +79,30 @@ function stopBackend() {
   };
   kill("SIGTERM");
   setTimeout(() => kill("SIGKILL"), KILL_GRACE_MS).unref?.();
+}
+async function stopBackendAndWait() {
+  if (!child || typeof child.pid !== "number")
+    return;
+  const c = child;
+  const pid = c.pid;
+  child = null;
+  const kill = (sig) => {
+    try {
+      process.kill(-pid, sig);
+    } catch {}
+  };
+  const exited = new Promise((resolve2) => {
+    if (c.exitCode !== null || c.signalCode) {
+      resolve2();
+      return;
+    }
+    c.once("exit", () => resolve2());
+  });
+  kill("SIGTERM");
+  const timer = setTimeout(() => kill("SIGKILL"), KILL_GRACE_MS);
+  await Promise.race([
+    exited,
+    new Promise((r) => setTimeout(r, STOP_WAIT_MS))
+  ]);
+  clearTimeout(timer);
 }
