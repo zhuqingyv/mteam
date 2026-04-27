@@ -50,6 +50,17 @@ function createWindow(): void {
     alwaysOnTop: true,
   });
   loadRenderer(mainWindow);
+  let moveIdleTimer: ReturnType<typeof setTimeout> | null = null;
+  mainWindow.on('move', () => {
+    if (!mainWindow) return;
+    mainWindow.webContents.send('window:drag-start');
+    if (moveIdleTimer) clearTimeout(moveIdleTimer);
+    moveIdleTimer = setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('window:drag-end');
+      }
+    }, 120);
+  });
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
@@ -88,9 +99,9 @@ ipcMain.on('window:resize', (_e, payload: { width: number; height: number; ancho
     newX = x + w - payload.width;
     newY = y + h - payload.height;
   }
-  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
-  newX = Math.max(8, Math.min(newX, screenW - payload.width - 8));
-  newY = Math.max(8, Math.min(newY, screenH - payload.height - 8));
+  const wa = screen.getDisplayMatching({ x, y, width: w, height: h }).workArea;
+  newX = Math.max(wa.x + 8, Math.min(newX, wa.x + wa.width - payload.width - 8));
+  newY = Math.max(wa.y + 8, Math.min(newY, wa.y + wa.height - payload.height - 8));
   mainWindow.setBounds(
     { x: newX, y: newY, width: payload.width, height: payload.height },
     payload.animate ?? false,

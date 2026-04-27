@@ -1,0 +1,166 @@
+[
+  {
+    "dir": "out",
+    "head": "{\"op\":\"prompt\",\"instanceId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"text\":\"please think briefly about the number 7 and reply with a short sentence including the word thinking\",\"requestId\":\"req-1777205568550\"}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"a433b55d-8590-4c61-a010-228c1c1c5e7c\",\"event\":{\"type\":\"turn.started\",\"ts\":\"2026-04-26T12:12:48.551Z\",\"eventId\":\"a433b55d-8590-4c61-a010-228c1c1c5e7c\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"userInput\":{\"text\":\"plea"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"c548096a-9af6-445b-99f8-b820eee8fc2b\",\"event\":{\"type\":\"primary_agent.state_changed\",\"ts\":\"2026-04-26T12:12:48.552Z\",\"eventId\":\"c548096a-9af6-445b-99f8-b820eee8fc2b\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"agentState\":\"thinking\"}}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"ack\",\"requestId\":\"req-1777205568550\",\"ok\":true}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"b0527b87-7952-4aeb-a06d-0fc4d7ba3995\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:52.979Z\",\"eventId\":\"b0527b87-7952-4aeb-a06d-0fc4d7ba3995\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":0,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"613d7fec-71f1-4b9d-974b-6983a0a5b29a\",\"event\":{\"type\":\"primary_agent.state_changed\",\"ts\":\"2026-04-26T12:12:52.979Z\",\"eventId\":\"613d7fec-71f1-4b9d-974b-6983a0a5b29a\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"agentState\":\"responding\"}}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"58e8ad90-a74c-4225-b599-bfe8b1dbf6f6\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:52.980Z\",\"eventId\":\"58e8ad90-a74c-4225-b599-bfe8b1dbf6f6\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":1,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"13acc283-8128-44ca-8a31-f8ba19b7dcfd\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:52.980Z\",\"eventId\":\"13acc283-8128-44ca-8a31-f8ba19b7dcfd\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":1,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"7fe812a6-e5f9-474f-a6d7-92055300cfc9\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:52.985Z\",\"eventId\":\"7fe812a6-e5f9-474f-a6d7-92055300cfc9\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":1,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"30738c0e-0276-4714-8183-60c0423cd585\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.034Z\",\"eventId\":\"30738c0e-0276-4714-8183-60c0423cd585\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":1,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"d97ba3cc-e7cb-4ca6-a896-da5a3b98bffe\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.080Z\",\"eventId\":\"d97ba3cc-e7cb-4ca6-a896-da5a3b98bffe\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":1,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"870cec04-4d22-46d4-9ae5-c51a694a66df\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.128Z\",\"eventId\":\"870cec04-4d22-46d4-9ae5-c51a694a66df\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":1,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"59e39114-65d7-479a-9dbe-7960da492138\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.176Z\",\"eventId\":\"59e39114-65d7-479a-9dbe-7960da492138\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":1,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"a16dd9e4-b90b-4cc7-9cfa-380502399c2c\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.223Z\",\"eventId\":\"a16dd9e4-b90b-4cc7-9cfa-380502399c2c\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":1,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"8c6dc116-9c6b-497a-a227-0a3bc53b1df9\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.225Z\",\"eventId\":\"8c6dc116-9c6b-497a-a227-0a3bc53b1df9\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":2,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"67591d8f-7c1a-4d6f-9045-7e58e8c8ac82\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.225Z\",\"eventId\":\"67591d8f-7c1a-4d6f-9045-7e58e8c8ac82\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":2,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"33b40545-004f-4468-b151-d4d87ed4d625\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.271Z\",\"eventId\":\"33b40545-004f-4468-b151-d4d87ed4d625\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":2,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"21521493-0a3b-408b-bfd2-94e9d5b14e04\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.318Z\",\"eventId\":\"21521493-0a3b-408b-bfd2-94e9d5b14e04\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":2,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"a8d5ced6-dc05-4d34-a1d5-b9f4baea2173\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.366Z\",\"eventId\":\"a8d5ced6-dc05-4d34-a1d5-b9f4baea2173\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":2,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"7ffe7490-8443-41e1-8abf-1d26aae230b6\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.413Z\",\"eventId\":\"7ffe7490-8443-41e1-8abf-1d26aae230b6\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":2,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"b8417a80-bbdf-499a-ab13-92baa8f4005e\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.463Z\",\"eventId\":\"b8417a80-bbdf-499a-ab13-92baa8f4005e\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":2,\"block\":{\"b"
+  },
+  {
+    "dir": "out",
+    "head": "{\"type\":\"ping\"}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"23c6a241-01f6-433d-9aa0-742b3a4f76fa\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.563Z\",\"eventId\":\"23c6a241-01f6-433d-9aa0-742b3a4f76fa\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":2,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"950991b3-d1f6-4f1c-a963-591e1e8e1a80\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.563Z\",\"eventId\":\"950991b3-d1f6-4f1c-a963-591e1e8e1a80\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":2,\"block\":{\"b"
+  },
+  {
+    "dir": "out",
+    "head": "{\"op\":\"ping\"}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"pong\",\"ts\":\"2026-04-26T12:12:53.591Z\"}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"51d75e45-7dc3-4a67-b48c-65e7b1bd05eb\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.609Z\",\"eventId\":\"51d75e45-7dc3-4a67-b48c-65e7b1bd05eb\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":2,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"b58b0672-863a-4f66-b233-440fdc122214\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.652Z\",\"eventId\":\"b58b0672-863a-4f66-b233-440fdc122214\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":2,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"9b7333ca-4d85-4175-99ce-2043bae5a76c\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.746Z\",\"eventId\":\"9b7333ca-4d85-4175-99ce-2043bae5a76c\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":0,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"7b7be5d2-a1aa-4f1b-8be6-e25c88ecf087\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:12:53.762Z\",\"eventId\":\"7b7be5d2-a1aa-4f1b-8be6-e25c88ecf087\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"seq\":0,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"ddd4d8ce-74f9-43c2-be11-5114aa65fa78\",\"event\":{\"type\":\"turn.completed\",\"ts\":\"2026-04-26T12:12:53.762Z\",\"eventId\":\"ddd4d8ce-74f9-43c2-be11-5114aa65fa78\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_5f52f6a8-70bf-41c5-8fea-16333e9a2b59\",\"turn\":{\"turnId\":\"turn_"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"664b22bc-f890-48d7-a448-7b3b05e97325\",\"event\":{\"type\":\"primary_agent.state_changed\",\"ts\":\"2026-04-26T12:12:53.763Z\",\"eventId\":\"664b22bc-f890-48d7-a448-7b3b05e97325\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"agentState\":\"idle\"}}"
+  },
+  {
+    "dir": "out",
+    "head": "{\"op\":\"configure_primary_agent\",\"cliType\":\"codex\",\"requestId\":\"cfg-1777205576577\"}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"ack\",\"requestId\":\"cfg-1777205576577\",\"ok\":true}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"c839320e-1848-41de-88ce-d36653223f8c\",\"event\":{\"type\":\"primary_agent.configured\",\"ts\":\"2026-04-26T12:12:56.577Z\",\"eventId\":\"c839320e-1848-41de-88ce-d36653223f8c\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"cliType\":\"codex\",\"name\":\"Leader\",\"row\":{\"id\":\"71aa548d-7b8c-4f1a-9"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"9e8fb009-adaf-49ae-9a9b-e3bc9a5e9c88\",\"event\":{\"type\":\"primary_agent.stopped\",\"ts\":\"2026-04-26T12:12:56.578Z\",\"eventId\":\"9e8fb009-adaf-49ae-9a9b-e3bc9a5e9c88\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\"}}"
+  },
+  {
+    "dir": "out",
+    "head": "{\"op\":\"configure_primary_agent\",\"cliType\":\"claude\",\"requestId\":\"cfg-1777205578384\"}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"ack\",\"requestId\":\"cfg-1777205578384\",\"ok\":true}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"2cb27279-fbd4-4923-86d1-7dc14760a193\",\"event\":{\"type\":\"primary_agent.configured\",\"ts\":\"2026-04-26T12:12:58.385Z\",\"eventId\":\"2cb27279-fbd4-4923-86d1-7dc14760a193\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"cliType\":\"claude\",\"name\":\"Leader\",\"row\":{\"id\":\"71aa548d-7b8c-4f1a-"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"9430e301-f4cc-4a95-a99d-e60f5c942615\",\"event\":{\"type\":\"primary_agent.stopped\",\"ts\":\"2026-04-26T12:12:58.385Z\",\"eventId\":\"9430e301-f4cc-4a95-a99d-e60f5c942615\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\"}}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"error\",\"code\":\"internal_error\",\"message\":\"null is not an object (evaluating 'this.conn.newSession')\"}"
+  }
+]

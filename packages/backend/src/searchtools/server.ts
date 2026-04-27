@@ -8,7 +8,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-interface SearchEnv {
+export interface SearchEnv {
   instanceId: string;
   hubUrl: string;
 }
@@ -84,8 +84,9 @@ function toTextResult(
   };
 }
 
-export async function runSearchToolsServer(): Promise<void> {
-  const env = readEnv();
+// 纯构造：给 env，返回挂好 list/call handler 的 Server。
+// transport / signal / 日志由调用方负责（mcp-http listener、单测、stdio 入口）。
+export function createSearchToolsServer(env: SearchEnv): Server {
   const server = new Server(
     { name: 'searchTools', version: '0.1.0' },
     { capabilities: { tools: {} } },
@@ -105,6 +106,13 @@ export async function runSearchToolsServer(): Promise<void> {
       return toTextResult({ error: (e as Error).message });
     }
   });
+
+  return server;
+}
+
+export async function runSearchToolsServer(): Promise<void> {
+  const env = readEnv();
+  const server = createSearchToolsServer(env);
 
   process.on('SIGINT', () => process.exit(0));
   process.on('SIGTERM', () => process.exit(0));

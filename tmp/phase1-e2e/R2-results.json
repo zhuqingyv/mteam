@@ -1,0 +1,92 @@
+{
+  "results": [
+    {
+      "id": "1",
+      "title": "进程就绪展示 (Logo 亮 + status=RUNNING)",
+      "pass": "FAIL",
+      "detail": "logoGray=true backendStatus=RUNNING cliType=claude",
+      "shot": "/Users/zhuqingyu/project/mcp-team-hub/tmp/phase1-e2e/R2-01-initial.png"
+    },
+    {
+      "id": "6",
+      "title": "生命周期初始化 (backend id present)",
+      "pass": "PASS",
+      "detail": "id=71aa548d-7b8c-4f1a-9abe-8bef20379199"
+    },
+    {
+      "id": "2",
+      "title": "发送用户消息 (user bubble with \"reply OK\")",
+      "pass": "FAIL",
+      "detail": "userRows=0 texts=[]",
+      "shot": "/Users/zhuqingyu/project/mcp-team-hub/tmp/phase1-e2e/R2-04-sent.png"
+    },
+    {
+      "id": "3",
+      "title": "思考状态 (thinking dots)",
+      "pass": "FAIL",
+      "detail": "detected=false",
+      "shot": null
+    },
+    {
+      "id": "4",
+      "title": "流式文本回复 (agent bubble text updates)",
+      "pass": "FAIL",
+      "detail": "samples=1 lastTexts=[]"
+    },
+    {
+      "id": "5",
+      "title": "Turn 结束 (turn.completed received + streaming cleared)",
+      "pass": "FAIL",
+      "detail": "wsGotCompleted=false streamingVisible=false",
+      "shot": "/Users/zhuqingyu/project/mcp-team-hub/tmp/phase1-e2e/R2-07-completed.png"
+    },
+    {
+      "id": "extra-model",
+      "title": "模型切换 (codex)",
+      "pass": "FAIL",
+      "detail": "afterCliType=undefined"
+    },
+    {
+      "id": "extra-settings-open",
+      "title": "设置面板能打开",
+      "pass": "PASS",
+      "detail": "buttons=[]",
+      "shot": "/Users/zhuqingyu/project/mcp-team-hub/tmp/phase1-e2e/R2-09-settings-open.png"
+    },
+    {
+      "id": "extra-settings-no-startstop",
+      "title": "SettingsPage 没有 Start/Stop 按钮",
+      "pass": "PASS",
+      "detail": "buttons=[]"
+    }
+  ],
+  "pa": {
+    "id": "71aa548d-7b8c-4f1a-9abe-8bef20379199",
+    "name": "Leader",
+    "cliType": "claude",
+    "systemPrompt": "",
+    "mcpConfig": [
+      {
+        "serverName": "mteam",
+        "mode": "all"
+      }
+    ],
+    "status": "RUNNING",
+    "createdAt": "2026-04-26T02:37:29.597Z",
+    "updatedAt": "2026-04-26T11:41:12.573Z"
+  },
+  "settingsHasStartStop": {
+    "hasStart": false,
+    "hasStop": false,
+    "startStopButtons": [],
+    "bodySlice": "MTEAM\n0 Agents · 0 Tasks\n0 New messages\nMTEAM\n×"
+  },
+  "afterConf": null,
+  "samples": [
+    {
+      "t": 1777204537487,
+      "texts": [],
+      "bodyLen": 47
+    }
+  ]
+}

@@ -4,8 +4,9 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { readEnv } from './config.js';
+import { readEnv, type MteamEnv } from './config.js';
 import { CommClient } from './comm-client.js';
+import type { CommLike } from './comm-like.js';
 import { findTool, visibleTools, type ToolDeps } from './tools/registry.js';
 
 function toTextResult(data: unknown): { content: Array<{ type: 'text'; text: string }>; isError?: boolean } {
@@ -36,11 +37,10 @@ async function connectCommWithRetry(comm: CommClient, address: string): Promise<
   process.stderr.write(`[mteam] comm connect gave up address=${address} — send_msg will retry on demand\n`);
 }
 
-export async function runMteamServer(): Promise<void> {
-  const env = readEnv();
-  const selfAddress = `local:${env.instanceId}`;
-  const comm = new CommClient(env.commSock, selfAddress);
-  await connectCommWithRetry(comm, selfAddress);
+// 纯构造：给 env + 任意 CommLike 实现，返回挂好两个 handler 的 Server。
+// 不碰 transport / process signal / 日志 —— 由调用方负责（mcp-http listener、
+// 单测的 InMemoryTransport、stdio 入口）。每个 session 应单独 new 一个 Server。
+export function createMteamServer(env: MteamEnv, comm: CommLike): Server {
   const deps: ToolDeps = { env, comm };
 
   const server = new Server(
@@ -68,6 +68,17 @@ export async function runMteamServer(): Promise<void> {
       return toTextResult({ error: (e as Error).message });
     }
   });
+
+  return server;
+}
+
+export async function runMteamServer(): Promise<void> {
+  const env = readEnv();
+  const selfAddress = `local:${env.instanceId}`;
+  const comm = new CommClient(env.commSock, selfAddress);
+  await connectCommWithRetry(comm, selfAddress);
+
+  const server = createMteamServer(env, comm);
 
   const cleanup = (): void => {
     try { comm.close(); } catch { /* ignore */ }

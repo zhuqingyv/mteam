@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/server.ts",
+    "dev": "bun --watch src/http/server.ts",
     "mcp": "bun run src/mcp/index.ts",
     "build": "bun build src/server.ts --outdir dist --target node",
     "build:mcp": "bun build src/mcp/index.ts --outdir dist/mcp --target node",

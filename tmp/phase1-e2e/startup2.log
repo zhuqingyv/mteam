@@ -1,0 +1,131 @@
+$ bun run --cwd packages/renderer start
+$ concurrently -k -n VITE,ELECTRON -c blue,green "bun run dev" "wait-on http://localhost:5180 && bun run electron:dev"
+[VITE] $ vite
+[VITE] 
+[VITE]   VITE v6.4.2  ready in 309 ms
+[VITE] 
+[VITE]   ➜  Local:   http://localhost:5180/
+[VITE]   ➜  Network: use --host to expose
+[ELECTRON] $ bun run electron:build && VITE_DEV_URL=http://localhost:5180 electron dist-electron/main.js
+[ELECTRON] $ bun build electron-main/main.ts electron-main/backend.ts --outdir dist-electron --target node --format cjs -e electron && node -e "require('fs').writeFileSync('dist-electron/package.json', JSON.stringify({type:'commonjs'})); require('fs').copyFileSync('electron-main/preload.cjs', 'dist-electron/preload.cjs')"
+[ELECTRON] Bundled 2 modules in 7ms
+[ELECTRON] 
+[ELECTRON]   main.js     6.98 KB  (entry point)
+[ELECTRON]   backend.js  2.56 KB  (entry point)
+[ELECTRON] 
+[ELECTRON] 
+[ELECTRON] DevTools listening on ws://127.0.0.1:9222/devtools/browser/55225ab4-4677-47e6-a182-de9579caba6d
+[ELECTRON] [v2] listening on port 58590
+[ELECTRON] [v2] comm listening at /Users/zhuqingyu/.claude/team-hub/comm.sock
+[ELECTRON] [v2] mcp-http listening at http://127.0.0.1:58591
+[ELECTRON] 2026-04-26 19:57:43.554 Electron[62501:102494336] +[IMKClient subclass]: chose IMKClient_Modern
+[ELECTRON] 2026-04-26 19:57:43.554 Electron[62501:102494336] +[IMKInputSession subclass]: chose IMKInputSession_Modern
+[ELECTRON] [primary-agent] mcp 'undefined' not found in store, skip
+[ELECTRON] [bus] driver.started {"type":"driver.started","ts":"2026-04-26T11:57:59.370Z","source":"agent-driver","eventId":"cbe13fc6-1bb5-4b74-a2b2-ccf04a2879d1","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","pid":62556}
+[ELECTRON] [bus] primary_agent.started {"type":"primary_agent.started","ts":"2026-04-26T11:57:59.371Z","source":"primary-agent","eventId":"4e7c7a06-4397-4efb-adaa-f5116935ed72","agentId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","cliType":"claude"}
+[ELECTRON] [bus] driver.commands {"type":"driver.commands","ts":"2026-04-26T11:57:59.373Z","source":"agent-driver","eventId":"65b17c3f-09b2-4757-b81c-01dfe9795a4c","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","commands":[{"name":"update-config","description":"Use this skill to configure the Claude Code harness via settings.json. Automated behaviors (\"from now on when X\", \"each time X\", \"whenever X\", \"before/after X\") require hooks configured in settings.json - the harness executes these, not Claude, so memory/preferences cannot fulfill them. Also use for: permissions (\"allow X\", \"add permission\", \"move permission to\"), env vars (\"set X=Y\"), hook troubleshooting, or any changes to settings.json/settings.local.json files. Examples: \"allow npm commands\", \"add bq permission to global settings\", \"move permission to user settings\", \"set DEBUG=true\", \"when claude stops show X\". For simple settings like theme/model, suggest the /config command."},{"name":"debug","description":"Enable debug logging for this session and help diagnose issues"},{"name":"simplify","description":"Review changed code for reuse, quality, and efficiency, then fix any issues found."},{"name":"batch","description":"Research and plan a large-scale change, then execute it in parallel across 5–30 isolated worktree agents that each open a PR."},{"name":"fewer-permission-prompts","description":"Scan your transcripts for common read-only Bash and MCP tool calls, then add a prioritized allowlist to project .claude/settings.json to reduce permission prompts."},{"name":"loop","description":"Run a prompt or slash command on a recurring interval (e.g. /loop 5m /foo, defaults to 10m)"},{"name":"claude-api","description":"Build, debug, and optimize Claude API / Anthropic SDK apps. Apps built with this skill should include prompt caching. Also handles migrating existing Claude API code between Claude model versions (4.5 → 4.6, 4.6 → 4.7, retired-model replacements).\nTRIGGER when: code imports `anthropic`/`@anthropic-ai/sdk`; user asks for the Claude API, Anthropic SDK, or Managed Agents; user adds/modifies/tunes a Claude feature (caching, thinking, compaction, tool use, batch, files, citations, memory) or model (Opus/Sonnet/Haiku) in a file; questions about prompt caching / cache hit rate in an Anthropic SDK project.\nSKIP: file imports `openai`/other-provider SDK, filename like `*-openai.py`/`*-generic.py`, provider-neutral code, general programming/ML."},{"name":"officecli","description":"Create, analyze, proofread, and modify Office documents (.docx, .xlsx, .pptx) using the officecli CLI tool. Use when the user wants to create, inspect, check formatting, find issues, add charts, or modify Office documents. (user)"},{"name":"testcase-capture","description":"从本次任务提炼可复用的测试case，写入项目case库和全局case库。 (user)"},{"name":"role-audit","description":"记录本次任务实际调用了哪些角色，谁提出异议，谁确认通过。防止伪装多Agent。 (user)"},{"name":"real-verify","description":"执行真实场景验证。CLI项目跑命令，前端项目走页面/路由/表单/控制台。能截图就截图。 (user)"},{"name":"team-task","description":"团队任务工作流。leader 调度 agent 团队，按标准流程执行任务：分析→计划→拆解→分配→执行→测试→质检循环。 (user)"},{"name":"project-register","description":"初始化当前项目记忆体系。生成项目指纹，建立项目档案，加入全局registry。 (user)"},{"name":"consensus-save","description":"将用户确认的规则/偏好/共识持久化落盘。区分写入用户共识、团队共识或项目共识。 (user)"},{"name":"risk-scan","description":"任务开始前扫描风险。识别破坏性改动、歧义、依赖风险、环境风险、测试缺口。 (user)"},{"name":"self-recovery","description":"遇到权限/工具/能力缺失时按固定顺序自救。记录过程和结果。 (user)"},{"name":"notify","description":"notify (user)"},{"name":"delivery-gate","description":"交付前必须通过的门禁检查。任何准备说\"完成\"或\"交付\"前，先执行本检查。 (user)"},{"name":"frontend-design","description":"(frontend-design) Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, or applications. Generates creative, polished code that avoids generic AI aesthetics."},{"name":"clear","description":"Start a new session with empty context; previous session stays on disk (resumable with /resume)"},{"name":"compact","description":"Free up context by summarizing the conversation so far"},{"name":"context","description":"Show current context usage"},{"name":"heapdump","description":"Dump the JS heap to ~/Desktop"},{"name":"init","description":"Initialize a new CLAUDE.md file with codebase documentation"},{"name":"review","description":"Review a pull request"},{"name":"security-review","description":"Complete a security review of the pending changes on the current branch"},{"name":"usage","description":"Show the total cost and duration of the current session"},{"name":"insights","description":"Generate a report analyzing your Claude Code sessions"},{"name":"team-onboarding","description":"Help teammates ramp on Claude Code with a guide from your usage"}]}
+[ELECTRON] [bus] driver.turn_start {"type":"driver.turn_start","ts":"2026-04-26T12:01:14.242Z","source":"agent-driver","eventId":"dff4ed6c-b7c6-4fad-904f-ef542c13f0b9","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","turnId":"turn_1172f7e5-e261-4962-9994-49a5e4d391f0","userInput":{"text":"reply OK","ts":"2026-04-26T12:01:14.242Z"}}
+[ELECTRON] [bus] turn.started {"type":"turn.started","ts":"2026-04-26T12:01:14.243Z","source":"bus/turn-aggregator","eventId":"7b4fd216-babe-4592-b83c-239b25444c38","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","turnId":"turn_1172f7e5-e261-4962-9994-49a5e4d391f0","userInput":{"text":"reply OK","ts":"2026-04-26T12:01:14.242Z"}}
+[ELECTRON] [bus] primary_agent.state_changed {"type":"primary_agent.state_changed","ts":"2026-04-26T12:01:14.243Z","source":"primary-agent","eventId":"b13c772f-a47e-411b-a379-133a3175d000","agentId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","agentState":"thinking"}
+[ELECTRON] [bus] driver.usage {"type":"driver.usage","ts":"2026-04-26T12:01:21.271Z","source":"agent-driver","eventId":"6da4159d-943a-4dc1-a806-2a7f0b390352","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","used":17426,"size":200000}
+[ELECTRON] [bus] turn.block_updated {"type":"turn.block_updated","ts":"2026-04-26T12:01:21.271Z","source":"bus/turn-aggregator","eventId":"a588c00b-508b-4682-9aed-2da85f64709c","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","turnId":"turn_1172f7e5-e261-4962-9994-49a5e4d391f0","seq":0,"block":{"blockId":"usage-turn_1172f7e5-e261-4962-9994-49a5e4d391f0","type":"usage","scope":"turn","status":"done","seq":0,"startTs":"2026-04-26T12:01:21.271Z","updatedTs":"2026-04-26T12:01:21.271Z","used":17426,"size":200000}}
+[ELECTRON] [bus] primary_agent.state_changed {"type":"primary_agent.state_changed","ts":"2026-04-26T12:01:21.271Z","source":"primary-agent","eventId":"965778aa-31d3-4b56-809f-4b23850585bc","agentId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","agentState":"responding"}
+[ELECTRON] [bus] driver.text {"type":"driver.text","ts":"2026-04-26T12:01:21.272Z","source":"agent-driver","eventId":"49ae2727-9794-4155-bf82-d5ee0b8de0d8","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","content":""}
+[ELECTRON] [bus] turn.block_updated {"type":"turn.block_updated","ts":"2026-04-26T12:01:21.272Z","source":"bus/turn-aggregator","eventId":"b389295c-c8db-434f-8c93-baeaf637553b","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","turnId":"turn_1172f7e5-e261-4962-9994-49a5e4d391f0","seq":1,"block":{"blockId":"text-turn_1172f7e5-e261-4962-9994-49a5e4d391f0","type":"text","scope":"turn","status":"streaming","seq":1,"startTs":"2026-04-26T12:01:21.272Z","updatedTs":"2026-04-26T12:01:21.272Z","content":""}}
+[ELECTRON] [bus] driver.text {"type":"driver.text","ts":"2026-04-26T12:01:21.272Z","source":"agent-driver","eventId":"5b805ca2-711e-4d7a-9755-3af96daee568","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","content":"OK"}
+[ELECTRON] [bus] turn.block_updated {"type":"turn.block_updated","ts":"2026-04-26T12:01:21.272Z","source":"bus/turn-aggregator","eventId":"8f6c9ef9-32e9-4fe4-aea7-e365c909dc7c","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","turnId":"turn_1172f7e5-e261-4962-9994-49a5e4d391f0","seq":1,"block":{"blockId":"text-turn_1172f7e5-e261-4962-9994-49a5e4d391f0","type":"text","scope":"turn","status":"streaming","seq":1,"startTs":"2026-04-26T12:01:21.272Z","updatedTs":"2026-04-26T12:01:21.272Z","content":"OK"}}
+[ELECTRON] [bus] driver.usage {"type":"driver.usage","ts":"2026-04-26T12:01:21.370Z","source":"agent-driver","eventId":"55977bd9-7020-4528-8dcd-a392f325d043","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","used":17429,"size":200000}
+[ELECTRON] [bus] turn.block_updated {"type":"turn.block_updated","ts":"2026-04-26T12:01:21.370Z","source":"bus/turn-aggregator","eventId":"3a9f839f-f73a-470a-babd-0953732c8a03","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","turnId":"turn_1172f7e5-e261-4962-9994-49a5e4d391f0","seq":0,"block":{"blockId":"usage-turn_1172f7e5-e261-4962-9994-49a5e4d391f0","type":"usage","scope":"turn","status":"done","seq":0,"startTs":"2026-04-26T12:01:21.271Z","updatedTs":"2026-04-26T12:01:21.370Z","used":17429,"size":200000}}
+[ELECTRON] [bus] driver.usage {"type":"driver.usage","ts":"2026-04-26T12:01:21.394Z","source":"agent-driver","eventId":"19b53700-16a1-4e32-8e08-671561502fba","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","used":17429,"size":200000,"cost":{"amount":0.0654015,"currency":"USD"}}
+[ELECTRON] [bus] turn.block_updated {"type":"turn.block_updated","ts":"2026-04-26T12:01:21.394Z","source":"bus/turn-aggregator","eventId":"3a1958aa-393a-4f9f-ba48-c77314117211","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","turnId":"turn_1172f7e5-e261-4962-9994-49a5e4d391f0","seq":0,"block":{"blockId":"usage-turn_1172f7e5-e261-4962-9994-49a5e4d391f0","type":"usage","scope":"turn","status":"done","seq":0,"startTs":"2026-04-26T12:01:21.271Z","updatedTs":"2026-04-26T12:01:21.394Z","used":17429,"size":200000,"cost":{"amount":0.0654015,"currency":"USD"}}}
+[ELECTRON] [bus] driver.turn_done {"type":"driver.turn_done","ts":"2026-04-26T12:01:21.395Z","source":"agent-driver","eventId":"26667675-b417-487f-b870-3cff6c01e840","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","turnId":"turn_1172f7e5-e261-4962-9994-49a5e4d391f0","stopReason":"end_turn"}
+[ELECTRON] [bus] turn.completed {"type":"turn.completed","ts":"2026-04-26T12:01:21.395Z","source":"bus/turn-aggregator","eventId":"e43e8bf9-696d-448c-a718-8fd32ca0c89e","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","turnId":"turn_1172f7e5-e261-4962-9994-49a5e4d391f0","turn":{"turnId":"turn_1172f7e5-e261-4962-9994-49a5e4d391f0","driverId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","status":"done","userInput":{"text":"reply OK","ts":"2026-04-26T12:01:14.242Z"},"blocks":[{"blockId":"usage-turn_1172f7e5-e261-4962-9994-49a5e4d391f0","type":"usage","scope":"turn","status":"done","seq":0,"startTs":"2026-04-26T12:01:21.271Z","updatedTs":"2026-04-26T12:01:21.394Z","used":17429,"size":200000,"cost":{"amount":0.0654015,"currency":"USD"}},{"blockId":"text-turn_1172f7e5-e261-4962-9994-49a5e4d391f0","type":"text","scope":"turn","status":"done","seq":1,"startTs":"2026-04-26T12:01:21.272Z","updatedTs":"2026-04-26T12:01:21.272Z","content":"OK"}],"startTs":"2026-04-26T12:01:14.242Z","stopReason":"end_turn","endTs":"2026-04-26T12:01:21.395Z"}}
+[ELECTRON] [bus] primary_agent.state_changed {"type":"primary_agent.state_changed","ts":"2026-04-26T12:01:21.395Z","source":"primary-agent","eventId":"617cc894-3b73-425b-bf5c-aff6fb3b6162","agentId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","agentState":"idle"}
+[ELECTRON] [bus] primary_agent.configured {"type":"primary_agent.configured","ts":"2026-04-26T12:01:27.649Z","source":"primary-agent","eventId":"b36a773e-acd1-4154-a971-adab1b7a457c","agentId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","cliType":"codex","name":"Leader","row":{"id":"71aa548d-7b8c-4f1a-9abe-8bef20379199","name":"Leader","cliType":"codex","systemPrompt":"","mcpConfig":[{"serverName":"mteam","mode":"all"}],"status":"RUNNING","createdAt":"2026-04-26T02:37:29.597Z","updatedAt":"2026-04-26T12:01:27.649Z"}}
+[ELECTRON] [bus] primary_agent.stopped {"type":"primary_agent.stopped","ts":"2026-04-26T12:01:27.650Z","source":"primary-agent","eventId":"fa8f5485-a598-4808-9add-e4f531ed1c6f","agentId":"71aa548d-7b8c-4f1a-9abe-8bef20379199"}
+[ELECTRON] [primary-agent] mcp 'undefined' not found in store, skip
+[ELECTRON] [bus] primary_agent.configured {"type":"primary_agent.configured","ts":"2026-04-26T12:01:29.454Z","source":"primary-agent","eventId":"adfc3b53-e5bf-48f7-a2e5-27021d3a5ba3","agentId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","cliType":"claude","name":"Leader","row":{"id":"71aa548d-7b8c-4f1a-9abe-8bef20379199","name":"Leader","cliType":"claude","systemPrompt":"","mcpConfig":[{"serverName":"mteam","mode":"all"}],"status":"STOPPED","createdAt":"2026-04-26T02:37:29.597Z","updatedAt":"2026-04-26T12:01:29.453Z"}}
+[ELECTRON] [bus] primary_agent.stopped {"type":"primary_agent.stopped","ts":"2026-04-26T12:01:29.454Z","source":"primary-agent","eventId":"6aa9c08a-f563-4127-b844-dd818816690c","agentId":"71aa548d-7b8c-4f1a-9abe-8bef20379199"}
+[ELECTRON] [primary-agent] mcp 'undefined' not found in store, skip
+[ELECTRON] [bus] primary_agent.started {"type":"primary_agent.started","ts":"2026-04-26T12:01:36.836Z","source":"primary-agent","eventId":"b374ecac-8d6d-4e7c-a529-2ce09e88659c","agentId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","cliType":"claude"}
+[VITE] 8:02:01 PM [vite] (client) page reload dist-electron/backend.js
+[VITE] 8:02:01 PM [vite] (client) page reload dist-electron/main.js
+[VITE] 8:02:01 PM [vite] (client) page reload electron-main/backend.ts
+[VITE] 8:02:01 PM [vite] (client) page reload electron-main/main.ts
+[VITE] 8:02:01 PM [vite] (client) page reload playground/registry.ts
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/App.tsx, /src/pages/CapsulePage.tsx, /src/pages/TeamPage.tsx, /src/pages/SettingsPage.tsx, /src/organisms/ExpandedView/ExpandedView.tsx
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/App.tsx
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/App.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/App.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/App.tsx
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/molecules/CliList/CliList.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/organisms/CapsuleCard/CapsuleCard.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/organisms/ChatPanel/ChatPanel.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/organisms/ExpandedView/ExpandedView.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/organisms/ExpandedView/ExpandedView.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/organisms/PrimaryAgentSettings/PrimaryAgentSettings.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/organisms/PrimaryAgentSettings/PrimaryAgentSettings.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/pages/SettingsPage.tsx
+[VITE] 8:02:01 PM [vite] (client) page reload src/organisms/TeamMonitorPanel/README.md
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/organisms/TeamMonitorPanel/TeamMonitorPanel.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/organisms/TeamMonitorPanel/TeamMonitorPanel.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/pages/SettingsPage.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/pages/TeamPage.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/App.tsx, /src/pages/CapsulePage.tsx, /src/pages/TeamPage.tsx, /src/pages/SettingsPage.tsx, /src/organisms/ExpandedView/ExpandedView.tsx
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/App.tsx, /src/pages/CapsulePage.tsx, /src/pages/TeamPage.tsx, /src/pages/SettingsPage.tsx, /src/organisms/ExpandedView/ExpandedView.tsx
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/templates/PanelWindow.css
+[VITE] 8:02:01 PM [vite] (client) page reload dist-electron/backend.js
+[VITE] 8:02:01 PM [vite] (client) page reload dist-electron/main.js
+[VITE] 8:02:01 PM [vite] (client) page reload electron-main/backend.ts
+[VITE] 8:02:01 PM [vite] (client) page reload electron-main/main.ts
+[VITE] 8:02:01 PM [vite] (client) page reload playground/registry.ts
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/App.tsx, /src/pages/CapsulePage.tsx, /src/pages/TeamPage.tsx, /src/pages/SettingsPage.tsx, /src/organisms/ExpandedView/ExpandedView.tsx
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/App.tsx
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/App.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/App.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/App.tsx
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/molecules/CliList/CliList.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/organisms/CapsuleCard/CapsuleCard.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/organisms/ChatPanel/ChatPanel.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/organisms/ExpandedView/ExpandedView.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/organisms/ExpandedView/ExpandedView.tsx, /src/index.css
+[VITE] 8:02:01 PM [vite] (client) hmr update /src/index.css, /src/organisms/PrimaryAgentSettings/PrimaryAgentSettings.css
+[VITE] 8:02:25 PM [vite] (client) page reload dist-electron/backend.js
+[VITE] 8:02:25 PM [vite] (client) page reload dist-electron/main.js
+[VITE] 8:02:25 PM [vite] (client) page reload electron-main/backend.ts
+[VITE] 8:02:25 PM [vite] (client) page reload electron-main/main.ts
+[VITE] 8:02:25 PM [vite] (client) page reload playground/registry.ts
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/index.css, /src/App.tsx
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/index.css, /src/App.tsx
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/App.tsx, /src/index.css
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/App.tsx, /src/index.css
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/index.css, /src/App.tsx
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/index.css, /src/molecules/CliList/CliList.css
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/organisms/CapsuleCard/CapsuleCard.tsx, /src/index.css
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/organisms/ChatPanel/ChatPanel.tsx, /src/index.css
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/index.css, /src/organisms/ExpandedView/ExpandedView.css
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/organisms/ExpandedView/ExpandedView.tsx, /src/index.css
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/index.css, /src/organisms/PrimaryAgentSettings/PrimaryAgentSettings.css
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/organisms/PrimaryAgentSettings/PrimaryAgentSettings.tsx, /src/index.css
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/index.css, /src/pages/SettingsPage.tsx
+[VITE] 8:02:25 PM [vite] (client) page reload src/organisms/TeamMonitorPanel/README.md
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/index.css, /src/organisms/TeamMonitorPanel/TeamMonitorPanel.css
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/organisms/TeamMonitorPanel/TeamMonitorPanel.tsx, /src/index.css
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/pages/SettingsPage.tsx, /src/index.css
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/pages/TeamPage.tsx, /src/index.css
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/index.css, /src/App.tsx, /src/pages/CapsulePage.tsx, /src/pages/TeamPage.tsx, /src/organisms/ExpandedView/ExpandedView.tsx
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/index.css, /src/App.tsx, /src/pages/CapsulePage.tsx, /src/pages/TeamPage.tsx, /src/organisms/ExpandedView/ExpandedView.tsx
+[VITE] 8:02:25 PM [vite] (client) hmr update /src/index.css, /src/templates/PanelWindow.css
+[ELECTRON] [bus] primary_agent.configured {"type":"primary_agent.configured","ts":"2026-04-26T12:10:49.381Z","source":"primary-agent","eventId":"439e3f32-9de1-45a0-a68b-13854522e464","agentId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","cliType":"codex","name":"Leader","row":{"id":"71aa548d-7b8c-4f1a-9abe-8bef20379199","name":"Leader","cliType":"codex","systemPrompt":"","mcpConfig":[{"serverName":"mteam","mode":"all"}],"status":"RUNNING","createdAt":"2026-04-26T02:37:29.597Z","updatedAt":"2026-04-26T12:10:49.380Z"}}
+[ELECTRON] [bus] primary_agent.configured {"type":"primary_agent.configured","ts":"2026-04-26T12:10:51.184Z","source":"primary-agent","eventId":"bba43a87-aabe-45e5-8af2-9d53035428f5","agentId":"71aa548d-7b8c-4f1a-9abe-8bef20379199","cliType":"claude","name":"Leader","row":{"id":"71aa548d-7b8c-4f1a-9abe-8bef20379199","name":"Leader","cliType":"claude","systemPrompt":"","mcpConfig":[{"serverName":"mteam","mode":"all"}],"status":"RUNNING","createdAt":"2026-04-26T02:37:29.597Z","updatedAt":"2026-04-26T12:10:51.184Z"}}
+[ELECTRON] [62501:0426/201206.074447:ERROR:content/browser/network_service_instance_impl.cc:608] Network service crashed or was terminated, restarting service.
+[ELECTRON] [electron] backend exited code=null signal=SIGKILL
+[ELECTRON] [62501:0426/201206.462570:ERROR:content/browser/network_service_instance_impl.cc:608] Network service crashed or was terminated, restarting service.
+[VITE] error: script "dev" was terminated by signal SIGKILL (Forced quit)
+[VITE] bun run dev exited with code SIGKILL
+--> Sending SIGTERM to other processes..
+[ELECTRON] /Users/zhuqingyu/project/mcp-team-hub/node_modules/.bun/electron@41.3.0/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron exited with signal SIGKILL
+[ELECTRON] error: script "electron:dev" exited with code 1
+[ELECTRON] wait-on http://localhost:5180 && bun run electron:dev exited with code 1
+error: script "start" exited with code 1
+error: script "start" exited with code 1

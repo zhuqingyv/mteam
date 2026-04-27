@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS role_templates (
   role             TEXT NOT NULL,
   description      TEXT,
   persona          TEXT,
+  avatar           TEXT,
   available_mcps   TEXT NOT NULL DEFAULT '[]',
   created_at       TEXT NOT NULL,
   updated_at       TEXT NOT NULL

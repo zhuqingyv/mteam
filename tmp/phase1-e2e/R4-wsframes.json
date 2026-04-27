@@ -1,0 +1,98 @@
+[
+  {
+    "dir": "out",
+    "head": "{\"type\":\"ping\"}"
+  },
+  {
+    "dir": "out",
+    "head": "{\"op\":\"ping\"}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"pong\",\"ts\":\"2026-04-26T12:01:13.764Z\"}"
+  },
+  {
+    "dir": "out",
+    "head": "{\"op\":\"prompt\",\"instanceId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"text\":\"reply OK\",\"requestId\":\"req-1777204874240\"}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"7b4fd216-babe-4592-b83c-239b25444c38\",\"event\":{\"type\":\"turn.started\",\"ts\":\"2026-04-26T12:01:14.243Z\",\"eventId\":\"7b4fd216-babe-4592-b83c-239b25444c38\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_1172f7e5-e261-4962-9994-49a5e4d391f0\",\"userInput\":{\"text\":\"repl"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"b13c772f-a47e-411b-a379-133a3175d000\",\"event\":{\"type\":\"primary_agent.state_changed\",\"ts\":\"2026-04-26T12:01:14.243Z\",\"eventId\":\"b13c772f-a47e-411b-a379-133a3175d000\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"agentState\":\"thinking\"}}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"ack\",\"requestId\":\"req-1777204874240\",\"ok\":true}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"a588c00b-508b-4682-9aed-2da85f64709c\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:01:21.271Z\",\"eventId\":\"a588c00b-508b-4682-9aed-2da85f64709c\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_1172f7e5-e261-4962-9994-49a5e4d391f0\",\"seq\":0,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"965778aa-31d3-4b56-809f-4b23850585bc\",\"event\":{\"type\":\"primary_agent.state_changed\",\"ts\":\"2026-04-26T12:01:21.271Z\",\"eventId\":\"965778aa-31d3-4b56-809f-4b23850585bc\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"agentState\":\"responding\"}}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"b389295c-c8db-434f-8c93-baeaf637553b\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:01:21.272Z\",\"eventId\":\"b389295c-c8db-434f-8c93-baeaf637553b\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_1172f7e5-e261-4962-9994-49a5e4d391f0\",\"seq\":1,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"8f6c9ef9-32e9-4fe4-aea7-e365c909dc7c\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:01:21.272Z\",\"eventId\":\"8f6c9ef9-32e9-4fe4-aea7-e365c909dc7c\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_1172f7e5-e261-4962-9994-49a5e4d391f0\",\"seq\":1,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"3a9f839f-f73a-470a-babd-0953732c8a03\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:01:21.370Z\",\"eventId\":\"3a9f839f-f73a-470a-babd-0953732c8a03\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_1172f7e5-e261-4962-9994-49a5e4d391f0\",\"seq\":0,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"3a1958aa-393a-4f9f-ba48-c77314117211\",\"event\":{\"type\":\"turn.block_updated\",\"ts\":\"2026-04-26T12:01:21.394Z\",\"eventId\":\"3a1958aa-393a-4f9f-ba48-c77314117211\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_1172f7e5-e261-4962-9994-49a5e4d391f0\",\"seq\":0,\"block\":{\"b"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"e43e8bf9-696d-448c-a718-8fd32ca0c89e\",\"event\":{\"type\":\"turn.completed\",\"ts\":\"2026-04-26T12:01:21.395Z\",\"eventId\":\"e43e8bf9-696d-448c-a718-8fd32ca0c89e\",\"driverId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"turnId\":\"turn_1172f7e5-e261-4962-9994-49a5e4d391f0\",\"turn\":{\"turnId\":\"turn_"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"617cc894-3b73-425b-bf5c-aff6fb3b6162\",\"event\":{\"type\":\"primary_agent.state_changed\",\"ts\":\"2026-04-26T12:01:21.395Z\",\"eventId\":\"617cc894-3b73-425b-bf5c-aff6fb3b6162\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"agentState\":\"idle\"}}"
+  },
+  {
+    "dir": "out",
+    "head": "{\"op\":\"configure_primary_agent\",\"cliType\":\"codex\",\"requestId\":\"cfg-1777204887648\"}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"ack\",\"requestId\":\"cfg-1777204887648\",\"ok\":true}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"b36a773e-acd1-4154-a971-adab1b7a457c\",\"event\":{\"type\":\"primary_agent.configured\",\"ts\":\"2026-04-26T12:01:27.649Z\",\"eventId\":\"b36a773e-acd1-4154-a971-adab1b7a457c\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"cliType\":\"codex\",\"name\":\"Leader\",\"row\":{\"id\":\"71aa548d-7b8c-4f1a-9"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"fa8f5485-a598-4808-9add-e4f531ed1c6f\",\"event\":{\"type\":\"primary_agent.stopped\",\"ts\":\"2026-04-26T12:01:27.650Z\",\"eventId\":\"fa8f5485-a598-4808-9add-e4f531ed1c6f\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\"}}"
+  },
+  {
+    "dir": "out",
+    "head": "{\"op\":\"configure_primary_agent\",\"cliType\":\"claude\",\"requestId\":\"cfg-1777204889453\"}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"ack\",\"requestId\":\"cfg-1777204889453\",\"ok\":true}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"adfc3b53-e5bf-48f7-a2e5-27021d3a5ba3\",\"event\":{\"type\":\"primary_agent.configured\",\"ts\":\"2026-04-26T12:01:29.454Z\",\"eventId\":\"adfc3b53-e5bf-48f7-a2e5-27021d3a5ba3\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\",\"cliType\":\"claude\",\"name\":\"Leader\",\"row\":{\"id\":\"71aa548d-7b8c-4f1a-"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"event\",\"id\":\"6aa9c08a-f563-4127-b844-dd818816690c\",\"event\":{\"type\":\"primary_agent.stopped\",\"ts\":\"2026-04-26T12:01:29.454Z\",\"eventId\":\"6aa9c08a-f563-4127-b844-dd818816690c\",\"agentId\":\"71aa548d-7b8c-4f1a-9abe-8bef20379199\"}}"
+  },
+  {
+    "dir": "in",
+    "head": "{\"type\":\"error\",\"code\":\"internal_error\",\"message\":\"null is not an object (evaluating 'this.conn.newSession')\"}"
+  }
+]

@@ -13,6 +13,7 @@ export interface RoleTemplateProps {
   role: string;
   description: string | null;
   persona: string | null;
+  avatar: string | null;
   availableMcps: TemplateMcpConfig;
   createdAt: string;
   updatedAt: string;
@@ -23,6 +24,7 @@ export interface CreateRoleTemplateInput {
   role: string;
   description?: string | null;
   persona?: string | null;
+  avatar?: string | null;
   availableMcps?: TemplateMcpConfig;
 }
 
@@ -30,6 +32,7 @@ export interface UpdateRoleTemplateInput {
   role?: string;
   description?: string | null;
   persona?: string | null;
+  avatar?: string | null;
   availableMcps?: TemplateMcpConfig;
 }
 
@@ -38,6 +41,7 @@ interface Row {
   role: string;
   description: string | null;
   persona: string | null;
+  avatar: string | null;
   available_mcps: string;
   created_at: string;
   updated_at: string;
@@ -48,6 +52,7 @@ export class RoleTemplate {
   role: string;
   description: string | null;
   persona: string | null;
+  avatar: string | null;
   availableMcps: TemplateMcpConfig;
   readonly createdAt: string;
   updatedAt: string;
@@ -57,6 +62,7 @@ export class RoleTemplate {
     this.role = props.role;
     this.description = props.description;
     this.persona = props.persona;
+    this.avatar = props.avatar;
     this.availableMcps = props.availableMcps;
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
@@ -68,6 +74,7 @@ export class RoleTemplate {
       role: row.role,
       description: row.description,
       persona: row.persona,
+      avatar: row.avatar,
       availableMcps: JSON.parse(row.available_mcps) as TemplateMcpConfig,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -80,13 +87,14 @@ export class RoleTemplate {
     const mcps = input.availableMcps ?? [];
     db.prepare(
       `INSERT INTO role_templates
-         (name, role, description, persona, available_mcps, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         (name, role, description, persona, avatar, available_mcps, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       input.name,
       input.role,
       input.description ?? null,
       input.persona ?? null,
+      input.avatar ?? null,
       JSON.stringify(mcps),
       now,
       now,
@@ -96,6 +104,7 @@ export class RoleTemplate {
       role: input.role,
       description: input.description ?? null,
       persona: input.persona ?? null,
+      avatar: input.avatar ?? null,
       availableMcps: mcps,
       createdAt: now,
       updatedAt: now,
@@ -130,18 +139,20 @@ export class RoleTemplate {
       description:
         patch.description !== undefined ? patch.description : existing.description,
       persona: patch.persona !== undefined ? patch.persona : existing.persona,
+      avatar: patch.avatar !== undefined ? patch.avatar : existing.avatar,
       availableMcps: patch.availableMcps ?? existing.availableMcps,
       createdAt: existing.createdAt,
       updatedAt: new Date().toISOString(),
     };
     db.prepare(
       `UPDATE role_templates
-         SET role = ?, description = ?, persona = ?, available_mcps = ?, updated_at = ?
+         SET role = ?, description = ?, persona = ?, avatar = ?, available_mcps = ?, updated_at = ?
        WHERE name = ?`,
     ).run(
       next.role,
       next.description,
       next.persona,
+      next.avatar,
       JSON.stringify(next.availableMcps),
       next.updatedAt,
       next.name,
@@ -160,6 +171,7 @@ export class RoleTemplate {
       role: this.role,
       description: this.description,
       persona: this.persona,
+      avatar: this.avatar,
       availableMcps: [...this.availableMcps],
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,

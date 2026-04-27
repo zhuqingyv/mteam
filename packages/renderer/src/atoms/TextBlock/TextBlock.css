@@ -1,0 +1,19 @@
+.text-block {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.text-block__cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 1px;
+  background: rgba(var(--color-accent-primary-rgb), 0.8);
+  vertical-align: text-bottom;
+  animation: textBlockCursorBlink 1s step-end infinite;
+}
+
+@keyframes textBlockCursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

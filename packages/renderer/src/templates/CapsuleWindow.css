@@ -1,0 +1,8 @@
+.capsule-window {
+  width: 100vw;
+  height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: transparent;
+}

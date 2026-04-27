@@ -1,0 +1,202 @@
+# WebSocket 协议
+
+> **面向**：前端（WebSocket 客户端，浏览器 / Electron renderer）。Agent 进程**不连 WS**，所有本文协议字段（`subscribe` / `prompt` / `event` / `gap-replay` / …）都是前端专属。
+
+## 连接
+
+```
+ws://localhost:58590/ws/events?userId=<string>
+```
+
+`userId` 必填，决定 `user` scope 订阅的身份，跨 user 的 `prompt` 会被拒。
+
+## TypeScript 契约
+
+```ts
+export type SubscriptionScope = 'global' | 'team' | 'instance' | 'user';
+
+export type WsErrorCode =
+  | 'bad_request'    // JSON 解析失败 / schema 不合法 / 额外字段
+  | 'not_found'      // 订阅目标 team/instance 不存在
+  | 'forbidden'      // 越权订阅（user scope id !== ctx.userId）/ 跨 user prompt
+  | 'not_ready'      // prompt 目标 driver 尚未 READY
+  | 'internal_error';
+
+// ---- 上行 ----
+export interface WsSubscribe   { op: 'subscribe';   scope: SubscriptionScope; id?: string; lastMsgId?: string }
+export interface WsUnsubscribe { op: 'unsubscribe'; scope: SubscriptionScope; id?: string }
+export interface WsPrompt      { op: 'prompt';      instanceId: string; text: string; requestId?: string }
+export interface WsPing        { op: 'ping' }
+export interface WsConfigurePrimaryAgent {
+  op: 'configure_primary_agent';
+  cliType: string;            // 必填，非空
+  name?: string;
+  systemPrompt?: string;
+  requestId?: string;
+}
+export type WsUpstream =
+  | WsSubscribe | WsUnsubscribe | WsPrompt | WsPing | WsConfigurePrimaryAgent;
+
+// ---- 下行 ----
+export interface WsEventDown { type: 'event';      id: string; event: Record<string, unknown> }
+export interface WsGapReplay { type: 'gap-replay'; items: Array<{ id: string; event: Record<string, unknown> }>; upTo: string | null }
+export interface WsPong      { type: 'pong';       ts: string }
+export interface WsAck       { type: 'ack';        requestId: string; ok: boolean; reason?: string }
+export interface WsErrorDown { type: 'error';      code: WsErrorCode; message: string }
+export interface WsSnapshot  { type: 'snapshot';   primaryAgent: PrimaryAgentRow | null }
+export type WsDownstream =
+  | WsEventDown | WsGapReplay | WsPong | WsAck | WsErrorDown | WsSnapshot;
+```
+
+## 上行消息
+
+### subscribe
+
+订阅事件流。`scope='global'` 时 `id` 可省略；其余必填。`lastMsgId` 用于断线重连补发。
+
+```json
+{ "op": "subscribe", "scope": "instance", "id": "inst_abc", "lastMsgId": "evt_123" }
+```
+
+### unsubscribe
+
+```json
+{ "op": "unsubscribe", "scope": "team", "id": "team_42" }
+```
+
+### prompt
+
+**fire-and-forget** — 向指定实例投递用户消息。后端直接调用 `driver.prompt(text)`，**不经过 CommRouter / Envelope**，agent 收到用户原文。`ack` 只代表"接收到"，不代表"执行完"。真正的结果通过 `driver.*` 事件流推回（订阅 `instance` scope 即可）。
+
+```json
+{ "op": "prompt", "instanceId": "inst_abc", "text": "hello", "requestId": "req_1" }
+```
+
+### ping
+
+心跳，建议每 30s 一次。
+
+```json
+{ "op": "ping" }
+```
+
+### configure_primary_agent
+
+配置主 Agent。`cliType` 必填非空（后端合法值：`claude` / `codex`，未知值由后端拒并回 `internal_error`）。切换 `cliType` 时后端会先 `stop` 旧 driver 再以新配置 `start` 新 driver —— 全程通过 `primary_agent.*` 事件流推下来。
+
+```json
+{
+  "op": "configure_primary_agent",
+  "cliType": "codex",
+  "name": "MTEAM",
+  "systemPrompt": "you are helpful",
+  "requestId": "req_9"
+}
+```
+
+**时序保证**（fire-and-forget）：
+
+1. 立即回 `ack{requestId, ok:true}` —— 不等 configure 内部 stop/start 跑完。
+2. configure 完成后触发 `primary_agent.configured`（含完整 `row`）事件。
+3. 若 `cliType` 变更 → 先 `primary_agent.stopped` → 新 driver 起来后 `primary_agent.started`。
+4. configure/start 抛错（如 `cliType` 未知） → 下行 `error{code:'internal_error', message}`。
+
+**本期能力边界**：WS configure 只支持 `cliType / name / systemPrompt`。`mcpConfig` 字段形状复杂且前端设置页目前不在 WS 流里改它，**本期不走 WS 暴露**，如需改 `mcpConfig` 仍走 HTTP `POST /api/primary-agent/config`。
+
+额外字段（schema 外的键）一律拒，后端回 `bad_request`。
+
+## 下行消息
+
+### event
+
+单条 bus 事件。`id` 全局唯一（comm.* 场景 = messageId），可作为 `lastMsgId` 续传游标。`event.type` 即领域事件类型（详见 `bus-events.md`）。
+
+```json
+{
+  "type": "event",
+  "id": "evt_7f8",
+  "event": { "type": "driver.text", "driverId": "drv_1", "content": "hi", "ts": "2026-04-25T10:00:00Z", "eventId": "evt_7f8" }
+}
+```
+
+### gap-replay
+
+补发批次。`upTo=null` 表示无 gap；非 null 时 = 本批最新一条 id（正常）或最老一条 id（超量，前端拿它作为新的 `lastMsgId` 再次 `subscribe` 续拉）。
+
+**次序保证**：`subscribe` 带 `lastMsgId` 后，`gap-replay` **先到**，之后的实时 `event` 才到；如果 prompt 的 `ack` 和 gap-replay 同时发生，也保证 gap-replay 在前。
+
+```json
+{
+  "type": "gap-replay",
+  "items": [
+    { "id": "evt_124", "event": { "type": "driver.text", "content": "...", "ts": "..." } }
+  ],
+  "upTo": "evt_124"
+}
+```
+
+### pong
+
+```json
+{ "type": "pong", "ts": "2026-04-25T10:00:00Z" }
+```
+
+### ack
+
+仅针对 `prompt`。`ok=false` 时 `reason` 带人类可读文案。
+
+```json
+{ "type": "ack", "requestId": "req_1", "ok": true }
+{ "type": "ack", "requestId": "req_1", "ok": false, "reason": "driver not ready" }
+```
+
+### error
+
+连接级错误。不带 `requestId` —— 上下文由 `message` 描述。
+
+```json
+{ "type": "error", "code": "forbidden", "message": "cannot subscribe user scope with foreign id" }
+```
+
+### snapshot
+
+**每次 WS 连接建立时推一次，且一定在任何 `event` / `ack` 之前到达。** 载荷等价 `GET /api/primary-agent`；未配置时 `primaryAgent: null`。字段形状完整来自 `PrimaryAgentRow`（详见 `primary-agent-api.md` 的 types 小节）。
+
+```json
+{
+  "type": "snapshot",
+  "primaryAgent": {
+    "id": "p1",
+    "name": "MTEAM",
+    "cliType": "claude",
+    "systemPrompt": "",
+    "mcpConfig": [],
+    "status": "RUNNING",
+    "agentState": "idle",
+    "createdAt": "2026-04-25T00:00:00.000Z",
+    "updatedAt": "2026-04-25T00:00:00.000Z"
+  }
+}
+```
+
+未配置时：
+
+```json
+{ "type": "snapshot", "primaryAgent": null }
+```
+
+**status** 只会是 `'STOPPED' | 'RUNNING'` 两个值。**agentState** 为 `'idle' | 'thinking' | 'responding'`，反映总控当前工作状态（刷新页面时 snapshot 携带实时值）。driver 崩溃走服务端 self-heal；give_up 时 status 被置 `STOPPED`，前端按断线离线态渲染。
+
+## 错误码表
+
+| code            | 触发场景                                                    |
+| --------------- | ----------------------------------------------------------- |
+| `bad_request`   | 非合法 JSON / schema 不匹配 / 有额外字段 / 缺必填字段       |
+| `not_found`     | `subscribe` 的 team/instance 在服务端不存在                 |
+| `forbidden`     | 订 `user` scope 但 `id !== ctx.userId` / `prompt` 跨 user   |
+| `not_ready`     | `prompt` 时目标 driver 还未进入 READY 态（会走 ack.ok=false） |
+| `internal_error`| 广播/序列化意外失败                                         |
+
+## User scope 限制
+
+`scope='user'` 的订阅，`id` 必须等于连接时的 `userId`；否则直接 `forbidden`。只能订自己。`prompt` 同理 —— 目标 instance 的归属 user 必须匹配当前连接，否则 `forbidden`。

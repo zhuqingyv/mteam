@@ -12,4 +12,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('window:start-resize', direction),
   openTeamPanel: () => ipcRenderer.send('window:open-team-panel'),
   openSettings: () => ipcRenderer.send('window:open-settings'),
+  onDragStart: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on('window:drag-start', listener);
+    return () => ipcRenderer.removeListener('window:drag-start', listener);
+  },
+  onDragEnd: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on('window:drag-end', listener);
+    return () => ipcRenderer.removeListener('window:drag-end', listener);
+  },
 });

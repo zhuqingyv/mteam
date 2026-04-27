@@ -14,16 +14,26 @@ export function useCapsuleToggle() {
   const setExpanded = useWindowStore(selectSetExpanded);
   const [animating, setAnimating] = useState(false);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const draggingRef = useRef(false);
 
   useEffect(() => {
     if (INITIAL_EXPANDED) setExpanded(true);
   }, [setExpanded]);
+
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api?.onDragStart || !api?.onDragEnd) return;
+    const offStart = api.onDragStart(() => { draggingRef.current = true; });
+    const offEnd = api.onDragEnd(() => { draggingRef.current = false; });
+    return () => { offStart(); offEnd(); };
+  }, []);
 
   const schedule = (fn: () => void, ms: number) => {
     timersRef.current.push(setTimeout(fn, ms));
   };
 
   const toggle = () => {
+    if (draggingRef.current) return;
     for (const t of timersRef.current) clearTimeout(t);
     timersRef.current = [];
     setAnimating(true);
@@ -32,9 +42,9 @@ export function useCapsuleToggle() {
       requestAnimationFrame(() => setExpanded(true));
       schedule(() => setAnimating(false), ANIM_MS);
     } else {
-      setExpanded(false);
-      schedule(() => window.electronAPI?.resize(CAPSULE.width, CAPSULE.height, 'bottom-right', true), ANIM_MS);
-      schedule(() => setAnimating(false), ANIM_MS * 2);
+      window.electronAPI?.resize(CAPSULE.width, CAPSULE.height, 'bottom-right', true);
+      requestAnimationFrame(() => setExpanded(false));
+      schedule(() => setAnimating(false), ANIM_MS);
     }
   };
 

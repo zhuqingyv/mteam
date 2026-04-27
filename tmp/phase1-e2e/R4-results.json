@@ -1,0 +1,109 @@
+{
+  "results": [
+    {
+      "id": "1",
+      "title": "进程就绪展示 (Logo 亮 + status=RUNNING + cliType)",
+      "pass": "PASS",
+      "detail": "logoFilter=none gray=false status=RUNNING cliType=claude",
+      "shot": "/Users/zhuqingyu/project/mcp-team-hub/tmp/phase1-e2e/R4-00-initial.png"
+    },
+    {
+      "id": "6",
+      "title": "生命周期初始化 (snapshot driven logo + backend RUNNING)",
+      "pass": "PASS",
+      "detail": "logo lit, backend running"
+    },
+    {
+      "id": "2",
+      "title": "发送用户消息 (user bubble with \"reply OK\")",
+      "pass": "PASS",
+      "detail": "rows=1 texts=[\"reply OK20:01\"]",
+      "shot": "/Users/zhuqingyu/project/mcp-team-hub/tmp/phase1-e2e/R4-02-sent.png"
+    },
+    {
+      "id": "3",
+      "title": "思考状态 (thinking dots)",
+      "pass": "FAIL",
+      "detail": "detected=false",
+      "shot": null
+    },
+    {
+      "id": "4",
+      "title": "流式文本回复 (agent bubble text updates)",
+      "pass": "FAIL",
+      "detail": "samples=1"
+    },
+    {
+      "id": "5",
+      "title": "Turn 结束 (WS turn.completed received + streaming cleared)",
+      "pass": "PASS",
+      "detail": "wsCompleted=true streamingVisible=false",
+      "shot": "/Users/zhuqingyu/project/mcp-team-hub/tmp/phase1-e2e/R4-05-completed.png"
+    },
+    {
+      "id": "extra-model",
+      "title": "模型切换 (codex)",
+      "pass": "PASS",
+      "detail": "afterCliType=codex"
+    },
+    {
+      "id": "extra-settings-open",
+      "title": "设置面板能打开",
+      "pass": "FAIL",
+      "detail": "sidebar=false marker=false",
+      "shot": "/Users/zhuqingyu/project/mcp-team-hub/tmp/phase1-e2e/R4-07-settings.png"
+    },
+    {
+      "id": "extra-settings-no-startstop",
+      "title": "SettingsPage 没有 Start/Stop 按钮",
+      "pass": "PASS",
+      "detail": "startStop=[]"
+    }
+  ],
+  "pa": {
+    "id": "71aa548d-7b8c-4f1a-9abe-8bef20379199",
+    "name": "Leader",
+    "cliType": "claude",
+    "systemPrompt": "",
+    "mcpConfig": [
+      {
+        "serverName": "mteam",
+        "mode": "all"
+      }
+    ],
+    "status": "RUNNING",
+    "createdAt": "2026-04-26T02:37:29.597Z",
+    "updatedAt": "2026-04-26T11:57:59.371Z"
+  },
+  "afterConf": {
+    "id": "71aa548d-7b8c-4f1a-9abe-8bef20379199",
+    "name": "Leader",
+    "cliType": "codex",
+    "systemPrompt": "",
+    "mcpConfig": [
+      {
+        "serverName": "mteam",
+        "mode": "all"
+      }
+    ],
+    "status": "STOPPED",
+    "createdAt": "2026-04-26T02:37:29.597Z",
+    "updatedAt": "2026-04-26T12:01:27.650Z"
+  },
+  "settingsState": {
+    "sidebar": false,
+    "sidebarCls": null,
+    "hasSettingsMarker": false,
+    "startStop": [],
+    "bodyTail": "MTEAM\n0 Agents · 0 Tasks\n0 New messages\nMTEAM\n×\nreply OK\nOK\nclaude\n▾"
+  },
+  "samples": [
+    {
+      "t": 1777204885503,
+      "texts": [
+        "OK"
+      ]
+    }
+  ],
+  "wsFrames": 24
+}

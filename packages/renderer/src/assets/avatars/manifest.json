@@ -1,0 +1,182 @@
+{
+  "avatar-01": {
+    "index": 1,
+    "label": "01_frontend",
+    "role": "young software developer with glasses, hoodie, laptop icon on shirt",
+    "character_id": "4fd3c20c-a7f8-4926-a382-b5babcf691f2",
+    "description": "pixel art chibi character portrait, young software developer with glasses, hoodie, laptop icon on shirt, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-01.png",
+    "png_size": 5545
+  },
+  "avatar-02": {
+    "index": 2,
+    "label": "02_backend",
+    "role": "serious backend engineer, short hair, dark shirt, server rack behind",
+    "character_id": "6ec94a1a-b276-4faa-9058-a9de85b15afd",
+    "description": "pixel art chibi character portrait, serious backend engineer, short hair, dark shirt, server rack behind, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-02.png",
+    "png_size": 4528
+  },
+  "avatar-03": {
+    "index": 3,
+    "label": "03_fullstack",
+    "role": "versatile developer holding two laptops, balanced confident face",
+    "character_id": "865c327c-af7a-48d3-aaf7-c4222d6d55ea",
+    "description": "pixel art chibi character portrait, versatile developer holding two laptops, balanced confident face, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-03.png",
+    "png_size": 3075
+  },
+  "avatar-04": {
+    "index": 4,
+    "label": "04_qa",
+    "role": "QA tester with magnifying glass, checklist clipboard, focused eyes",
+    "character_id": "aa2d63d5-432d-4551-9a00-019b95350738",
+    "description": "pixel art chibi character portrait, QA tester with magnifying glass, checklist clipboard, focused eyes, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-04.png",
+    "png_size": 3825
+  },
+  "avatar-05": {
+    "index": 5,
+    "label": "05_architect",
+    "role": "software architect holding blueprint scroll, thoughtful expression, beard",
+    "character_id": "d5b6d11d-6d89-48eb-8439-d9df597c2122",
+    "description": "pixel art chibi character portrait, software architect holding blueprint scroll, thoughtful expression, beard, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-05.png",
+    "png_size": 3125
+  },
+  "avatar-06": {
+    "index": 6,
+    "label": "06_code_reviewer",
+    "role": "code reviewer with red pen and glasses, squinting critically at code",
+    "character_id": "6aa82398-fb4d-4894-901c-01f9e076ec34",
+    "description": "pixel art chibi character portrait, code reviewer with red pen and glasses, squinting critically at code, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-06.png",
+    "png_size": 4450
+  },
+  "avatar-09": {
+    "index": 9,
+    "label": "09_tech_writer",
+    "role": "female technical writer with glasses and braided hair, notebook and pen, cozy sweater",
+    "character_id": "f5b4271b-526c-4b54-ad55-77c05e085571",
+    "description": "pixel art chibi character portrait, female technical writer with glasses and braided hair, notebook and pen, cozy sweater, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-09.png",
+    "png_size": 5965
+  },
+  "avatar-10": {
+    "index": 10,
+    "label": "10_perf_expert",
+    "role": "male performance engineer with lightning bolt icon, speedy energetic pose",
+    "character_id": "90903adb-7e9b-4d82-b44a-78418886aa35",
+    "description": "pixel art chibi character portrait, male performance engineer with lightning bolt icon, speedy energetic pose, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-10.png",
+    "png_size": 3364
+  },
+  "avatar-08": {
+    "index": 8,
+    "label": "08_ui_designer",
+    "role": "female creative UI designer with beret, holding paint brush, colorful outfit",
+    "character_id": "5424379e-17d8-4d8e-a0e2-9e225ed23b17",
+    "description": "pixel art chibi character portrait, female creative UI designer with beret, holding paint brush, colorful outfit, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-08.png",
+    "png_size": 4879
+  },
+  "avatar-07": {
+    "index": 7,
+    "label": "07_devops",
+    "role": "male devops engineer with headset, utility vest, wrench icon on chest",
+    "character_id": "088bc87e-3fb0-4f48-9d2b-20154d511a15",
+    "description": "pixel art chibi character portrait, male devops engineer with headset, utility vest, wrench icon on chest, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-07.png",
+    "png_size": 5312
+  },
+  "avatar-11": {
+    "index": 11,
+    "label": "11_product_mgr",
+    "role": "female professional product manager with clipboard, neat blazer, confident smile",
+    "character_id": "ac9b175e-7544-4149-8f0e-21afb1d6dfc5",
+    "description": "pixel art chibi character portrait, female professional product manager with clipboard, neat blazer, confident smile, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-11.png",
+    "png_size": 5531
+  },
+  "avatar-12": {
+    "index": 12,
+    "label": "12_data_engineer",
+    "role": "male data engineer with data flow pattern on shirt, wearing headphones",
+    "character_id": "aeaf04f6-c7a4-4aa1-9041-ee42ad38ebdb",
+    "description": "pixel art chibi character portrait, male data engineer with data flow pattern on shirt, wearing headphones, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-12.png",
+    "png_size": 4597
+  },
+  "avatar-13": {
+    "index": 13,
+    "label": "13_security",
+    "role": "female security expert in dark hoodie, shield icon on chest, serious expression",
+    "character_id": "cb33b66f-9534-4ac0-8490-dee5bfdac68a",
+    "description": "pixel art chibi character portrait, female security expert in dark hoodie, shield icon on chest, serious expression, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-13.png",
+    "png_size": 4110
+  },
+  "avatar-14": {
+    "index": 14,
+    "label": "14_game_dev",
+    "role": "male game developer wearing gaming headset, controller icon on shirt, playful vibe",
+    "character_id": "8e5990a6-02fd-4f97-82ac-7bf8a88ceb5e",
+    "description": "pixel art chibi character portrait, male game developer wearing gaming headset, controller icon on shirt, playful vibe, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-14.png",
+    "png_size": 5541
+  },
+  "avatar-15": {
+    "index": 15,
+    "label": "15_ai_engineer",
+    "role": "female AI engineer with neural network pattern on shirt, futuristic visor, long hair",
+    "character_id": "7e017810-aa2c-49c5-b53f-06e0f4c4d094",
+    "description": "pixel art chibi character portrait, female AI engineer with neural network pattern on shirt, futuristic visor, long hair, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-15.png",
+    "png_size": 6529
+  },
+  "avatar-16": {
+    "index": 16,
+    "label": "16_dba",
+    "role": "male database administrator with database cylinder icon on shirt, organized neat hair",
+    "character_id": "0207ebb2-9aef-4781-a2e6-a7b2fcf71ca0",
+    "description": "pixel art chibi character portrait, male database administrator with database cylinder icon on shirt, organized neat hair, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-16.png",
+    "png_size": 4659
+  },
+  "avatar-17": {
+    "index": 17,
+    "label": "17_scrum_master",
+    "role": "female energetic scrum master with kanban board behind, casual attire, friendly pose",
+    "character_id": "1ef5973f-563a-4bf4-82a0-07257889f340",
+    "description": "pixel art chibi character portrait, female energetic scrum master with kanban board behind, casual attire, friendly pose, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-17.png",
+    "png_size": 5317
+  },
+  "avatar-18": {
+    "index": 18,
+    "label": "18_i18n_expert",
+    "role": "male localization expert with globe icon on shirt, multilingual text floating around",
+    "character_id": "53e41a4e-9520-41fc-b763-95e520b40114",
+    "description": "pixel art chibi character portrait, male localization expert with globe icon on shirt, multilingual text floating around, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-18.png",
+    "png_size": 3624
+  },
+  "avatar-19": {
+    "index": 19,
+    "label": "19_refactor_pro",
+    "role": "female refactoring specialist with wrench and code brackets on shirt, tidy confident",
+    "character_id": "6856dea0-9bd5-44af-961c-ef3e175fdddd",
+    "description": "pixel art chibi character portrait, female refactoring specialist with wrench and code brackets on shirt, tidy confident, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-19.png",
+    "png_size": 5177
+  },
+  "avatar-20": {
+    "index": 20,
+    "label": "20_mobile_dev",
+    "role": "male mobile developer holding a smartphone, casual tech outfit, modern look",
+    "character_id": "e1d75aff-ecc7-4474-a09f-6d2085b80a5f",
+    "description": "pixel art chibi character portrait, male mobile developer holding a smartphone, casual tech outfit, modern look, big round eyes, thick bold black outlines, rosy cheeks, friendly smile, front facing, simple flat colors, clean pixel art, centered, head and shoulders",
+    "png_path": "/Users/zhuqingyu/project/mcp-team-hub/packages/renderer/src/assets/avatars/avatar-20.png",
+    "png_size": 5205
+  }
+}

@@ -10,6 +10,7 @@ export interface WsClient {
   onEvent: (handler: (event: any) => void) => void;
   onAck: (handler: (ack: any) => void) => void;
   onError: (handler: (err: any) => void) => void;
+  onSnapshot: (handler: (snapshot: any) => void) => void;
   readyState: () => number;
 }
 
@@ -26,6 +27,8 @@ export function createWsClient(userId = 'local'): WsClient {
   let onEv: ((e: any) => void) | null = null;
   let onAk: ((a: any) => void) | null = null;
   let onEr: ((e: any) => void) | null = null;
+  let onSn: ((s: any) => void) | null = null;
+  const pendingSnapshots: any[] = [];
 
   function connect() {
     if (disposed) return;
@@ -37,6 +40,7 @@ export function createWsClient(userId = 'local'): WsClient {
         else if (m.type === 'gap-replay') { for (const it of m.items ?? []) { if (it.id) lastMsgId = it.id; onEv?.(it.event); } }
         else if (m.type === 'ack') onAk?.(m);
         else if (m.type === 'error') onEr?.(m);
+        else if (m.type === 'snapshot') { if (onSn) onSn(m); else pendingSnapshots.push(m); }
       } catch { /* bad json */ }
     };
     ws.onclose = () => { ws = null; if (!disposed) timer = setTimeout(connect, 3000); };
@@ -74,6 +78,10 @@ export function createWsClient(userId = 'local'): WsClient {
     onEvent: (h) => { onEv = h; },
     onAck: (h) => { onAk = h; },
     onError: (h) => { onEr = h; },
+    onSnapshot: (h) => {
+      onSn = h;
+      while (pendingSnapshots.length) { const s = pendingSnapshots.shift(); if (s) h(s); }
+    },
     readyState: () => ws?.readyState ?? WebSocket.CLOSED,
   };
 }

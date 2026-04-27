@@ -47,6 +47,13 @@ function validatePersona(v: unknown): string | null {
   return null;
 }
 
+function validateAvatar(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v !== 'string') return 'avatar must be string or null';
+  if (v.length < 1 || v.length > 64) return 'avatar must be 1~64 chars';
+  return null;
+}
+
 function validateVisibilityList(v: unknown, field: string): string | null {
   if (v === '*') return null;
   if (!Array.isArray(v)) return `${field} must be '*' or an array of strings`;
@@ -87,6 +94,8 @@ export function handleCreateTemplate(body: unknown): ApiResponse {
   if (descErr) return errRes(400, descErr);
   const personaErr = validatePersona(body.persona);
   if (personaErr) return errRes(400, personaErr);
+  const avatarErr = validateAvatar(body.avatar);
+  if (avatarErr) return errRes(400, avatarErr);
   const mcpsErr = validateMcps(body.availableMcps);
   if (mcpsErr) return errRes(400, mcpsErr);
 
@@ -95,6 +104,7 @@ export function handleCreateTemplate(body: unknown): ApiResponse {
     role: body.role as string,
     description: (body.description as string | null | undefined) ?? null,
     persona: (body.persona as string | null | undefined) ?? null,
+    avatar: (body.avatar as string | null | undefined) ?? null,
     availableMcps: (body.availableMcps as TemplateMcpConfig | undefined) ?? [],
   };
   try {
@@ -141,6 +151,10 @@ export function handleUpdateTemplate(name: string, body: unknown): ApiResponse {
     const err = validatePersona(body.persona);
     if (err) return errRes(400, err);
   }
+  if ('avatar' in body) {
+    const err = validateAvatar(body.avatar);
+    if (err) return errRes(400, err);
+  }
   if ('availableMcps' in body) {
     const err = validateMcps(body.availableMcps);
     if (err) return errRes(400, err);
@@ -153,6 +167,7 @@ export function handleUpdateTemplate(name: string, body: unknown): ApiResponse {
   if ('role' in body) patch.role = body.role as string;
   if ('description' in body) patch.description = body.description as string | null;
   if ('persona' in body) patch.persona = body.persona as string | null;
+  if ('avatar' in body) patch.avatar = body.avatar as string | null;
   if ('availableMcps' in body) patch.availableMcps = body.availableMcps as TemplateMcpConfig;
 
   const updated = RoleTemplate.update(name, patch);
