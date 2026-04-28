@@ -1,0 +1,73 @@
+import type { TranslationKey } from './zh-CN';
+
+const zhTW: Partial<Record<TranslationKey, string>> = {
+  'common.settings': '設定',
+  'common.close': '關閉',
+  'common.save': '儲存',
+  'common.cancel': '取消',
+  'common.confirm': '確認',
+  'common.delete': '刪除',
+  'common.edit': '編輯',
+  'common.add': '新增',
+  'common.send': '傳送',
+  'common.new': '新建',
+  'common.expand': '展開',
+  'common.collapse': '收起',
+  'common.refresh': '重新整理',
+  'common.create': '建立',
+  'common.unselected': '未選擇',
+
+  'capsule.agents': '{count} 個 Agent',
+  'capsule.tasks': '{count} 個任務',
+  'capsule.agents_tasks': '{agents} 個 Agent · {tasks} 個任務',
+  'capsule.new_messages': '{count} 則新訊息',
+  'capsule.teams': '{count} 個團隊',
+  'capsule.teams_agents': '{teams} 個團隊 · {agents} 個 Agent',
+
+  'chat.placeholder_mteam': '給 MTEAM 發送訊息...',
+  'chat.placeholder_generic': '輸入訊息…',
+
+  'toolbar.team_panel': '成員面板',
+  'toolbar.settings': '設定',
+  'toolbar.expand_team_panel': '展開團隊面板',
+
+  'team.new_team': '新建團隊',
+
+  'roles.title': '成員管理',
+  'roles.create': '新建成員',
+  'roles.edit_prefix': '編輯：{name}',
+  'roles.delete_template_title': '刪除模板',
+  'roles.delete_template_message': '確認刪除模板「{name}」？此操作無法復原。',
+  'roles.create_instance_title': '從「{name}」建立實例',
+  'roles.instance_name_label': '實例名稱',
+  'roles.instance_name_placeholder': 'alice-frontend',
+  'roles.instance_name_required': '請輸入實例名稱',
+  'roles.instance_name_too_long': '不超過 64 字元',
+  'roles.create_failed': '建立失敗',
+
+  'settings.tab.primary': '主 Agent',
+  'settings.tab.cli': 'CLI',
+  'settings.tab.template': '模板管理',
+  'settings.template.new': '新建模板',
+
+  'template.name_label': '模板名稱',
+  'template.name_placeholder': 'frontend-engineer',
+  'template.name_required': '請輸入模板名稱',
+  'template.name_too_long': '不超過 {max} 字元',
+  'template.name_pattern': '僅支援英文數字底線/連字號',
+  'template.name_duplicate': '模板名稱已存在',
+  'template.role_label': '角色',
+  'template.role_placeholder': 'engineer',
+  'template.role_required': '請輸入角色',
+  'template.role_too_long': '不超過 {max} 字元',
+  'template.description_label': '描述',
+  'template.description_placeholder': '用一句話描述角色職責',
+  'template.persona_label': '系統提示詞',
+  'template.persona_placeholder': 'You are...',
+  'template.avatar_label': '頭像',
+  'template.avatar_pick': '選擇頭像',
+  'template.mcps_label': '可用 MCP 工具',
+  'template.mcps_empty': '未選擇 MCP',
+};
+
+export default zhTW;

@@ -91,6 +91,34 @@ describe('isWsUpstream · 正例（必填字段齐全）', () => {
       }),
     ).toBe(true);
   });
+
+  it('get_workers 无参 / 带 requestId', () => {
+    expect(isWsUpstream({ op: 'get_workers' })).toBe(true);
+    expect(isWsUpstream({ op: 'get_workers', requestId: 'r1' })).toBe(true);
+  });
+
+  it('get_workers 多余字段拒', () => {
+    expect(isWsUpstream({ op: 'get_workers', driverId: 'x' })).toBe(false);
+  });
+
+  it('get_worker_activity 最小 / 带 workerName+requestId', () => {
+    expect(isWsUpstream({ op: 'get_worker_activity', range: 'day' })).toBe(true);
+    expect(
+      isWsUpstream({ op: 'get_worker_activity', range: 'day', workerName: 'alpha', requestId: 'r' }),
+    ).toBe(true);
+  });
+
+  it('get_worker_activity 缺 range / range 非串 → 拒', () => {
+    expect(isWsUpstream({ op: 'get_worker_activity' })).toBe(false);
+    expect(isWsUpstream({ op: 'get_worker_activity', range: '' })).toBe(false);
+    expect(isWsUpstream({ op: 'get_worker_activity', range: 42 })).toBe(false);
+  });
+
+  it('get_worker_activity 多余字段拒', () => {
+    expect(
+      isWsUpstream({ op: 'get_worker_activity', range: 'day', extra: 'x' }),
+    ).toBe(false);
+  });
 });
 
 describe('isWsUpstream · 反例', () => {

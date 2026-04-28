@@ -4,13 +4,15 @@ import ComponentCard from './ComponentCard';
 import CapsuleCard from '../src/organisms/CapsuleCard';
 import ChatHeader from '../src/molecules/ChatHeader';
 import ChatPanel from '../src/organisms/ChatPanel';
+import ToolBar from '../src/molecules/ToolBar';
+import AgentLogo from '../src/atoms/AgentLogo';
 import StatusDot from '../src/atoms/StatusDot';
 import Button from '../src/atoms/Button';
 import Logo from '../src/atoms/Logo';
 import NotificationCard from '../src/atoms/NotificationCard';
 import MessageBubble from '../src/molecules/MessageBubble';
 
-const PLAYGROUND_VERSION = '1.7.4';
+const PLAYGROUND_VERSION = '1.7.7';
 
 type Tab = Layer | 'scenes';
 
@@ -61,10 +63,10 @@ const SCENE_MESSAGES = [
   { id: '5', role: 'agent' as const, agentName: 'Claude', content: '', time: '', thinking: true },
 ];
 
-const SCENE_AGENTS = [
-  { id: 'claude', name: 'Claude', active: true },
-  { id: 'codex', name: 'Codex' },
-  { id: 'qwen', name: 'Qwen' },
+const SCENE_MODEL_OPTIONS = [
+  { value: 'claude', label: 'Claude', icon: <AgentLogo cliType="claude" size={14} /> },
+  { value: 'codex', label: 'Codex', icon: <AgentLogo cliType="codex" size={14} /> },
+  { value: 'gemini', label: 'Gemini', icon: <AgentLogo cliType="gemini" size={14} /> },
 ];
 
 function LayerPane({ layer }: { layer: Layer }) {
@@ -95,17 +97,37 @@ function ScenesPane() {
     <section className="playground__section">
       <div className="scenes">
         <div className="scenes__item">
-          <div className="scenes__label">收起态 · Capsule</div>
+          <div className="scenes__label">收起态 · Capsule（主 Agent RUNNING · idle）</div>
           <div className="scenes__stage scenes__stage--capsule">
-            <CapsuleCard name="M-TEAM" agentCount={3} taskCount={2} messageCount={5} online />
+            <CapsuleCard
+              name="MTEAM"
+              agentCount={1}
+              taskCount={0}
+              messageCount={0}
+              online
+              logoStatus="online"
+            />
           </div>
         </div>
         <div className="scenes__item">
           <div className="scenes__label">展开态 · Expanded Panel</div>
           <div className="scenes__stage scenes__stage--expanded">
             <div className="scenes__panel">
-              <ChatHeader name="M-TEAM" online />
-              <ChatPanel messages={SCENE_MESSAGES} agents={SCENE_AGENTS} inputPlaceholder="给 MTEAM 发送消息..." />
+              <ChatHeader name="MTEAM" online />
+              <ChatPanel
+                messages={SCENE_MESSAGES}
+                agents={[]}
+                inputPlaceholder="给 MTEAM 发送消息..."
+                toolBar={
+                  <ToolBar
+                    modelOptions={SCENE_MODEL_OPTIONS}
+                    currentModel="claude"
+                    onModelChange={() => {}}
+                    onSettings={() => {}}
+                    onTeamPanel={() => {}}
+                  />
+                }
+              />
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import Logo from '../../atoms/Logo';
 import StatusDot from '../../atoms/StatusDot';
 import Icon from '../../atoms/Icon';
+import { useLocale } from '../../i18n';
 import './ChatHeader.css';
 
 interface ChatHeaderProps {
@@ -10,6 +11,7 @@ interface ChatHeaderProps {
 }
 
 export default function ChatHeader({ name = 'M-TEAM', online = true, onClose }: ChatHeaderProps) {
+  const { t } = useLocale();
   return (
     <div className="chat-header">
       <div className="chat-header__left">
@@ -20,7 +22,7 @@ export default function ChatHeader({ name = 'M-TEAM', online = true, onClose }: 
       <button
         type="button"
         className="chat-header__close"
-        aria-label="关闭"
+        aria-label={t('common.close')}
         onClick={onClose}
       >
         <Icon name="close" size={16} color="rgba(230,237,247,0.7)" />

@@ -1,5 +1,6 @@
 import Dropdown, { type DropdownOption } from '../../atoms/Dropdown';
 import Icon from '../../atoms/Icon';
+import { useLocale } from '../../i18n';
 import './ToolBar.css';
 
 interface ToolBarProps {
@@ -19,6 +20,9 @@ export default function ToolBar({
   onTeamPanel,
   teamPanelActive = false,
 }: ToolBarProps) {
+  const { t } = useLocale();
+  const teamLabel = t('toolbar.team_panel');
+  const settingsLabel = t('toolbar.settings');
   return (
     <div className="toolbar">
       <div className="toolbar__left">
@@ -29,8 +33,8 @@ export default function ToolBar({
           type="button"
           className="toolbar__icon-btn"
           onClick={onTeamPanel}
-          aria-label="成员面板"
-          title="成员面板"
+          aria-label={teamLabel}
+          title={teamLabel}
           data-active={teamPanelActive ? 'true' : undefined}
         >
           <Icon name="team" size={14} />
@@ -39,8 +43,8 @@ export default function ToolBar({
           type="button"
           className="toolbar__icon-btn"
           onClick={onSettings}
-          aria-label="设置"
-          title="设置"
+          aria-label={settingsLabel}
+          title={settingsLabel}
         >
           <Icon name="settings" size={14} />
         </button>

@@ -5,6 +5,8 @@
 import type { PrimaryAgentRow } from '../primary-agent/types.js';
 import type { Turn } from '../agent-driver/turn-types.js';
 import type { TurnCursor } from '../turn-history/repo.js';
+import type { WorkerStats, WorkerView } from '../worker/types.js';
+import type { ActivityPoint, ActivityRange } from '../worker/activity.js';
 
 /** 订阅作用域。global=全局事件；其余三种按 id 过滤。 */
 export type SubscriptionScope = 'global' | 'team' | 'instance' | 'user';
@@ -75,6 +77,20 @@ export interface WsGetTurnHistory {
   requestId?: string;
 }
 
+/** 数字员工列表（role_templates 聚合视图）。主 Agent 相关只走 WS 的一致原则。 */
+export interface WsGetWorkers {
+  op: 'get_workers';
+  requestId?: string;
+}
+
+/** 数字员工活跃度统计。range 由业务层再校验字面量范围。 */
+export interface WsGetWorkerActivity {
+  op: 'get_worker_activity';
+  range: string;
+  workerName?: string;
+  requestId?: string;
+}
+
 export type WsUpstream =
   | WsSubscribe
   | WsUnsubscribe
@@ -82,7 +98,9 @@ export type WsUpstream =
   | WsPing
   | WsConfigurePrimaryAgent
   | WsGetTurns
-  | WsGetTurnHistory;
+  | WsGetTurnHistory
+  | WsGetWorkers
+  | WsGetWorkerActivity;
 
 // ----------------------------------------------------------------------------
 // 下行消息（后端 → 前端）
@@ -142,6 +160,24 @@ export interface WsGetTurnHistoryResponse {
   nextCursor: TurnCursor | null;
 }
 
+/** get_workers 的下行响应。WorkerView 字段形状与旧 HTTP 聚合一致。 */
+export interface WsGetWorkersResponse {
+  type: 'get_workers_response';
+  requestId: string;
+  workers: WorkerView[];
+  stats: WorkerStats;
+}
+
+/** get_worker_activity 的下行响应。range 非法直接 error 下行，不走这里。 */
+export interface WsGetWorkerActivityResponse {
+  type: 'get_worker_activity_response';
+  requestId: string;
+  range: ActivityRange;
+  workerName: string | null;
+  dataPoints: ActivityPoint[];
+  total: { turns: number; toolCalls: number };
+}
+
 export type WsDownstream =
   | WsEventDown
   | WsGapReplay
@@ -150,7 +186,9 @@ export type WsDownstream =
   | WsErrorDown
   | WsSnapshot
   | WsGetTurnsResponse
-  | WsGetTurnHistoryResponse;
+  | WsGetTurnHistoryResponse
+  | WsGetWorkersResponse
+  | WsGetWorkerActivityResponse;
 
 // ----------------------------------------------------------------------------
 // 类型守卫 —— 实现在 protocol-guards.ts；re-export 保兼容旧 import 路径

@@ -1,5 +1,6 @@
 import Modal from '../../atoms/Modal';
 import Button from '../../atoms/Button';
+import { useLocale } from '../../i18n';
 import './ConfirmDialog.css';
 
 interface ConfirmDialogProps {
@@ -19,10 +20,13 @@ export default function ConfirmDialog({
   onCancel,
   title,
   message,
-  confirmLabel = '确认',
-  cancelLabel = '取消',
+  confirmLabel,
+  cancelLabel,
   variant = 'default',
 }: ConfirmDialogProps) {
+  const { t } = useLocale();
+  const resolvedConfirm = confirmLabel ?? t('common.confirm');
+  const resolvedCancel = cancelLabel ?? t('common.cancel');
   const handleCancel = () => onCancel?.();
   const handleConfirm = () => onConfirm?.();
   return (
@@ -31,11 +35,11 @@ export default function ConfirmDialog({
         <p className="confirm-dialog__message">{message}</p>
         <div className="confirm-dialog__footer">
           <Button variant="ghost" size="md" onClick={handleCancel}>
-            {cancelLabel}
+            {resolvedCancel}
           </Button>
           <div className="confirm-dialog__confirm">
             <Button variant="primary" size="md" onClick={handleConfirm}>
-              {confirmLabel}
+              {resolvedConfirm}
             </Button>
           </div>
         </div>

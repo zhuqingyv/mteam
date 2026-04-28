@@ -2,6 +2,7 @@ import Button from '../../atoms/Button';
 import Icon from '../../atoms/Icon';
 import TeamSidebar from '../../molecules/TeamSidebar';
 import TeamCanvas from '../TeamCanvas';
+import { useLocale } from '../../i18n';
 import './TeamMonitorPanel.css';
 
 interface Team { id: string; name: string; memberCount: number; }
@@ -25,9 +26,10 @@ export default function TeamMonitorPanel({
   teams, agents, activeTeamId, onSelectTeam, onCreateTeam, onAgentDragEnd,
   collapsed = false, onToggleCollapsed,
 }: TeamMonitorPanelProps) {
+  const { t } = useLocale();
   const memberCount = agents.length;
-  const activeTeam = teams.find((t) => t.id === activeTeamId) ?? teams[0];
-  const capsuleName = activeTeam?.name ?? (teams.length > 0 ? `${teams.length} Teams` : 'TEAMS');
+  const activeTeam = teams.find((tm) => tm.id === activeTeamId) ?? teams[0];
+  const capsuleName = activeTeam?.name ?? (teams.length > 0 ? t('capsule.teams', { count: teams.length }) : 'TEAMS');
 
   const cls = ['team-monitor'];
   if (collapsed) cls.push('team-monitor--collapsed');
@@ -38,11 +40,11 @@ export default function TeamMonitorPanel({
         type="button"
         className="team-monitor__collapsed-face"
         onClick={() => onToggleCollapsed?.()}
-        aria-label="展开团队面板"
+        aria-label={t('toolbar.expand_team_panel')}
       >
         <span className="team-monitor__cap-name">{capsuleName}</span>
         <span className="team-monitor__cap-meta">
-          {teams.length} Teams · {memberCount} Agents
+          {t('capsule.teams_agents', { teams: teams.length, agents: memberCount })}
         </span>
       </button>
 

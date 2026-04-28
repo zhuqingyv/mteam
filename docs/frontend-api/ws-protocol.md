@@ -48,9 +48,20 @@ export interface WsGetTurnHistory {
   beforeTurnId?: string;
   requestId?: string;
 }
+export interface WsGetWorkers {
+  op: 'get_workers';
+  requestId?: string;
+}
+export type ActivityRange = 'minute' | 'hour' | 'day' | 'month' | 'year';
+export interface WsGetWorkerActivity {
+  op: 'get_worker_activity';
+  range: ActivityRange;
+  workerName?: string;
+  requestId?: string;
+}
 export type WsUpstream =
   | WsSubscribe | WsUnsubscribe | WsPrompt | WsPing | WsConfigurePrimaryAgent
-  | WsGetTurns | WsGetTurnHistory;
+  | WsGetTurns | WsGetTurnHistory | WsGetWorkers | WsGetWorkerActivity;
 
 // ---- 下行 ----
 export interface WsEventDown { type: 'event';      id: string; event: Record<string, unknown> }
@@ -72,9 +83,42 @@ export interface WsGetTurnHistoryResponse {
   hasMore: boolean;
   nextCursor: { endTs: string; turnId: string } | null;
 }
+export type WorkerStatus = 'online' | 'idle' | 'offline';
+export interface WorkerView {
+  name: string;
+  role: string;
+  description: string | null;
+  persona: string | null;
+  avatar: string | null;
+  mcps: string[];
+  status: WorkerStatus;
+  instanceCount: number;
+  teams: string[];
+  lastActivity: { summary: string; at: string } | null;
+}
+export interface WsGetWorkersResponse {
+  type: 'get_workers_response';
+  requestId: string;
+  workers: WorkerView[];
+  stats: { total: number; online: number; idle: number; offline: number };
+}
+export interface ActivityDataPoint {
+  label: string;
+  turns: number;
+  toolCalls: number;
+}
+export interface WsGetWorkerActivityResponse {
+  type: 'get_worker_activity_response';
+  requestId: string;
+  range: ActivityRange;
+  workerName: string | null;
+  dataPoints: ActivityDataPoint[];
+  total: { turns: number; toolCalls: number };
+}
 export type WsDownstream =
   | WsEventDown | WsGapReplay | WsPong | WsAck | WsErrorDown | WsSnapshot
-  | WsGetTurnsResponse | WsGetTurnHistoryResponse;
+  | WsGetTurnsResponse | WsGetTurnHistoryResponse
+  | WsGetWorkersResponse | WsGetWorkerActivityResponse;
 ```
 
 ## 上行消息
@@ -200,6 +244,81 @@ export type WsDownstream =
 - `hasMore: false` + `nextCursor: null` → 已到末尾
 - `items` 为空数组 → 该 driver 无历史记录（不报错）
 - 详见 [turn-events.md §8 冷历史接口](./turn-events.md)
+
+### get_workers — 拉数字员工列表 + 统计
+
+上行：
+```json
+{ "op": "get_workers", "requestId": "r-w-1" }
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `requestId` | string | 可选；下行 `get_workers_response` 原样回填 |
+
+下行 `get_workers_response`：
+```json
+{
+  "type": "get_workers_response",
+  "requestId": "r-w-1",
+  "workers": [
+    {
+      "name": "frontend-dev",
+      "role": "前端开发专家",
+      "description": "…",
+      "persona": "…",
+      "avatar": "avatar-01",
+      "mcps": ["mteam", "mnemo"],
+      "status": "online",
+      "instanceCount": 2,
+      "teams": ["官网重构"],
+      "lastActivity": { "summary": "…", "at": "2026-04-27T10:32:15.420Z" }
+    }
+  ],
+  "stats": { "total": 11, "online": 4, "idle": 2, "offline": 5 }
+}
+```
+
+- 纯读聚合，不依赖缓存表；不推 WS 事件，前端需重新发请求刷新
+- 详见 [workers-api.md](./workers-api.md)
+
+### get_worker_activity — 拉员工活跃度
+
+上行：
+```json
+{
+  "op": "get_worker_activity",
+  "range": "day",
+  "workerName": "frontend-dev",
+  "requestId": "r-wa-1"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `range` | string | 必填；`'minute' \| 'hour' \| 'day' \| 'month' \| 'year'` |
+| `workerName` | string | 可选；员工身份锚点（= 模板 `name`），不传 = 全员聚合 |
+| `requestId` | string | 可选；下行 `get_worker_activity_response` 原样回填 |
+
+下行 `get_worker_activity_response`：
+```json
+{
+  "type": "get_worker_activity_response",
+  "requestId": "r-wa-1",
+  "range": "day",
+  "workerName": "frontend-dev",
+  "dataPoints": [
+    { "label": "2026-04-25", "turns": 8, "toolCalls": 22 },
+    { "label": "2026-04-26", "turns": 12, "toolCalls": 31 },
+    { "label": "2026-04-27", "turns": 15, "toolCalls": 42 }
+  ],
+  "total": { "turns": 35, "toolCalls": 95 }
+}
+```
+
+- `range` 非枚举值 → 下行 `error { code: 'bad_request' }`
+- `workerName` 不存在 → 下行 `error { code: 'not_found' }`
+- 详见 [workers-api.md](./workers-api.md)
 
 ## 下行消息
 

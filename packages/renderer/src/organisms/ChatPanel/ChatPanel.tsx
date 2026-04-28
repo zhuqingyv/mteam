@@ -5,6 +5,7 @@ import ChatInput from '../../molecules/ChatInput';
 import VirtualList from '../../atoms/VirtualList';
 import type { ToolCall } from '../../molecules/ToolCallList';
 import type { TurnBlock } from '../../store/messageStore';
+import { useLocale } from '../../i18n';
 import './ChatPanel.css';
 
 interface Message {
@@ -41,13 +42,15 @@ interface ChatPanelProps {
 export default function ChatPanel({
   messages = [],
   agents = [],
-  inputPlaceholder = '给 MTEAM 发送消息...',
+  inputPlaceholder,
   inputValue = '',
   onInputChange,
   onSend,
   onSelectAgent,
   toolBar,
 }: ChatPanelProps) {
+  const { t } = useLocale();
+  const resolvedPlaceholder = inputPlaceholder ?? t('chat.placeholder_mteam');
   const activeId = agents.find((a) => a.active)?.id;
   return (
     <div className="chat-panel">
@@ -78,7 +81,7 @@ export default function ChatPanel({
         ) : null}
         {toolBar}
         <ChatInput
-          placeholder={inputPlaceholder}
+          placeholder={resolvedPlaceholder}
           value={inputValue}
           onChange={onInputChange}
           onSend={onSend}

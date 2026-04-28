@@ -559,9 +559,10 @@ export const registry: ComponentEntry[] = [
     group: 'nav',
     component: MenuDots,
     props: [
-      { name: 'disabled', type: 'boolean', default: false, description: '禁用' },
+      { name: 'disabled', type: 'boolean', default: false, description: '禁用（按钮模式）' },
+      { name: 'asDragHandle', type: 'boolean', default: false, description: '作为窗口拖动手柄（Electron -webkit-app-region: drag）' },
     ],
-    defaults: { disabled: false },
+    defaults: { disabled: false, asDragHandle: false },
     handlers: () => ({ onClick: () => {} }),
   },
   {

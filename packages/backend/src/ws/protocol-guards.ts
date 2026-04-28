@@ -39,6 +39,8 @@ const GET_TURNS_KEYS = new Set(['op', 'driverId', 'limit', 'requestId']);
 const GET_TURN_HISTORY_KEYS = new Set([
   'op', 'driverId', 'limit', 'beforeEndTs', 'beforeTurnId', 'requestId',
 ]);
+const GET_WORKERS_KEYS = new Set(['op', 'requestId']);
+const GET_WORKER_ACTIVITY_KEYS = new Set(['op', 'range', 'workerName', 'requestId']);
 
 function hasOnlyKeys(obj: Record<string, unknown>, allowed: Set<string>): boolean {
   for (const k of Object.keys(obj)) if (!allowed.has(k)) return false;
@@ -96,6 +98,16 @@ export function isWsUpstream(x: unknown): x is WsUpstream {
         isOptPositiveInt(x.limit) &&
         isOptString(x.beforeEndTs) &&
         isOptString(x.beforeTurnId) &&
+        isOptString(x.requestId)
+      );
+    case 'get_workers':
+      return hasOnlyKeys(x, GET_WORKERS_KEYS) && isOptString(x.requestId);
+    case 'get_worker_activity':
+      return (
+        hasOnlyKeys(x, GET_WORKER_ACTIVITY_KEYS) &&
+        typeof x.range === 'string' &&
+        x.range.length > 0 &&
+        isOptString(x.workerName) &&
         isOptString(x.requestId)
       );
     default:

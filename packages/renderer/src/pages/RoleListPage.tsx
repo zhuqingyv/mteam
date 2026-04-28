@@ -14,6 +14,7 @@ import {
 import { listAvatars, randomAvatar, type AvatarRow } from '../api/avatars';
 import { createInstance } from '../api/instances';
 import { useTemplateStore, selectTemplates } from '../store';
+import { useLocale } from '../i18n';
 import './RoleListPage.css';
 
 function toDraft(t: RoleTemplate): TemplateDraft {
@@ -28,6 +29,7 @@ function toDraft(t: RoleTemplate): TemplateDraft {
 }
 
 export default function RoleListPage() {
+  const { t } = useLocale();
   const templates = useTemplateStore(selectTemplates);
   const setTemplates = useTemplateStore((s) => s.setTemplates);
   const [avatars, setAvatars] = useState<AvatarRow[]>([]);
@@ -105,12 +107,12 @@ export default function RoleListPage() {
 
   const confirmCreateInstance = async () => {
     const name = instanceName.trim();
-    if (!name) { setInstanceErr('请输入实例名'); return; }
-    if (name.length > 64) { setInstanceErr('不超过 64 字符'); return; }
+    if (!name) { setInstanceErr(t('roles.instance_name_required')); return; }
+    if (name.length > 64) { setInstanceErr(t('roles.instance_name_too_long')); return; }
     if (!instanceFor) return;
     const res = await createInstance({ templateName: instanceFor, memberName: name, isLeader: false });
     if (res.ok) setInstanceFor(null);
-    else setInstanceErr(res.error ?? '创建失败');
+    else setInstanceErr(res.error ?? t('roles.create_failed'));
   };
 
   const mcpOptions = Array.from(new Set(templates.flatMap((t) => t.availableMcps.map((m) => m.name))));
@@ -120,11 +122,11 @@ export default function RoleListPage() {
   return (
     <PanelWindow>
       <div className="role-list-page__head">
-        <h1 className="role-list-page__title">成员管理</h1>
+        <h1 className="role-list-page__title">{t('roles.title')}</h1>
         <div className="role-list-page__actions">
           <Button variant="primary" size="sm" onClick={handleCreate}>
             <span className="role-list-page__btn-label">
-              <Icon name="plus" size={12} /><span>新建成员</span>
+              <Icon name="plus" size={12} /><span>{t('roles.create')}</span>
             </span>
           </Button>
           <div className="role-list-page__close">
@@ -146,7 +148,7 @@ export default function RoleListPage() {
       <Modal
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
-        title={isEdit ? `编辑：${editing!.name}` : '新建成员'}
+        title={isEdit ? t('roles.edit_prefix', { name: editing!.name }) : t('roles.create')}
         size="lg"
       >
         <TemplateEditor
@@ -163,10 +165,10 @@ export default function RoleListPage() {
 
       <ConfirmDialog
         open={!!pendingDelete}
-        title="删除模板"
-        message={`确认删除模板 "${pendingDelete}"？此操作无法撤销。`}
+        title={t('roles.delete_template_title')}
+        message={t('roles.delete_template_message', { name: pendingDelete ?? '' })}
         variant="danger"
-        confirmLabel="删除"
+        confirmLabel={t('common.delete')}
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
       />
@@ -174,16 +176,16 @@ export default function RoleListPage() {
       <Modal
         open={!!instanceFor}
         onClose={() => setInstanceFor(null)}
-        title={`从 "${instanceFor}" 创建实例`}
+        title={t('roles.create_instance_title', { name: instanceFor ?? '' })}
         size="sm"
       >
         <div className="role-list-page__inst-form">
-          <FormField label="实例名" required error={instanceErr}>
-            <Input value={instanceName} onChange={setInstanceName} placeholder="alice-frontend" error={!!instanceErr} />
+          <FormField label={t('roles.instance_name_label')} required error={instanceErr}>
+            <Input value={instanceName} onChange={setInstanceName} placeholder={t('roles.instance_name_placeholder')} error={!!instanceErr} />
           </FormField>
           <div className="role-list-page__inst-actions">
-            <Button variant="primary" size="sm" onClick={confirmCreateInstance}>创建</Button>
-            <Button variant="ghost" size="sm" onClick={() => setInstanceFor(null)}>取消</Button>
+            <Button variant="primary" size="sm" onClick={confirmCreateInstance}>{t('common.create')}</Button>
+            <Button variant="ghost" size="sm" onClick={() => setInstanceFor(null)}>{t('common.cancel')}</Button>
           </div>
         </div>
       </Modal>

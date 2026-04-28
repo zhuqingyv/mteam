@@ -1,0 +1,73 @@
+import type { TranslationKey } from './zh-CN';
+
+const en: Partial<Record<TranslationKey, string>> = {
+  'common.settings': 'Settings',
+  'common.close': 'Close',
+  'common.save': 'Save',
+  'common.cancel': 'Cancel',
+  'common.confirm': 'Confirm',
+  'common.delete': 'Delete',
+  'common.edit': 'Edit',
+  'common.add': 'Add',
+  'common.send': 'Send',
+  'common.new': 'New',
+  'common.expand': 'Expand',
+  'common.collapse': 'Collapse',
+  'common.refresh': 'Refresh',
+  'common.create': 'Create',
+  'common.unselected': 'None',
+
+  'capsule.agents': '{count} Agents',
+  'capsule.tasks': '{count} Tasks',
+  'capsule.agents_tasks': '{agents} Agents · {tasks} Tasks',
+  'capsule.new_messages': '{count} New messages',
+  'capsule.teams': '{count} Teams',
+  'capsule.teams_agents': '{teams} Teams · {agents} Agents',
+
+  'chat.placeholder_mteam': 'Send a message to MTEAM...',
+  'chat.placeholder_generic': 'Type a message…',
+
+  'toolbar.team_panel': 'Team panel',
+  'toolbar.settings': 'Settings',
+  'toolbar.expand_team_panel': 'Expand team panel',
+
+  'team.new_team': 'New team',
+
+  'roles.title': 'Member Management',
+  'roles.create': 'New Member',
+  'roles.edit_prefix': 'Edit: {name}',
+  'roles.delete_template_title': 'Delete template',
+  'roles.delete_template_message': 'Delete template "{name}"? This cannot be undone.',
+  'roles.create_instance_title': 'Create instance from "{name}"',
+  'roles.instance_name_label': 'Instance name',
+  'roles.instance_name_placeholder': 'alice-frontend',
+  'roles.instance_name_required': 'Instance name required',
+  'roles.instance_name_too_long': 'Max 64 characters',
+  'roles.create_failed': 'Create failed',
+
+  'settings.tab.primary': 'Primary Agent',
+  'settings.tab.cli': 'CLI',
+  'settings.tab.template': 'Templates',
+  'settings.template.new': 'New template',
+
+  'template.name_label': 'Template name',
+  'template.name_placeholder': 'frontend-engineer',
+  'template.name_required': 'Template name required',
+  'template.name_too_long': 'Max {max} characters',
+  'template.name_pattern': 'Letters, digits, underscore, hyphen only',
+  'template.name_duplicate': 'Name already exists',
+  'template.role_label': 'Role',
+  'template.role_placeholder': 'engineer',
+  'template.role_required': 'Role required',
+  'template.role_too_long': 'Max {max} characters',
+  'template.description_label': 'Description',
+  'template.description_placeholder': 'Describe the role in one sentence',
+  'template.persona_label': 'System prompt',
+  'template.persona_placeholder': 'You are...',
+  'template.avatar_label': 'Avatar',
+  'template.avatar_pick': 'Pick avatar',
+  'template.mcps_label': 'Available MCP tools',
+  'template.mcps_empty': 'No MCP selected',
+};
+
+export default en;

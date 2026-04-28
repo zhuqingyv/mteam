@@ -5,6 +5,7 @@ import Icon from '../../atoms/Icon';
 import TitleBlock from '../../molecules/TitleBlock';
 import MenuDots from '../../molecules/MenuDots';
 import DragHandle from '../../molecules/DragHandle';
+import { useLocale } from '../../i18n';
 import './CapsuleCard.css';
 
 interface CapsuleCardProps {
@@ -25,7 +26,10 @@ export default function CapsuleCard({
   name = 'M-TEAM', agentCount, taskCount, messageCount, online, logoStatus,
   expanded = false, animating = false, bodyVisible = false, onToggle, children,
 }: CapsuleCardProps) {
+  const { t } = useLocale();
   const resolvedLogoStatus: LogoStatus = logoStatus ?? (online ? 'online' : 'offline');
+  const subtitle = t('capsule.agents_tasks', { agents: agentCount, tasks: taskCount });
+  const badgeText = messageCount > 0 ? t('capsule.new_messages', { count: messageCount }) : undefined;
   const cls = ['card'];
   if (expanded) cls.push('card--expanded');
   if (animating) cls.push('card--animating');
@@ -47,8 +51,8 @@ export default function CapsuleCard({
           role="button"
           tabIndex={online === false ? -1 : 0}
         >
-          <TitleBlock title={name} subtitle={`${agentCount} Agents · ${taskCount} Tasks`} badgeText={messageCount > 0 ? `${messageCount} New messages` : undefined} badgeCount={messageCount} />
-          <MenuDots disabled={online === false} />
+          <TitleBlock title={name} subtitle={subtitle} badgeText={badgeText} badgeCount={messageCount} />
+          <MenuDots asDragHandle />
         </div>
       )}
       <div className="card__expanded-head">

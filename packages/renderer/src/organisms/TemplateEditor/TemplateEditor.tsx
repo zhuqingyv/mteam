@@ -5,6 +5,7 @@ import Textarea from '../../atoms/Textarea';
 import Tag from '../../atoms/Tag';
 import FormField from '../../molecules/FormField';
 import AvatarPicker, { type AvatarRow } from '../../molecules/AvatarPicker';
+import { useLocale } from '../../i18n';
 import './TemplateEditor.css';
 
 export interface TemplateDraft {
@@ -43,6 +44,7 @@ export default function TemplateEditor({
   onCancel,
   onRandomAvatar,
 }: TemplateEditorProps) {
+  const { t } = useLocale();
   const [name, setName] = useState(template?.name ?? '');
   const [role, setRole] = useState(template?.role ?? '');
   const [description, setDescription] = useState(template?.description ?? '');
@@ -54,19 +56,19 @@ export default function TemplateEditor({
 
   const nameError = useMemo(() => {
     if (!touched && !name) return '';
-    if (!name.trim()) return '请输入模板名称';
-    if (name.length > NAME_MAX) return `不超过 ${NAME_MAX} 字符`;
-    if (!NAME_RE.test(name)) return '仅支持英文数字下划线/横杠';
-    if (!isEdit && existingNames.includes(name)) return '模板名已存在';
+    if (!name.trim()) return t('template.name_required');
+    if (name.length > NAME_MAX) return t('template.name_too_long', { max: NAME_MAX });
+    if (!NAME_RE.test(name)) return t('template.name_pattern');
+    if (!isEdit && existingNames.includes(name)) return t('template.name_duplicate');
     return '';
-  }, [name, existingNames, isEdit, touched]);
+  }, [name, existingNames, isEdit, touched, t]);
 
   const roleError = useMemo(() => {
     if (!touched && !role) return '';
-    if (!role.trim()) return '请输入角色';
-    if (role.length > ROLE_MAX) return `不超过 ${ROLE_MAX} 字符`;
+    if (!role.trim()) return t('template.role_required');
+    if (role.length > ROLE_MAX) return t('template.role_too_long', { max: ROLE_MAX });
     return '';
-  }, [role, touched]);
+  }, [role, touched, t]);
 
   const canSave = !nameError && !roleError && name.trim() && role.trim();
 
@@ -88,35 +90,35 @@ export default function TemplateEditor({
 
   return (
     <div className="tpl-editor">
-      <FormField label="模板名称" required error={nameError}>
+      <FormField label={t('template.name_label')} required error={nameError}>
         <Input
           value={name}
           onChange={setName}
-          placeholder="frontend-engineer"
+          placeholder={t('template.name_placeholder')}
           disabled={isEdit}
           error={!!nameError}
         />
       </FormField>
 
-      <FormField label="角色" required error={roleError}>
-        <Input value={role} onChange={setRole} placeholder="engineer" error={!!roleError} />
+      <FormField label={t('template.role_label')} required error={roleError}>
+        <Input value={role} onChange={setRole} placeholder={t('template.role_placeholder')} error={!!roleError} />
       </FormField>
 
-      <FormField label="描述">
-        <Input value={description} onChange={setDescription} placeholder="用一句话描述角色职责" />
+      <FormField label={t('template.description_label')}>
+        <Input value={description} onChange={setDescription} placeholder={t('template.description_placeholder')} />
       </FormField>
 
-      <FormField label="系统提示词">
-        <Textarea value={persona} onChange={setPersona} rows={5} maxLength={PERSONA_MAX} placeholder="You are..." />
+      <FormField label={t('template.persona_label')}>
+        <Textarea value={persona} onChange={setPersona} rows={5} maxLength={PERSONA_MAX} placeholder={t('template.persona_placeholder')} />
       </FormField>
 
-      <FormField label="头像">
+      <FormField label={t('template.avatar_label')}>
         <div className="tpl-editor__avatar-row">
           <button
             type="button"
             className="tpl-editor__avatar-btn"
             onClick={() => setPickerOpen((v) => !v)}
-            aria-label="选择头像"
+            aria-label={t('template.avatar_pick')}
           >
             {avatarSrc ? (
               <img src={avatarSrc} alt={avatar ?? ''} draggable={false} />
@@ -124,7 +126,7 @@ export default function TemplateEditor({
               <span className="tpl-editor__avatar-placeholder">?</span>
             )}
           </button>
-          <span className="tpl-editor__avatar-id">{avatar ?? '未选择'}</span>
+          <span className="tpl-editor__avatar-id">{avatar ?? t('common.unselected')}</span>
         </div>
         {pickerOpen && (
           <div className="tpl-editor__picker">
@@ -141,9 +143,9 @@ export default function TemplateEditor({
         )}
       </FormField>
 
-      <FormField label="可用 MCP 工具">
+      <FormField label={t('template.mcps_label')}>
         <div className="tpl-editor__mcps">
-          {mcps.length === 0 && <span className="tpl-editor__empty">未选择 MCP</span>}
+          {mcps.length === 0 && <span className="tpl-editor__empty">{t('template.mcps_empty')}</span>}
           {mcps.map((m) => (
             <Tag key={m} label={m} variant="primary" onRemove={() => toggleMcp(m)} />
           ))}
@@ -168,10 +170,10 @@ export default function TemplateEditor({
 
       <div className="tpl-editor__actions">
         <Button variant="primary" size="sm" disabled={!canSave} onClick={handleSave}>
-          保存
+          {t('common.save')}
         </Button>
         <Button variant="ghost" size="sm" onClick={onCancel}>
-          取消
+          {t('common.cancel')}
         </Button>
       </div>
     </div>

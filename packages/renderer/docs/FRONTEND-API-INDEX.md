@@ -169,6 +169,25 @@
 
 ---
 
+### 模块 9：数字员工（WS）
+
+**职责**：员工卡片列表、在线状态、最近工作、活跃度统计
+
+| 文档 | 路径 |
+|------|------|
+| 员工 API | [docs/frontend-api/workers-api.md](../../../docs/frontend-api/workers-api.md) |
+
+**接入要点**：
+- **全部走 WS，无 HTTP 端点**（`/api/panel/workers` 不存在）
+- WS 上行 `{op:'get_workers', requestId}` → 下行 `get_workers_response { workers, stats }`（`online` / `idle` / `offline` 计数）
+- WS 上行 `{op:'get_worker_activity', range, workerName?, requestId}` → 下行 `get_worker_activity_response { dataPoints, total }`（`range` = minute/hour/day/month/year；不传 `workerName` = 全员聚合）
+- **员工 = 角色模板的用户视角包装**：一个员工（`role_templates.name`）可能有多个实例（`role_instances`），在线状态从实例聚合
+- 点击员工卡片聊天按钮 → 用 `worker.name` 找该模板的 ACTIVE 实例 → 前端跳转 teamCanvas
+- 员工定义的增删改走 `/api/panel/templates/*`（模块 6），不在本模块
+- 本接口不推 WS 事件；实时更新订阅 `instance.*` / `team.*` / `turn.*` 后重新发 `get_workers` 请求，或定时轮询
+
+---
+
 ### 模块 8：事件总表
 
 **职责**：了解所有 WS 推送事件的 payload 结构

@@ -25,6 +25,8 @@
 | `configure_primary_agent` | `cliType`, `name?`, `systemPrompt?`, `requestId?` | 配置主 Agent（切 cliType 触发 stop→start，全走事件流） | [ws-protocol.md §configure_primary_agent](./ws-protocol.md) · [primary-agent-api §迁移对照](./primary-agent-api.md) |
 | `get_turns`   | `driverId`, `limit?`, `requestId?`                                  | 拉 turn 内存快照（`{ active, recent }`，断线重连先拉这条）                           | [ws-protocol.md §get_turns](./ws-protocol.md) · [turn-events §4 快照查询](./turn-events.md) |
 | `get_turn_history` | `driverId`, `limit?`, `beforeEndTs?`, `beforeTurnId?`, `requestId?` | 拉 turn 持久化冷历史（keyset 翻页，上滑加载）                                       | [ws-protocol.md §get_turn_history](./ws-protocol.md) · [turn-events §8 冷历史接口](./turn-events.md) |
+| `get_workers` | `requestId?` | 拉数字员工列表 + 在线/空闲/离线统计（= 角色模板的视图聚合） | [workers-api §get_workers](./workers-api.md) |
+| `get_worker_activity` | `range`, `workerName?`, `requestId?` | 拉员工活跃度（`range` = minute/hour/day/month/year；不传 `workerName` = 全员聚合） | [workers-api §get_worker_activity](./workers-api.md) |
 
 ### 1.2 下行消息（后端 → 前端）
 
@@ -38,6 +40,8 @@
 | `snapshot`     | 每次 WS 建连推一次，载荷 = 主 Agent 当前 Row（`primaryAgent:null` 表示未配置）；等价 `GET /api/primary-agent` | [ws-protocol.md §snapshot](./ws-protocol.md) · [primary-agent-api.md](./primary-agent-api.md) |
 | `get_turns_response` | `requestId`, `active`, `recent` —— `get_turns` 的应答（内存 turn 快照） | [ws-protocol.md §get_turns_response](./ws-protocol.md) · [turn-events §4 快照查询](./turn-events.md) |
 | `get_turn_history_response` | `requestId`, `items`, `hasMore`, `nextCursor` —— `get_turn_history` 的应答（冷历史翻页） | [ws-protocol.md §get_turn_history_response](./ws-protocol.md) · [turn-events §8 冷历史接口](./turn-events.md) |
+| `get_workers_response` | `requestId`, `workers`, `stats` —— `get_workers` 的应答（员工列表聚合） | [workers-api §get_workers](./workers-api.md) |
+| `get_worker_activity_response` | `requestId`, `range`, `workerName`, `dataPoints`, `total` —— `get_worker_activity` 的应答（分桶时间序列） | [workers-api §get_worker_activity](./workers-api.md) |
 
 ### 1.3 下行 bus 事件（`event.event.type`）
 
@@ -153,6 +157,8 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 
 对应 WS 事件：`action_item.created / updated / reminder / resolved / timeout`，详见 [action-items-api §WS 事件](./action-items-api.md)。
 
+> **数字员工（workers）前端只走 WS**：`get_workers` / `get_worker_activity`（见 §1.1 / §1.2），**不提供 HTTP 端点**。详见 [workers-api.md](./workers-api.md)。
+
 ### 2.7 Primary Agent（总控）⚠️ 前端已改走 WS（下列 HTTP 仅内部/调试）
 
 > ## 🟢 设计原则（硬性约束）
@@ -199,6 +205,8 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 > /api/panel/driver/:id/turns                         (见 §2.8，Turn 内存快照；前端改走 WS get_turns)
 > /api/panel/driver/:id/turn-history                  (见 §2.8，Turn 冷历史翻页；前端改走 WS get_turn_history)
 > ```
+>
+> **数字员工没有 HTTP 映射**：前端 workers 数据走 WS `get_workers` / `get_worker_activity`（见 §1.1 / §1.2 / [workers-api.md](./workers-api.md)）。
 
 | 方法 | 路径 | 转发目标 | 一句话 |
 |---|---|---|---|
@@ -252,6 +260,7 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | `CliInfo`         | cli HTTP                  | CLI 可用性快照                                                    | [templates-and-mcp §types](./templates-and-mcp.md) |
 | `AvatarRow`       | avatars HTTP              | 头像记录（id/filename/builtin/hidden/createdAt）                 | [avatars-api §types](./avatars-api.md) |
 | `ActionItem` / `ActionItemKind` / `ActionItemStatus` / `ActorId` | action-items HTTP + WS | 待办（4 kind × 6 status，creator/assignee 都是 ActorId）          | [action-items-api §types](./action-items-api.md) |
+| `WorkerView` / `WorkerStatus` / `WsGetWorkersResponse` / `WsGetWorkerActivityResponse` | WS `get_workers*` 响应 | 数字员工视图（= 角色模板聚合投影）+ 活跃度统计                  | [workers-api §types](./workers-api.md) |
 | `PrimaryAgentRow` | primary-agent HTTP        | 总控配置（`mcpConfig`: `{serverName,mode,tools?}`，和模板不同！） | [primary-agent-api §types](./primary-agent-api.md) |
 | `Turn` / `TurnBlock` | WS `turn.*` / HTTP 快照 | Agent 工作流聚合块，按 `blockId` upsert                           | [turn-events §types](./turn-events.md) |
 | `NotificationConfig` / `ProxyMode` / `CustomRule` | 通知配置 | 通知代理策略（proxy_all/direct/custom）                          | [notification-config §types](./notification-config.md) · [notification-and-visibility.md](./notification-and-visibility.md) |
@@ -391,6 +400,7 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | [templates-and-mcp.md](./templates-and-mcp.md)               | 模板 / MCP 商店 / CLI 扫描 / MCP 工具搜索 |
 | [avatars-api.md](./avatars-api.md)                           | 头像库 CRUD + 随机 |
 | [action-items-api.md](./action-items-api.md)                 | 待办（task/approval/decision/authorization）HTTP + WS |
+| [workers-api.md](./workers-api.md)                           | 数字员工（角色模板视图）列表 + 活跃度（WS `get_workers` / `get_worker_activity`） |
 | [primary-agent-api.md](./primary-agent-api.md)               | 总控 Agent 生命周期 HTTP + WS 联动 |
 | [sessions-and-auth.md](./sessions-and-auth.md)               | WS `userId` 约定 / user scope 越权 / sessions/register |
 | [notification-and-visibility.md](./notification-and-visibility.md) | 通知代理 + 可见性过滤机制 |

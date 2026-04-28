@@ -17,6 +17,7 @@ import { isWsUpstream } from './protocol.js';
 import { buildGapReplay } from './gap-replayer.js';
 import { handleConfigurePrimaryAgent } from './handle-configure.js';
 import { handleGetTurns, handleGetTurnHistory } from './handle-turns.js';
+import { handleGetWorkers, handleGetWorkerActivity } from './handle-workers.js';
 import type { PrimaryAgentConfig, PrimaryAgentRow } from '../primary-agent/types.js';
 import type { Turn } from '../agent-driver/turn-types.js';
 import type { ListRecentOpts, ListRecentResult } from '../turn-history/repo.js';
@@ -104,6 +105,10 @@ function routeUpstream(
       return handleGetTurns(ws, deps, msg);
     case 'get_turn_history':
       return handleGetTurnHistory(ws, deps, msg);
+    case 'get_workers':
+      return handleGetWorkers(ws, msg);
+    case 'get_worker_activity':
+      return handleGetWorkerActivity(ws, msg);
     default: {
       const never: never = msg;
       void never;

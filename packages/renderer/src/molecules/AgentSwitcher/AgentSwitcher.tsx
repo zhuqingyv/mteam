@@ -1,3 +1,4 @@
+import { useLocale } from '../../i18n';
 import './AgentSwitcher.css';
 
 export interface Agent {
@@ -20,6 +21,7 @@ export default function AgentSwitcher({
   onSelect,
   onAdd,
 }: AgentSwitcherProps) {
+  const { t } = useLocale();
   return (
     <div className="agent-switcher" role="tablist">
       {agents.map((a) => {
@@ -41,7 +43,7 @@ export default function AgentSwitcher({
       <button
         type="button"
         className="agent-chip agent-chip--add"
-        aria-label="添加"
+        aria-label={t('common.add')}
         onClick={() => onAdd?.()}
       >
         +

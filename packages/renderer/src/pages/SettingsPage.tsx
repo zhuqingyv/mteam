@@ -24,6 +24,7 @@ import {
   useTemplateStore,
   selectTemplates,
 } from '../store';
+import { useLocale } from '../i18n';
 import './SettingsPage.css';
 
 type Tab = 'primary' | 'cli' | 'template';
@@ -44,6 +45,7 @@ function toDraft(tpl: RoleTemplate): TemplateDraft {
 }
 
 export default function SettingsPage() {
+  const { t } = useLocale();
   const config = usePrimaryAgentStore(selectPaConfig);
   const online = usePrimaryAgentStore(selectOnline);
   const templates = useTemplateStore(selectTemplates);
@@ -124,9 +126,9 @@ export default function SettingsPage() {
   const mcpOptions = Array.from(new Set(templates.flatMap((t) => t.availableMcps.map((m) => m.name))));
   const existingNames = templates.map((t) => t.name);
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'primary', label: '主 Agent' },
-    { id: 'cli', label: 'CLI' },
-    { id: 'template', label: '模板管理' },
+    { id: 'primary', label: t('settings.tab.primary') },
+    { id: 'cli', label: t('settings.tab.cli') },
+    { id: 'template', label: t('settings.tab.template') },
   ];
 
   return (
@@ -164,7 +166,7 @@ export default function SettingsPage() {
       <Modal
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
-        title={editing ? `编辑：${editing.name}` : '新建模板'}
+        title={editing ? t('roles.edit_prefix', { name: editing.name }) : t('settings.template.new')}
         size="lg"
       >
         <TemplateEditor
@@ -181,10 +183,10 @@ export default function SettingsPage() {
 
       <ConfirmDialog
         open={!!pendingDelete}
-        title="删除模板"
-        message={`确认删除模板 "${pendingDelete}"？此操作无法撤销。`}
+        title={t('roles.delete_template_title')}
+        message={t('roles.delete_template_message', { name: pendingDelete ?? '' })}
         variant="danger"
-        confirmLabel="删除"
+        confirmLabel={t('common.delete')}
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
       />

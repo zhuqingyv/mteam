@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react';
 import Icon from '../../atoms/Icon';
+import { useLocale } from '../../i18n';
 import './ChatInput.css';
 
 interface ChatInputProps {
@@ -10,11 +11,13 @@ interface ChatInputProps {
 }
 
 export default function ChatInput({
-  placeholder = '输入消息…',
+  placeholder,
   value = '',
   onChange,
   onSend,
 }: ChatInputProps) {
+  const { t } = useLocale();
+  const resolvedPlaceholder = placeholder ?? t('chat.placeholder_generic');
   const ref = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -38,7 +41,7 @@ export default function ChatInput({
         ref={ref}
         className="chat-input__textarea"
         rows={1}
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
         onKeyDown={handleKey}
@@ -48,7 +51,7 @@ export default function ChatInput({
         className="chat-input__send"
         onClick={() => onSend?.()}
         disabled={!value.trim()}
-        aria-label="发送"
+        aria-label={t('common.send')}
       >
         <Icon name="send" size={16} />
       </button>
