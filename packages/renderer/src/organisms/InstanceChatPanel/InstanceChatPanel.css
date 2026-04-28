@@ -1,0 +1,38 @@
+.instance-chat-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: #fff;
+}
+
+.instance-chat-panel__header {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.instance-chat-panel__empty {
+  flex: 0 0 auto;
+  padding: 16px 20px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: center;
+}
+
+.instance-chat-panel__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.instance-chat-panel__body[data-empty] .chat-panel__messages {
+  opacity: 0.4;
+}
+
+.instance-chat-panel[data-disabled] .chat-input input,
+.instance-chat-panel[data-disabled] .chat-input textarea {
+  pointer-events: none;
+  opacity: 0.5;
+}

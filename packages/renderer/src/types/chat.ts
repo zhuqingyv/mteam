@@ -47,3 +47,15 @@ export interface InstanceBucket {
   messages: Message[];
   pendingPrompts: string[];
 }
+
+export type PeerRole = 'user' | 'leader' | 'member';
+
+export interface ChatPeer {
+  id: string;
+  name: string;
+  avatar?: string;
+  role: PeerRole;
+  lastMessage?: string;
+  lastTime?: string;
+  unread?: number;
+}

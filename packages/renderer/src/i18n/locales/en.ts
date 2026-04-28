@@ -32,6 +32,14 @@ const en: Partial<Record<TranslationKey, string>> = {
   'toolbar.settings': 'Settings',
   'toolbar.expand_team_panel': 'Expand team panel',
 
+  'canvas.members_count': '{count} members',
+  'canvas.zoom_menu': 'Zoom',
+  'canvas.fit': 'Fit to view',
+  'canvas.new_member': 'New member',
+  'canvas.zoom_in': 'Zoom in',
+  'canvas.zoom_out': 'Zoom out',
+  'canvas.zoom_reset': 'Reset zoom',
+
   'team.new_team': 'New team',
 
   'roles.title': 'Member Management',

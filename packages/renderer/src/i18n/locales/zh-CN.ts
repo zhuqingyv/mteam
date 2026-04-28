@@ -30,6 +30,14 @@ const zhCN = {
   'toolbar.settings': '设置',
   'toolbar.expand_team_panel': '展开团队面板',
 
+  'canvas.members_count': '{count} 成员',
+  'canvas.zoom_menu': '缩放',
+  'canvas.fit': '适应画布',
+  'canvas.new_member': '新成员',
+  'canvas.zoom_in': '放大',
+  'canvas.zoom_out': '缩小',
+  'canvas.zoom_reset': '重置缩放',
+
   'team.new_team': '新建团队',
 
   'roles.title': '成员管理',

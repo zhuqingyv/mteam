@@ -32,6 +32,14 @@ const zhTW: Partial<Record<TranslationKey, string>> = {
   'toolbar.settings': '設定',
   'toolbar.expand_team_panel': '展開團隊面板',
 
+  'canvas.members_count': '{count} 位成員',
+  'canvas.zoom_menu': '縮放',
+  'canvas.fit': '適應畫布',
+  'canvas.new_member': '新成員',
+  'canvas.zoom_in': '放大',
+  'canvas.zoom_out': '縮小',
+  'canvas.zoom_reset': '重設縮放',
+
   'team.new_team': '新建團隊',
 
   'roles.title': '成員管理',
