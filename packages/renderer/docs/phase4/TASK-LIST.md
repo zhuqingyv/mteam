@@ -6,14 +6,25 @@
 
 ---
 
+## 交付粒度
+
+- **一个 M/G 一个 PR**：每个任务独立成 PR，评审单元清晰，便于回滚
+- **合并到 Sprint 子 branch**：所有 Sprint N 的 PR 合到 `phase4/s{n}-{id}` 子 branch（如 `phase4/s1-m1`）
+- Sprint 整体验收通过后，子 branch 统一合回 `phase4/main`（或当前集成 branch）
+- 单个 PR 超过 200 行（含测试）一律打回重拆
+- PR 标题格式：`[Phase4][S{n}-{M|G}{序号}] 任务简述`
+
+---
+
 ## 全局约束（所有任务都适用）
 
 - 每个任务单文件 ≤ 200 行（含注释空行）；新建多文件也算合并行数
 - 独立模块（M）**不 import**：`store/` / `api/ws` / `hooks/wsEventHandlers` / 全局单例。只能 import：atoms、molecules、其它独立模块、纯函数 utils
+  - **S1-M1 显式豁免**：其 deprecated 代理层允许 import `usePrimaryAgentStore` 作为 fallback pid 来源
 - 胶水层（G）可以跨层组合，但也要一个文件一件事
 - 所有新代码必须带单测（`__tests__/*.test.ts(x)`），mock 只 mock 边界（WS / HTTP），不 mock 被测 store / hook
 - 完成即 `tsc` + `build` 自检
-- 组件类任务必须同时完成 playground 注册（在同 PR 内），否则不算完
+- **playground 注册统一由 S2-G1 完成**：S2 的 M 任务本身不要求 playground 注册（只保证组件可独立渲染 + 单测通过）；S2-G1 集中做所有新组件的 registry 登记和版本号升级
 - 交叉验证：模块做完由 team-lead 指派另一名成员按本任务 AC 逐条走一遍，通过才闭环
 
 ---
@@ -29,11 +40,12 @@
 - **完成判据**：
   - [ ] state 新增 `byInstance: Record<string, InstanceBucket>`，`InstanceBucket = { messages: Message[]; pendingPrompts: string[] }`
   - [ ] 新增 action：`addMessageFor(iid, m)` / `replaceMessageFor(iid, id, m)` / `setMessagesFor(iid, list)` / `clearFor(iid)` / `updateTurnBlockFor(iid, turnId, block)` / `removeTurnBlocksByTypeFor(iid, turnId, type)` / `completeTurnFor(iid, turnId)` / `enqueuePromptFor(iid, text)` / `dequeuePromptFor(iid)` / `clearPendingFor(iid)`
+  - [ ] 新增 action `markPeerRead(iid, peerId)`：把 `byInstance[iid].messages` 里 peerId 匹配的消息 `read` 置 true（peer 匹配规则：消息 `from === peerId` 或 `to === peerId`；peer='user' 匹配 user→agent 的 turn 消息）
   - [ ] 新增 selector：`selectMessagesFor(iid)` / `selectPendingFor(iid)` / `selectBucketFor(iid)`
-  - [ ] 兼容 selector：`selectPrimaryMessages(state)` 回退到主 Agent instanceId 的桶（通过注入 `resolvePrimaryInstanceId` 或延迟到 G1 阶段接入）—— 本任务只提供 `(state, iid?) => Message[]` 形态
+  - [ ] 兼容 selector 签名对齐契约：`selectPrimaryMessages(state: MessageState, primaryIid: string | null): Message[]`，`primaryIid` 为 null 时返回空数组
   - [ ] `MAX_MESSAGES = 1000` 按 bucket 独立生效
-  - [ ] 旧顶层 `messages/pendingPrompts/addMessage/...` 保留为 deprecated 代理，内部转调 `...For(PRIMARY_FALLBACK)`（由 G 阶段注入真实 pid）
-  - [ ] 单测 `messageStore.test.ts`：两个 iid 独立 add / 隔离 / 清理不互相影响 / 跨桶 turnId 不互串
+  - [ ] 旧顶层 `messages/pendingPrompts/addMessage/...` 保留为 deprecated 代理：内部用 `usePrimaryAgentStore.getState().instanceId` 做 fallback pid（本模块对此 import **显式豁免**独立模块禁 import store 的约束，已在全局约束中声明）；pid 为空时代理为 no-op 并打 console.warn
+  - [ ] 单测 `messageStore.test.ts`：两个 iid 独立 add / 隔离 / 清理不互相影响 / 跨桶 turnId 不互串 / `markPeerRead` 只标记指定 peer / edge case：A 排队 3 条 + B 正常发 1 条 → A cancel 后 B 队列不动（合并自原 S3-M2）
 - **交叉验证**：
   - [ ] 旧 `ExpandedView` 未改也能 build（兼容层到位）
   - [ ] 1000 条上限分桶生效
@@ -123,7 +135,7 @@
   - [ ] 不 import store / hooks 业务
   - [ ] 单测：props 变化 → class 变化 / onDragEnd 仅在 moved>3px 触发
 - **交叉验证**：
-  - [ ] playground 能看到四状态 demo，props 面板可调
+  - [ ] 组件可在 Storybook-style 独立页面渲染四态（playground 注册由 S2-G1 统一完成）
 
 ### S2-M2 CanvasNode 展开态骨架
 - **类型**：独立模块
@@ -186,24 +198,21 @@
   - [ ] 样式右下绝对定位预留（实际绝对定位由 parent 决定）
   - [ ] 单测：点击回调 / 双击 reset
 
-### S2-M7 MiniMap molecule（P1 骨架）
-- **类型**：独立模块
-- **文件**：`src/molecules/MiniMap/{MiniMap.tsx, MiniMap.css, index.ts}`
-- **复杂度**：M
-- **契约**：见 §5.7
-- **完成判据**：
-  - [ ] props：`nodes: {id,x,y}[] / viewport: {x,y,w,h} / canvasSize / onJump(x,y)`
-  - [ ] 纯 SVG（走 atoms/Icon 不够，本组件允许内联 SVG，标明特例）—— 或用 canvas 元素
-  - [ ] 节点点 + 视口框 + 点击跳转
-  - [ ] 单测：props 渲染正确 / onJump 回调
+### ~~S2-M7 MiniMap molecule（P1 骨架）~~ **[延后到 S6，本期不做]**
+- **状态**：🚫 延后
+- **原因**：实现需要裸 SVG 或裸 canvas，违反 `.claude/CLAUDE.md` 第 0 节铁律（0 裸 SVG；所有图形必须走 `<Icon name="..." />`）
+- **解锁条件**：需先在全局 `CLAUDE.md` / `.claude/CLAUDE.md` 为 MiniMap 开白名单（或将 `atoms/Icon` 扩展支持节点点/视口框的 primitive），再在 S6 重新开工
+- **原计划契约**：暂存于 `INTERFACE-CONTRACTS.md` §5.7，S6 启动时再核对
+- **影响**：S6-M3 / S6-G2 依赖此组件，同步延后；Sprint 6 启动前 team-lead 需复核白名单状态
 
 ### S2-G1 playground 集中注册 + demo 数据 + 版本号升级
 - **类型**：胶水层
 - **文件**：`playground/registry.ts` / `playground/App.tsx` / `playground/index.html`
 - **复杂度**：M
-- **依赖**：S2-M1 ~ S2-M7
+- **依赖**：S2-M1 ~ S2-M6（**S2-M7 已延后，本任务不涉及 MiniMap**）
 - **完成判据**：
   - [ ] 每个新组件 entry 写进 registry：name / layer / group / defaults / handlers
+  - [ ] 覆盖的组件：CanvasNode（收起态）/ CanvasNodeExpanded / InstanceChatPanel / ChatList + ChatListItem / CanvasTopBar / ZoomControl
   - [ ] 可调 props 有 PropDef；所有 onXxx 回调在 Events 面板能看到日志
   - [ ] Playground 版本号 minor 升（如 1.5.0 → 1.6.0），App.tsx + index.html 两处同步
   - [ ] `npm run playground:build` 成功

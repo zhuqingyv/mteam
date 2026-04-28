@@ -217,7 +217,7 @@ export interface CanvasNodeExpandedProps {
 }
 ```
 
-- 宽高冻结：**420 × 540**（pm PRD 提过 560，此处按 UX 小节落 540；若展示不够再议）
+- 宽高冻结：**420 × 540**（pm PRD 提过 560，此处按 UX 小节锁死 540，不再议）
 - z-index 由外层应用 `resolveNodeZ`（见 §7）
 - fixed 定位由 S5-G1 做，不在组件内部硬写
 
@@ -233,7 +233,7 @@ export interface InstanceChatPanelProps {
   inputValue?: string;
   onInputChange?: (v: string) => void;
   onSend?: () => void;             // 外部决定走 ws.prompt 还是 comm API
-  onStop?: () => void;             // streaming 时显示停止
+  onStop?: () => void;             // streaming 时显示停止（注意：props 名是 onStop，不是 onCancel）
   headerSlot?: ReactNode;          // 自定义头部；CanvasNodeExpanded 里用不到（顶栏在外层）
   emptyHint?: string;              // 空列表提示
   disabled?: boolean;              // 禁用输入（driver not_ready / 其它）
@@ -355,6 +355,8 @@ export function useCanvasControls(transformApi: {
 };
 ```
 
+> 内部实现：`setZoom(z) = setTransform({ ...getTransform(), zoom: z })`，不修改 `useCanvasTransform`。
+
 ### 6.5 useCanvasHotkeys（S5-M4）
 
 ```ts
@@ -442,8 +444,13 @@ InstanceChatPanel.onSend
 ```
 展开节点 A 选中 peer=B
 InstanceChatPanel.onSend
-  → sendAgentMessage(fromInstanceId=A, toInstanceId=B, text)
-  → POST /api/agents/:A/messages/send { to: B, text, kind:'chat' }
+  → sendAgentMessage(toInstanceId=B, text)
+  → POST /api/panel/messages
+       body = {
+         to:      { address: 'local:<B>', kind: 'agent' },
+         content: text,
+         kind:    'chat',
+       }
 后端 → CommRouter → comm.message_sent 事件
 订阅 instance B → subscribers 分桶写到 byInstance[A]（outbound）和 byInstance[B]（inbound）
 前端 handleCommEvent（新）：
@@ -451,11 +458,48 @@ InstanceChatPanel.onSend
   - 给 to 桶写 kind='comm-in' peerId=from
 ```
 
+**sendAgentMessage 函数签名**：
+
+```ts
+/**
+ * 发送消息给另一个 instance（agent 间 chat）。
+ * from 由后端强制注入为 user:local —— 前端无法指定发送者身份，任何 body.from 都会被后端忽略。
+ * 因此"当前在哪个节点打字"是 UI 语义，不等于 envelope.from。
+ */
+export function sendAgentMessage(toInstanceId: string, text: string): Promise<{ messageId: string; route: string }>;
+// 实际实现：POST /api/panel/messages，body = { to: { address: `local:${toInstanceId}`, kind: 'agent' }, content: text, kind: 'chat' }
+```
+
+**comm.message_sent envelope 的 from/to 结构**：
+
+- `from` / `to` 是 `ActorRef`，形如 `{ kind: 'user'|'agent'|'system', address: 'user:<uid>'|'local:<instanceId>'|'local:system', displayName, instanceId?: string|null, memberName?: string|null, origin?: 'local'|'remote' }`
+- **peer 提取口径**（订阅层分桶/归属判断时统一走这里）：
+
+```ts
+function extractPeerId(actor: ActorRef): string {
+  if (actor.kind === 'user') return 'user';                         // user 侧一律归到 peerId='user'
+  return actor.instanceId ?? parseAddress(actor.address).id;        // agent 侧优先 instanceId，否则从 address 解析
+}
+```
+
+- 分桶与 peer 归属：
+  - A→B 的 envelope：`byInstance[A]` 写 `kind='comm-out'`、`peerId = extractPeerId(envelope.to)`
+  - 同一条 envelope 在 B 侧：`byInstance[B]` 写 `kind='comm-in'`、`peerId = extractPeerId(envelope.from)`
+  - user→A 的 envelope（10.1 非 WS 路径场景）：`byInstance[A]` 写 `peerId='user'`
+
 ### 10.3 未读算法
 
 - 消息进入桶时默认 `read=false`
 - 当前展开的 peer 的消息 → `markPeerRead(iid, peerId)` 把该 peer 所有消息的 `read` 置 true
 - `unreadCount` = 统计 `read !== true` 且 `peerId === targetPeerId` 的消息条数
+
+**markPeerRead 时序（权威）**：
+
+1. 用户在节点 A 的 ChatList 选中 peer=P（即切换 activePeer），立刻对 `(A, P)` 调 `markPeerRead`，把已在桶里的历史未读全部置 read。
+2. 收起/关闭节点 A 的展开态，或切到别的 peer，要重置 `activePeerId`，此后到达 `(A, P)` 的新消息不再自动标 read。
+3. **在 `(instanceId, peerId)` 当前处于展开且活跃态时，新消息入桶即标 `read=true`**（订阅层 addMessageFor 前检查 activePeerId，命中则直接写 read）。
+
+> **activePeerId 是 session-only 状态**：只活在前端内存里，不落盘、不跨窗口同步；关闭窗口 / 刷新 / 进程重启后全部重置为空，不会恢复上次的活跃 peer。
 
 ---
 
