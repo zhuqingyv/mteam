@@ -60,6 +60,7 @@ export default function TeamCanvas({
             name={a.name}
             status={a.status}
             cliType={a.cliType}
+            avatar={a.avatar}
             isLeader={a.isLeader}
             taskCount={a.taskCount}
             unreadCount={a.unreadCount}

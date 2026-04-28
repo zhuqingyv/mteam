@@ -10,6 +10,7 @@ export interface CanvasNodeProps {
   name: string;
   status: CanvasNodeStatus;
   cliType?: string;
+  avatar?: string | null;        // 成员头像图片 URL；空值走首字母兜底
   isLeader?: boolean;
   taskCount?: number;
   unreadCount?: number;
@@ -48,6 +49,7 @@ export default function CanvasNode({
   name,
   status,
   cliType,
+  avatar = null,
   isLeader = false,
   taskCount = 0,
   unreadCount = 0,
@@ -126,7 +128,20 @@ export default function CanvasNode({
       onMouseDown={onMouseDown}
     >
       <div className="canvas-node__head">
-        {cliType && <AgentLogo cliType={cliType} size={16} grayscale={status === 'offline'} />}
+        <span className="canvas-node__avatar" aria-hidden>
+          {avatar ? (
+            <img src={avatar} alt="" className="canvas-node__avatar-img" />
+          ) : (
+            <span className="canvas-node__avatar-initial">
+              {name.charAt(0).toUpperCase() || '?'}
+            </span>
+          )}
+          {cliType && (
+            <span className="canvas-node__avatar-badge">
+              <AgentLogo cliType={cliType} size={14} grayscale={status === 'offline'} />
+            </span>
+          )}
+        </span>
         <StatusDot status={DOT[status]} size="sm" />
         <span className="canvas-node__name" title={name}>{name}</span>
         {unreadCount > 0 && (

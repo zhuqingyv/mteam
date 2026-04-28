@@ -66,6 +66,7 @@ export interface CanvasNodeData {
   name: string;
   status: 'idle' | 'thinking' | 'responding' | 'offline';
   cliType?: string;
+  avatar?: string | null;        // 成员头像图片 URL；UI 层大圆展示
   isLeader: boolean;
   x: number;
   y: number;
