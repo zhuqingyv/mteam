@@ -1,5 +1,7 @@
+import { useCallback, useEffect, useRef } from 'react';
 import AgentCard from '../../molecules/AgentCard';
-import { useCanvasTransform } from '../../hooks/useCanvasTransform';
+import { useCanvasTransform, type Transform } from '../../hooks/useCanvasTransform';
+import { useTentacles } from '../../hooks/useTentacles';
 import './TeamCanvas.css';
 
 interface Agent {
@@ -10,15 +12,35 @@ interface Agent {
   lastMessage?: string;
   x: number;
   y: number;
+  isLeader?: boolean;
 }
 
 interface TeamCanvasProps {
   agents: Agent[];
+  initialTransform?: Transform;
   onAgentDragEnd?: (id: string, x: number, y: number) => void;
+  onTransformCommit?: (t: Transform) => void;
 }
 
-export default function TeamCanvas({ agents, onAgentDragEnd }: TeamCanvasProps) {
-  const { viewportRef, containerRef, onPanStart, reset, isPanning, getZoom } = useCanvasTransform();
+export default function TeamCanvas({
+  agents, initialTransform, onAgentDragEnd, onTransformCommit,
+}: TeamCanvasProps) {
+  const { viewportRef, containerRef, onPanStart, reset, isPanning, getZoom, setTransform } =
+    useCanvasTransform({ onTransformCommit });
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const cardEls = useRef<Map<string, HTMLElement>>(new Map());
+
+  const getCardElement = useCallback((id: string) => cardEls.current.get(id) ?? null, []);
+
+  useTentacles(
+    canvasRef,
+    agents.map((a) => ({ id: a.id, isLeader: !!a.isLeader })),
+    getCardElement,
+  );
+
+  useEffect(() => {
+    if (initialTransform) setTransform(initialTransform);
+  }, [initialTransform, setTransform]);
 
   const cls = ['team-canvas'];
   if (isPanning) cls.push('team-canvas--panning');
@@ -30,6 +52,7 @@ export default function TeamCanvas({ agents, onAgentDragEnd }: TeamCanvasProps) 
       onMouseDown={onPanStart}
       onDoubleClick={(e) => { if (e.target === e.currentTarget) reset(); }}
     >
+      <canvas ref={canvasRef} className="team-canvas__fx" />
       <div className="team-canvas__viewport" ref={viewportRef}>
         {agents.map((a) => (
           <AgentCard
@@ -42,6 +65,10 @@ export default function TeamCanvas({ agents, onAgentDragEnd }: TeamCanvasProps) 
             y={a.y}
             onDragEnd={(x, y) => onAgentDragEnd?.(a.id, x, y)}
             getZoom={getZoom}
+            elementRef={(el) => {
+              if (el) cardEls.current.set(a.id, el);
+              else cardEls.current.delete(a.id);
+            }}
           />
         ))}
       </div>

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AgentLogo from '../../atoms/AgentLogo';
 import StatusDot from '../../atoms/StatusDot';
 import CapsuleCard from '../../organisms/CapsuleCard';
@@ -12,17 +12,25 @@ interface AgentCardProps {
   lastMessage?: string;
   x?: number; y?: number;
   onDragEnd?: (x: number, y: number) => void;
+  onPositionChange?: (x: number, y: number) => void;
   getZoom?: () => number;
+  elementRef?: (el: HTMLDivElement | null) => void;
 }
 const DOT: Record<AgentStatus, 'online' | 'thinking' | 'responding' | 'offline'> = {
   idle: 'online', thinking: 'thinking', responding: 'responding', offline: 'offline',
 };
 
-export default function AgentCard({ name, status, cliType, lastMessage, x = 0, y = 0, onDragEnd, getZoom }: AgentCardProps) {
+export default function AgentCard({
+  name, status, cliType, lastMessage, x = 0, y = 0,
+  onDragEnd, onPositionChange, getZoom, elementRef,
+}: AgentCardProps) {
   const [pos, setPos] = useState({ x, y });
   const [drag, setDrag] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const ref = useRef<{ mx: number; my: number; px: number; py: number; moved: boolean } | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => { onPositionChange?.(pos.x, pos.y); }, [pos.x, pos.y, onPositionChange]);
 
   const down = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -54,8 +62,13 @@ export default function AgentCard({ name, status, cliType, lastMessage, x = 0, y
   if (drag) cls.push('agent-card--drag');
   if (expanded) cls.push('agent-card--expanded');
 
+  const setRoot = (el: HTMLDivElement | null) => {
+    rootRef.current = el;
+    elementRef?.(el);
+  };
+
   return (
-    <div className={cls.join(' ')} style={{ left: pos.x, top: pos.y }}>
+    <div ref={setRoot} className={cls.join(' ')} data-status={status} style={{ left: pos.x, top: pos.y }}>
       {expanded ? (
         <CapsuleCard name={name} agentCount={0} taskCount={0} messageCount={0}
           online={status !== 'offline'} expanded onToggle={() => setExpanded(false)} />

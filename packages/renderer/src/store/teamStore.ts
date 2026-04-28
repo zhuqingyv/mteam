@@ -1,10 +1,17 @@
 import { create } from 'zustand';
 import type { TeamRow, TeamMemberRow } from '../api/teams';
 
+export interface CanvasState {
+  pan: { x: number; y: number };
+  zoom: number;
+  nodePositions: Record<string, { x: number; y: number }>;
+}
+
 interface TeamState {
   teams: TeamRow[];
   activeTeamId: string | null;
   teamMembers: Record<string, TeamMemberRow[]>;
+  canvasStates: Record<string, CanvasState>;
   setTeams: (teams: TeamRow[]) => void;
   addTeam: (team: TeamRow) => void;
   removeTeam: (id: string) => void;
@@ -13,20 +20,26 @@ interface TeamState {
   setTeamMembers: (teamId: string, members: TeamMemberRow[]) => void;
   addTeamMember: (teamId: string, member: TeamMemberRow) => void;
   removeTeamMember: (teamId: string, instanceId: string) => void;
+  saveCanvasState: (teamId: string, state: CanvasState) => void;
+  getCanvasState: (teamId: string) => CanvasState | undefined;
+  updateNodePosition: (teamId: string, agentId: string, pos: { x: number; y: number }) => void;
 }
 
-export const useTeamStore = create<TeamState>()((set) => ({
+export const useTeamStore = create<TeamState>()((set, get) => ({
   teams: [],
   activeTeamId: null,
   teamMembers: {},
+  canvasStates: {},
   setTeams: (teams) => set({ teams }),
   addTeam: (team) => set((s) => ({ teams: [...s.teams, team] })),
   removeTeam: (id) => set((s) => {
-    const { [id]: _, ...rest } = s.teamMembers;
+    const { [id]: _m, ...restMembers } = s.teamMembers;
+    const { [id]: _c, ...restCanvas } = s.canvasStates;
     return {
       teams: s.teams.filter((t) => t.id !== id),
       activeTeamId: s.activeTeamId === id ? null : s.activeTeamId,
-      teamMembers: rest,
+      teamMembers: restMembers,
+      canvasStates: restCanvas,
     };
   }),
   updateTeam: (id, patch) => set((s) => ({
@@ -48,6 +61,26 @@ export const useTeamStore = create<TeamState>()((set) => ({
       teamMembers: {
         ...s.teamMembers,
         [teamId]: list.filter((m) => m.instanceId !== instanceId),
+      },
+    };
+  }),
+  saveCanvasState: (teamId, state) => set((s) => ({
+    canvasStates: { ...s.canvasStates, [teamId]: state },
+  })),
+  getCanvasState: (teamId) => get().canvasStates[teamId],
+  updateNodePosition: (teamId, agentId, pos) => set((s) => {
+    const prev = s.canvasStates[teamId] ?? {
+      pan: { x: 0, y: 0 },
+      zoom: 1,
+      nodePositions: {},
+    };
+    return {
+      canvasStates: {
+        ...s.canvasStates,
+        [teamId]: {
+          ...prev,
+          nodePositions: { ...prev.nodePositions, [agentId]: pos },
+        },
       },
     };
   }),

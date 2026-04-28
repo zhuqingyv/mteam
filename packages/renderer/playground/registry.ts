@@ -1026,8 +1026,8 @@ export const registry: ComponentEntry[] = [
         { id: 'a4', name: 'Gemini', status: 'offline', cliType: 'gemini', x: 440, y: 40 },
       ],
     },
-    note: '画布可平移(空白处拖)/缩放(滚轮,0.25~3,鼠标位置为中心)/双击重置；节点可拖拽(已按 zoom 换算)',
-    handlers: () => ({ onAgentDragEnd: () => {} }),
+    note: '画布可平移(空白处拖)/缩放(滚轮,0.25~3,鼠标位置为中心)/双击重置；节点可拖拽(已按 zoom 换算)；onTransformCommit 在 pan/zoom 结束时触发，用于持久化',
+    handlers: () => ({ onAgentDragEnd: () => {}, onTransformCommit: () => {} }),
   },
   {
     name: 'TeamMonitorPanel',
@@ -1058,6 +1058,7 @@ export const registry: ComponentEntry[] = [
       onSelectTeam: (id: unknown) => setValues((p) => ({ ...p, activeTeamId: id as string })),
       onCreateTeam: () => {},
       onAgentDragEnd: () => {},
+      onCanvasTransformCommit: () => {},
     }),
   },
   {

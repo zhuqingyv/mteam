@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PanelWindow from '../templates/PanelWindow';
 import TeamMonitorPanel from '../organisms/TeamMonitorPanel';
 import Surface from '../atoms/Surface';
@@ -7,16 +7,23 @@ import Icon from '../atoms/Icon';
 import Text from '../atoms/Text';
 import { listTeams, getTeam, createTeam } from '../api/teams';
 import { useTeamStore, usePrimaryAgentStore, useAgentStore } from '../store';
+import { computeLayout } from '../organisms/TeamCanvas/layout';
+import type { Transform } from '../hooks/useCanvasTransform';
 import './TeamPage.css';
+
+const DEFAULT_CANVAS: { width: number; height: number } = { width: 960, height: 560 };
 
 export default function TeamPage() {
   const [collapsed, setCollapsed] = useState(false);
   const teams = useTeamStore((s) => s.teams);
   const activeTeamId = useTeamStore((s) => s.activeTeamId);
   const teamMembers = useTeamStore((s) => s.teamMembers);
+  const canvasStates = useTeamStore((s) => s.canvasStates);
   const setTeams = useTeamStore((s) => s.setTeams);
   const setActiveTeam = useTeamStore((s) => s.setActiveTeam);
   const setTeamMembers = useTeamStore((s) => s.setTeamMembers);
+  const saveCanvasState = useTeamStore((s) => s.saveCanvasState);
+  const updateNodePosition = useTeamStore((s) => s.updateNodePosition);
   const leaderInstanceId = usePrimaryAgentStore((s) => s.instanceId);
   const agentPool = useAgentStore((s) => s.agents);
 
@@ -24,7 +31,6 @@ export default function TeamPage() {
     listTeams().then((r) => { if (r.ok && r.data) setTeams(r.data); }).catch(() => {});
   }, [setTeams]);
 
-  // activeTeamId 变化：HTTP 拉成员列表补齐（WS 只能补增量，首次/切换要全量）。
   useEffect(() => {
     if (!activeTeamId) return;
     getTeam(activeTeamId).then((r) => {
@@ -33,7 +39,6 @@ export default function TeamPage() {
   }, [activeTeamId, setTeamMembers]);
 
   const hasTeams = teams.length > 0;
-  // 新建 team 后自动从胶囊态展开（PRD Case 2）。
   useEffect(() => { if (hasTeams) setCollapsed(false); }, [hasTeams]);
 
   const sidebarTeams = teams.map((t) => ({
@@ -46,34 +51,51 @@ export default function TeamPage() {
   const leaderId = activeTeam?.leaderInstanceId;
   const currentMembers = activeTeamId ? (teamMembers[activeTeamId] ?? []) : [];
 
-  const cards: { id: string; name: string; status: string; isLeader: boolean }[] = [];
-  if (leaderId) {
-    const pool = agentPool.find((a) => a.id === leaderId);
-    cards.push({
-      id: leaderId,
-      name: pool?.name ?? 'Leader',
-      status: pool?.status ?? 'idle',
-      isLeader: true,
-    });
-  }
-  for (const m of currentMembers) {
-    if (m.instanceId === leaderId) continue;
-    const pool = agentPool.find((a) => a.id === m.instanceId);
-    cards.push({
-      id: m.instanceId,
-      name: m.roleInTeam ?? pool?.name ?? m.instanceId,
-      status: pool?.status ?? 'idle',
-      isLeader: false,
-    });
-  }
+  const cards = useMemo(() => {
+    const list: { id: string; name: string; status: string; isLeader: boolean }[] = [];
+    if (leaderId) {
+      const pool = agentPool.find((a) => a.id === leaderId);
+      list.push({
+        id: leaderId,
+        name: pool?.name ?? 'Leader',
+        status: pool?.status ?? 'idle',
+        isLeader: true,
+      });
+    }
+    for (const m of currentMembers) {
+      if (m.instanceId === leaderId) continue;
+      const pool = agentPool.find((a) => a.id === m.instanceId);
+      list.push({
+        id: m.instanceId,
+        name: m.roleInTeam ?? pool?.name ?? m.instanceId,
+        status: pool?.status ?? 'idle',
+        isLeader: false,
+      });
+    }
+    return list;
+  }, [leaderId, currentMembers, agentPool]);
 
-  const agents = cards.map((c, i) => ({
-    id: c.id,
-    name: c.name,
-    status: c.status === 'running' ? 'working' : c.status === 'offline' ? 'shutdown' : 'idle',
-    x: 120 + i * 200,
-    y: 140,
-  }));
+  const savedCanvas = activeTeamId ? canvasStates[activeTeamId] : undefined;
+
+  const positions = useMemo(() => {
+    return computeLayout(
+      cards.map((c) => ({ id: c.id, isLeader: c.isLeader })),
+      DEFAULT_CANVAS,
+      savedCanvas?.nodePositions ?? {},
+    );
+  }, [cards, savedCanvas]);
+
+  const agents = cards.map((c) => {
+    const p = positions[c.id] ?? { x: 0, y: 0 };
+    return {
+      id: c.id,
+      name: c.name,
+      status: c.status === 'running' ? 'working' : c.status === 'offline' ? 'shutdown' : 'idle',
+      x: p.x,
+      y: p.y,
+      isLeader: c.isLeader,
+    };
+  });
 
   const handleSelectTeam = (id: string) => setActiveTeam(id);
 
@@ -82,6 +104,25 @@ export default function TeamPage() {
     if (!name?.trim() || !leaderInstanceId) return;
     createTeam({ name: name.trim(), leaderInstanceId }).catch(() => {});
   };
+
+  const handleAgentDragEnd = (id: string, x: number, y: number) => {
+    if (!activeTeamId) return;
+    updateNodePosition(activeTeamId, id, { x, y });
+  };
+
+  const handleCanvasTransformCommit = (t: Transform) => {
+    if (!activeTeamId) return;
+    const prev = canvasStates[activeTeamId];
+    saveCanvasState(activeTeamId, {
+      pan: { x: t.x, y: t.y },
+      zoom: t.zoom,
+      nodePositions: prev?.nodePositions ?? {},
+    });
+  };
+
+  const canvasTransform: Transform | undefined = savedCanvas
+    ? { x: savedCanvas.pan.x, y: savedCanvas.pan.y, zoom: savedCanvas.zoom }
+    : undefined;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') window.close(); };
@@ -103,6 +144,9 @@ export default function TeamPage() {
           activeTeamId={activeTeamId ?? undefined}
           onSelectTeam={handleSelectTeam}
           onCreateTeam={handleCreateTeam}
+          onAgentDragEnd={handleAgentDragEnd}
+          canvasTransform={canvasTransform}
+          onCanvasTransformCommit={handleCanvasTransformCommit}
           collapsed={collapsed}
           onToggleCollapsed={() => setCollapsed((v) => !v)}
         />
