@@ -48,6 +48,11 @@ function loadRenderer(win: BrowserWindow, query = ''): void {
 }
 
 function createWindow(): void {
+  // 防重复：boot 和 activate 路径都可能调到这里
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.focus();
+    return;
+  }
   const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
   mainWindow = new BrowserWindow({
     ...baseGlassOptions,
@@ -159,6 +164,20 @@ ipcMain.on('window:resize', (_e, payload: { width: number; height: number; ancho
     payload.animate ?? false,
   );
 });
+
+// 单实例锁：macOS 上多次 `bun run start` 会起多个 Electron 进程，
+// 导致桌面出现两个胶囊。拿不到锁的直接退出，已经在跑的那个聚焦主窗。
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
 
 app.whenReady().then(() => {
   if (process.platform === 'darwin' && app.dock) {

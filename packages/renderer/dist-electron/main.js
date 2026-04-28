@@ -148,6 +148,10 @@ function loadRenderer(win, query = "") {
   }
 }
 function createWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.focus();
+    return;
+  }
   const { width: screenW, height: screenH } = import_electron.screen.getPrimaryDisplay().workAreaSize;
   mainWindow = new import_electron.BrowserWindow({
     ...baseGlassOptions,
@@ -266,6 +270,18 @@ import_electron.ipcMain.on("window:resize", (_e, payload) => {
   newY = Math.max(wa.y + 8, Math.min(newY, wa.y + wa.height - payload.height - 8));
   mainWindow.setBounds({ x: newX, y: newY, width: payload.width, height: payload.height }, payload.animate ?? false);
 });
+var gotLock = import_electron.app.requestSingleInstanceLock();
+if (!gotLock) {
+  import_electron.app.quit();
+} else {
+  import_electron.app.on("second-instance", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized())
+        mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
 import_electron.app.whenReady().then(() => {
   if (process.platform === "darwin" && import_electron.app.dock) {
     import_electron.app.dock.setIcon(import_electron.nativeImage.createFromPath(ICON_PATH));
