@@ -6,6 +6,7 @@ import { templateEntries } from './templates.js';
 import { avatarEntries } from './avatars.js';
 import { mcpStoreEntries } from './mcp-store.js';
 import { notificationEntries } from './notification.js';
+import { systemEntries } from './system.js';
 
 export const ALL_SETTING_ENTRIES: SettingEntry[] = [
   ...primaryAgentEntries,
@@ -13,4 +14,5 @@ export const ALL_SETTING_ENTRIES: SettingEntry[] = [
   ...avatarEntries,
   ...mcpStoreEntries,
   ...notificationEntries,
+  ...systemEntries,
 ];

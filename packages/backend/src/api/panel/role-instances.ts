@@ -5,7 +5,7 @@
 //   instance.offline_requested → roster.update PENDING_OFFLINE
 //   instance.deleted → member-driver.stop + roster.remove
 import { RoleTemplate } from '../../domain/role-template.js';
-import { RoleInstance } from '../../domain/role-instance.js';
+import { RoleInstance, QuotaExceededError } from '../../domain/role-instance.js';
 import type { CreateRoleInstanceInput } from '../../domain/role-instance.js';
 import type { ApiResponse } from './role-templates.js';
 import { bus } from '../../bus/index.js';
@@ -64,7 +64,16 @@ export function handleCreateInstance(body: unknown): ApiResponse {
     task: (body.task as string | null | undefined) ?? null,
     leaderName: (body.leaderName as string | null | undefined) ?? null,
   };
-  const instance = RoleInstance.create(input);
+  let instance: RoleInstance;
+  try {
+    instance = RoleInstance.create(input);
+  } catch (err) {
+    if (err instanceof QuotaExceededError) {
+      const { message: error, code, resource, current, limit } = err;
+      return { status: 409, body: { error, code, resource, current, limit } };
+    }
+    throw err;
+  }
 
   bus.emit({
     ...makeBase('instance.created', 'api/panel/role-instances', newCorrelationId()),

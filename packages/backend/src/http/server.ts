@@ -7,6 +7,7 @@ import { createDriverDispatcher } from '../comm/driver-dispatcher.js';
 import { driverRegistry } from '../agent-driver/registry.js';
 import { ensureDefaults as ensureMcpDefaults } from '../mcp-store/store.js';
 import { ensureDefaultTemplates } from '../domain/default-templates.js';
+import { ensureDefaultWorkflows } from '../workflow/defaults.js';
 import { ensureBuiltinAvatars } from '../avatar/init.js';
 import { settingsRegistry } from '../settings/registry.js';
 import { ALL_SETTING_ENTRIES } from '../settings/entries/index.js';
@@ -55,6 +56,7 @@ export function createServer(): http.Server {
   getDb();
   ensureMcpDefaults();
   ensureDefaultTemplates();
+  ensureDefaultWorkflows();
   ensureBuiltinAvatars();
   settingsRegistry.registerAll(ALL_SETTING_ENTRIES);
   return http.createServer(async (req, res) => {

@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db/connection.js';
+import { readMaxAgents } from '../system/quota-config.js';
 import { RoleStatus, resolveTransition } from './state-machine.js';
 import { stmt } from './role-instance-statements.js';
+import { QuotaExceededError } from './errors.js';
+
+export { QuotaExceededError };
 
 export interface RoleInstanceProps {
   id: string;
@@ -92,7 +96,18 @@ export class RoleInstance {
     const task = input.task ?? null;
 
     const db = getDb();
+    // 配额检查在事务内做：SQLite 默认 serialized 事务，COUNT+INSERT 原子，
+    // 天然防并发双写超限。limit=0 → 不限。详见 docs/phase5/agent-quota-design.md §2.2。
     db.transaction(() => {
+      const limit = readMaxAgents();
+      if (limit > 0) {
+        const row = db
+          .prepare('SELECT COUNT(*) AS c FROM role_instances')
+          .get() as { c: number };
+        if (row.c >= limit) {
+          throw new QuotaExceededError({ current: row.c, limit });
+        }
+      }
       stmt.insertRow().run(id, input.templateName, input.memberName, isLeader ? 1 : 0,
         teamId, projectId, leaderName, task, now);
       stmt.insertCreateEvent().run(id, now);

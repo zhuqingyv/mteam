@@ -68,7 +68,7 @@ describe('P1-4 schema_version 跳过 applySchemas', () => {
     const db = getDb();
     const rows = db.prepare('SELECT version FROM schema_version').all() as Array<{ version: number }>;
     expect(rows).toHaveLength(1);
-    expect(rows[0].version).toBe(3);
+    expect(rows[0].version).toBe(4);
   });
 
   it('文件 DB：第二次 getDb 跳过 applySchemas（手动删表不会被重建）', () => {
@@ -82,7 +82,7 @@ describe('P1-4 schema_version 跳过 applySchemas', () => {
       const db1 = getDb();
       const v1 = db1.prepare('SELECT version FROM schema_version').all() as Array<{ version: number }>;
       expect(v1).toHaveLength(1);
-      expect(v1[0].version).toBe(3);
+      expect(v1[0].version).toBe(4);
       // teams 表这时应在（schemas/teams.sql 已被 apply）
       const teamsBefore = db1
         .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='teams'`)
@@ -102,7 +102,7 @@ describe('P1-4 schema_version 跳过 applySchemas', () => {
       expect(teamsAfter).toBeFalsy();
       const v2 = db2.prepare('SELECT version FROM schema_version').all() as Array<{ version: number }>;
       expect(v2).toHaveLength(1);
-      expect(v2[0].version).toBe(3);
+      expect(v2[0].version).toBe(4);
 
       closeDb();
     } finally {
@@ -126,7 +126,7 @@ describe('P1-4 schema_version 跳过 applySchemas', () => {
       .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='role_templates'`)
       .get();
     expect(row).toBeTruthy();
-    const ver = db.prepare('SELECT version FROM schema_version WHERE version = ?').get(3);
+    const ver = db.prepare('SELECT version FROM schema_version WHERE version = ?').get(4);
     expect(ver).toBeTruthy();
   });
 });
