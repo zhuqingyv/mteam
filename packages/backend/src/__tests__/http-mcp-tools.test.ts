@@ -215,6 +215,24 @@ describe('GET /api/mcp-tools/search', () => {
     }
   });
 
+  it('Primary Agent instanceId → 200（不 404）', async () => {
+    // 配置一个 primary agent 获得其 id
+    const cfgRes = await post('/api/primary-agent/config', {
+      name: 'TestPrimary',
+      cliType: 'claude',
+    });
+    expect(cfgRes.status).toBe(200);
+    const cfg = (await cfgRes.json()) as { id: string };
+    expect(cfg.id).toBeTruthy();
+
+    // 用 primary agent 的 id 调 search —— 之前会 404
+    const res = await searchHits(cfg.id, 'send');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { hits: unknown[] };
+    // Primary Agent 用 mteam-primary 而非 mteam，catalogFor 不识别 → hits 为空，但不应 404
+    expect(Array.isArray(body.hits)).toBe(true);
+  });
+
   it('search=[check_inbox] → 只能搜到 check_inbox', async () => {
     if (!HAS_TRUE) return;
     const tpl = `tpl-srch-lim-${Date.now()}`;

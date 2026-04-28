@@ -9,6 +9,7 @@ import { RoleInstance } from '../../domain/role-instance.js';
 import { RoleTemplate } from '../../domain/role-template.js';
 import type { McpToolVisibility } from '../../domain/role-template.js';
 import { ALL_TOOLS } from '../../mcp/tools/registry.js';
+import { readRow as readPrimaryRow } from '../../primary-agent/repo.js';
 import type { ApiResponse } from './role-templates.js';
 
 export interface SearchHit {
@@ -70,19 +71,36 @@ export function handleSearchMcpTools(query: URLSearchParams): ApiResponse {
   if (!q) return errRes(400, 'q is required');
 
   const instance = RoleInstance.findById(instanceId);
-  if (!instance) return errRes(404, `instance '${instanceId}' not found`);
+
+  // Primary Agent 不在 role_instances 表里——它的 id 在 primary_agent 表。
+  // 当 RoleInstance 找不到时退化到 primary_agent 查表；主 Agent 的 mcpConfig
+  // 里通常不含 mteam（它用 mteam-primary），次屏工具集为空，直接返回空 hits。
+  if (!instance) {
+    const primary = readPrimaryRow();
+    if (primary && primary.id === instanceId) {
+      return searchForMcps(primary.mcpConfig, q, true);
+    }
+    return errRes(404, `instance '${instanceId}' not found`);
+  }
 
   const template = RoleTemplate.findByName(instance.templateName);
   if (!template) {
     return errRes(404, `template '${instance.templateName}' not found`);
   }
 
+  return searchForMcps(template.availableMcps, q, instance.isLeader);
+}
+
+function searchForMcps(
+  mcps: McpToolVisibility[],
+  q: string,
+  isLeader: boolean,
+): ApiResponse {
   const hits: SearchHit[] = [];
-  for (const vis of template.availableMcps) {
+  for (const vis of mcps) {
     const catalog = catalogFor(vis.name);
-    // leaderOnly 工具对非 leader 实例硬过滤（角色约束 > 可见性配置）。
     const roleFiltered = catalog.filter(
-      (t) => !t.leaderOnly || instance.isLeader,
+      (t) => !t.leaderOnly || isLeader,
     );
     const candidates = nonSurfaceTools(vis, roleFiltered);
     for (const entry of candidates) {
