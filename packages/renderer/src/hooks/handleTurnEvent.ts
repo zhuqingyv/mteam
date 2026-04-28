@@ -59,8 +59,8 @@ export function handleTurnEvent(t: string, e: Record<string, unknown>) {
     const turnId = String(e.turnId ?? '');
     if (!turnId) return;
     ms.completeTurn(turnId);
-    // turn 结束后把队列里的下一条立刻派发出去。
-    flushNextPending();
+    // turn 结束后把对应 iid 桶的队列下一条立刻派发出去。
+    if (did) flushNextPending(did);
     return;
   }
 
@@ -87,7 +87,7 @@ export function handleTurnEvent(t: string, e: Record<string, unknown>) {
       });
     }
     // 出错也继续派发下一条，避免队列卡死。
-    flushNextPending();
+    if (did) flushNextPending(did);
     return;
   }
 
