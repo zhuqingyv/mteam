@@ -1,6 +1,15 @@
-# 通知系统设计（Phase 5）
+# 通知中心设计（Phase 5）— mteam OA 系统通知模块
 
-> 范围：给用户推送一个统一的"发生了什么"通知流——Agent 配额超限、ActionItem 提醒/超时、Agent 启动错误等。通知不是阻塞式审批，只是告知；前端有独立通知面板展示 + 历史回溯 + 已读状态。
+> **定位**：mteam 的 OA 通知中心。不只是"告知"，而是一个独立模块，统一转发所有通知：
+> - **本期**：系统通知（OS 级弹窗，macOS Notification Center / Windows Toast），点击定位到主 Agent 对话窗口
+> - **未来**：应用内审批（approve/reject 流，暂不做但模块预留）
+>
+> **核心原则**：
+> - 所有通知都经过这个模块，不允许绕过（类似 OA 系统的统一消息中心）
+> - 通知 payload **必须带 title + body**（OS 系统通知必需，不能只给 id 让前端二次查）
+> - 每条通知有 `channel` 标识投递目标：`system`（OS 弹窗）/ `in_app`（应用内，未来审批用）/ `both`
+> - Electron 主进程收到 WS 推送后调 `new Notification({ title, body })`，`click` 事件聚焦到主 Agent 对话窗口
+> - 兼容 macOS + Windows
 
 ---
 
@@ -101,23 +110,37 @@ export interface NotificationDeliveredEvent extends BusEventBase {
 ```ts
 // src/notification/record.ts
 export type NotificationKind =
-  | 'quota_limit' | 'action_item_reminder' | 'action_item_timeout'
-  | 'agent_error' | 'team_lifecycle' | 'instance_lifecycle' | 'system';
+  | 'quota_limit'           // channel: system（OS 弹窗，紧急）
+  | 'action_item_reminder'  // channel: system（快到期了）
+  | 'action_item_timeout'   // channel: system（超时了）
+  | 'agent_error'           // channel: system（agent 崩了）
+  | 'team_lifecycle'        // channel: system（团队创建/解散）
+  | 'instance_lifecycle'    // channel: in_app（实例上下线，不弹 OS）
+  | 'approval'              // channel: system（未来审批流，本期预留）
+  | 'system';               // channel: system（系统级通知）
 
 export type Severity = 'info' | 'warn' | 'error';
+
+export type NotificationChannel = 'system' | 'in_app' | 'both';
+// system = OS 级弹窗（macOS Notification Center / Windows Toast），点击定位到主 Agent 对话窗口
+// in_app = 应用内通知面板（未来审批流用，本期预留）
+// both = 两路都推
 
 export interface NotificationRecord {
   id: string;                  // uuid
   userId: string | null;       // null = 系统默认用户（单用户场景）
   kind: NotificationKind;
+  channel: NotificationChannel; // 投递目标
   severity: Severity;
-  title: string;               // 一行标题
-  body: string;                // 多行详情（≤ 1024 字符）
+  title: string;               // 一行标题（OS 通知显示，必填）
+  body: string;                // 多行详情（OS 通知 body，≤ 1024 字符）
   payload: Record<string, unknown>; // 结构化字段，按 kind 约定
   sourceEventType?: string;    // 关联 bus 事件类型（可选，用于追溯）
   sourceEventId?: string;      // 关联事件 id
   acknowledgedAt: string | null; // 已读时间戳；null=未读
   createdAt: string;
+  // 点击行为：Electron 主进程收到 channel=system 的通知后，
+  // new Notification({ title, body }) + click → 聚焦到主 Agent 对话窗口
 }
 ```
 
