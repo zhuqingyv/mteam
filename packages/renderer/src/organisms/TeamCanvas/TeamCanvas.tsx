@@ -10,6 +10,8 @@ import { useCallback, useEffect, useRef } from 'react';
 import CanvasNode from '../../molecules/CanvasNode';
 import { useCanvasTransform, type Transform } from '../../hooks/useCanvasTransform';
 import { useTentacles } from '../../hooks/useTentacles';
+import { useMessageStore } from '../../store/messageStore';
+import { selectActiveEdges } from '../../store/selectors/activeEdges';
 import type { CanvasNodeData } from '../../types/chat';
 import './TeamCanvas.css';
 
@@ -36,10 +38,17 @@ export default function TeamCanvas({
 
   const getCardElement = useCallback((id: string) => cardEls.current.get(id) ?? null, []);
 
+  // S6-G1：每帧从 messageStore 派生 activeEdges；空闲 0 边，有通信时按 intensity 调色。
+  const getActiveEdges = useCallback(() => {
+    const state = useMessageStore.getState();
+    return selectActiveEdges(state, Date.now());
+  }, []);
+
   useTentacles(
     canvasRef,
     agents.map((a) => ({ id: a.id, isLeader: !!a.isLeader })),
     getCardElement,
+    getActiveEdges,
   );
 
   useEffect(() => {

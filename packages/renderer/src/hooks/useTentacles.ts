@@ -21,19 +21,20 @@ const IDLE_FLOOR = 0.35;
  * - `getCardElement(id)`: returns the live DOM node for an agent so we can
  *   read its current position every frame.
  * - `activeEdges` (S6-M2)：传入后只画列出的边；颜色按 intensity 调亮度，暗→亮。
+ *    支持静态数组或每帧调用的 getter（intensity 会随时间衰减，所以生产环境推荐 getter）。
  *    不传 → 兼容旧行为，画全量 leader → members。
  */
 export function useTentacles(
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
   agents: TentacleAgent[],
   getCardElement: (id: string) => HTMLElement | null,
-  activeEdges?: ActiveEdge[],
+  activeEdges?: ActiveEdge[] | (() => ActiveEdge[]),
 ) {
   const agentsRef = useRef(agents);
   agentsRef.current = agents;
   const getElRef = useRef(getCardElement);
   getElRef.current = getCardElement;
-  const edgesRef = useRef<ActiveEdge[] | undefined>(activeEdges);
+  const edgesRef = useRef<ActiveEdge[] | (() => ActiveEdge[]) | undefined>(activeEdges);
   edgesRef.current = activeEdges;
 
   useEffect(() => {
@@ -57,8 +58,10 @@ export function useTentacles(
       if (parent) {
         const baseRect = parent.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
-        const list = edgesRef.current
-          ? buildActiveTentacles(edgesRef.current, getElRef.current, baseRect, dpr)
+        const edgesIn = edgesRef.current;
+        const edges = typeof edgesIn === 'function' ? edgesIn() : edgesIn;
+        const list = edges
+          ? buildActiveTentacles(edges, getElRef.current, baseRect, dpr)
           : buildLeaderTentacles(agentsRef.current, getElRef.current, baseRect, dpr);
         renderer.setTentacles(list);
       }
@@ -123,7 +126,8 @@ export function buildLeaderTentacles(
   return out;
 }
 
-function buildActiveTentacles(
+/** @internal exported for tests */
+export function buildActiveTentacles(
   edges: ActiveEdge[],
   getEl: (id: string) => HTMLElement | null,
   base: DOMRect,

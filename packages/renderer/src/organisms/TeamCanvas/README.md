@@ -1,11 +1,12 @@
 # TeamCanvas
-Agent 可视化画布。按坐标渲染 `AgentCard`，支持节点拖拽、画布平移、滚轮缩放、双击重置。
+Agent 可视化画布。按坐标渲染 `CanvasNode`，支持节点拖拽、画布平移、滚轮缩放、双击重置。
 
 ## Props
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| agents | Array<{ id; name; status; cliType?; lastMessage?; x; y }> | — | Agent 列表及坐标 |
+| agents | CanvasNodeData[] | — | 节点数据（id/name/status/cliType/isLeader/x/y/taskCount/unreadCount/messageCount） |
 | onAgentDragEnd | (id, x, y) => void | — | 节点拖拽结束回调（坐标已换算到画布坐标系） |
+| onAgentOpen | (id) => void | — | 节点单击展开 |
 
 ## 交互
 - 空白处按下并拖动 → 画布平移（所有节点同步移动）

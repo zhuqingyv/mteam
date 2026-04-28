@@ -38,7 +38,6 @@ import DragHandle from '../src/molecules/DragHandle';
 import MessageBadge from '../src/molecules/MessageBadge';
 import TeamSidebarItem from '../src/atoms/TeamSidebarItem';
 import TeamSidebar from '../src/molecules/TeamSidebar';
-import AgentCard from '../src/molecules/AgentCard';
 import CliList from '../src/molecules/CliList';
 import RosterList from '../src/molecules/RosterList';
 import CapsuleCard from '../src/organisms/CapsuleCard';
@@ -990,35 +989,6 @@ export const registry: ComponentEntry[] = [
       onSelectTeam: (id: unknown) => setValues((p) => ({ ...p, activeTeamId: id as string })),
       onCreateTeam: () => {},
     }),
-  },
-  {
-    name: 'AgentCard',
-    layer: 'molecules',
-    group: 'team',
-    component: AgentCard,
-    props: [
-      { name: 'name', type: 'string', default: 'Claude', description: 'Agent 名' },
-      {
-        name: 'status',
-        type: 'enum',
-        options: ['idle', 'thinking', 'responding', 'offline'],
-        default: 'thinking',
-        description: '状态',
-      },
-      {
-        name: 'cliType',
-        type: 'enum',
-        options: ['claude', 'codex', 'gemini', 'aider', 'cursor', 'copilot', 'unknown'],
-        default: 'claude',
-        description: 'CLI 类型（AgentLogo 驱动）',
-      },
-      { name: 'lastMessage', type: 'string', default: '正在修复 UI Bug…', description: '最后消息' },
-      { name: 'x', type: 'number', default: 0, description: 'X 位置' },
-      { name: 'y', type: 'number', default: 0, description: 'Y 位置' },
-    ],
-    defaults: { name: 'Claude', status: 'thinking', cliType: 'claude', lastMessage: '正在修复 UI Bug…', x: 0, y: 0 },
-    note: '可拖拽（mousedown/move/up），点击可展开为 400×400 CapsuleCard，× 回到胶囊态；cliType 驱动 head 左侧 AgentLogo',
-    handlers: () => ({ onDragEnd: () => {} }),
   },
   {
     name: 'TeamCanvas',
