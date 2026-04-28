@@ -1,20 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PanelWindow from '../templates/PanelWindow';
-import TemplateList, { type RoleTemplate as TplListRow } from '../organisms/TemplateList';
-import TemplateEditor, { type TemplateDraft } from '../organisms/TemplateEditor';
+import WorkerListPanel, { type WorkerListTab } from '../organisms/WorkerListPanel';
+import TemplateEditor from '../organisms/TemplateEditor';
 import Modal from '../atoms/Modal';
 import ConfirmDialog from '../molecules/ConfirmDialog';
 import Button from '../atoms/Button';
 import Icon from '../atoms/Icon';
 import Input from '../atoms/Input';
-import FormField from '../molecules/FormField';
+import Logo from '../atoms/Logo';
+import StatusDot from '../atoms/StatusDot';
 import {
-  listTemplates, createTemplate, updateTemplate, deleteTemplate, type RoleTemplate,
-} from '../api/templates';
-import { listAvatars, randomAvatar, type AvatarRow } from '../api/avatars';
-import { createInstance } from '../api/instances';
-import { useTemplateStore, selectTemplates } from '../store';
-import { useLocale } from '../i18n';
+  useWorkerStore, selectWorkers, selectWorkersStats, selectWorkersLoading,
+  usePrimaryAgentStore,
+} from '../store';
+import { useWorkers } from '../hooks/useWorkers';
+import { useWorkersPage } from '../hooks/useWorkersPage';
+import type { RoleTemplate } from '../api/templates';
+import type { TemplateDraft } from '../organisms/TemplateEditor';
 import './RoleListPage.css';
 
 function toDraft(t: RoleTemplate): TemplateDraft {
@@ -29,166 +31,109 @@ function toDraft(t: RoleTemplate): TemplateDraft {
 }
 
 export default function RoleListPage() {
-  const { t } = useLocale();
-  const templates = useTemplateStore(selectTemplates);
-  const setTemplates = useTemplateStore((s) => s.setTemplates);
-  const [avatars, setAvatars] = useState<AvatarRow[]>([]);
-  const [editing, setEditing] = useState<RoleTemplate | null>(null);
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
-  const [instanceFor, setInstanceFor] = useState<string | null>(null);
-  const [instanceName, setInstanceName] = useState('');
-  const [instanceErr, setInstanceErr] = useState('');
+  useWorkers();
+  const workers = useWorkerStore(selectWorkers);
+  const stats = useWorkerStore(selectWorkersStats);
+  const loading = useWorkerStore(selectWorkersLoading);
+  const paConfig = usePrimaryAgentStore((s) => s.config);
+  const paStatus = usePrimaryAgentStore((s) => s.status);
 
-  useEffect(() => {
-    listTemplates().then((r) => { if (r.ok && r.data) setTemplates(r.data); });
-    listAvatars().then((r) => { if (r.ok && r.data) setAvatars(r.data.avatars); });
-  }, [setTemplates]);
+  const page = useWorkersPage();
+  const [tab, setTab] = useState<WorkerListTab>('all');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !editorOpen && !pendingDelete && !instanceFor) window.close();
+      if (e.key === 'Escape' && !page.editorOpen && !page.chatHint) window.close();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editorOpen, pendingDelete, instanceFor]);
+  }, [page.editorOpen, page.chatHint]);
 
-  const handleCreate = async () => {
-    const res = await randomAvatar();
-    const row = res.ok && res.data?.avatar ? res.data.avatar : null;
-    if (row) setAvatars((p) => (p.some((a) => a.id === row.id) ? p : [...p, row]));
-    setEditing({
-      name: '', role: '', description: null, persona: null,
-      avatar: row?.id ?? null, availableMcps: [], createdAt: '', updatedAt: '',
-    } as RoleTemplate);
-    setEditorOpen(true);
-  };
-
-  const handleEdit = (name: string) => {
-    const t = templates.find((x) => x.name === name);
-    if (t) { setEditing(t); setEditorOpen(true); }
-  };
-
-  const handleSave = async (d: TemplateDraft) => {
-    const availableMcps = d.availableMcps.map((n) => ({ name: n, surface: '*' as const, search: '*' as const }));
-    const body = {
-      role: d.role,
-      description: d.description || null,
-      persona: d.persona || null,
-      avatar: d.avatar,
-      availableMcps,
-    };
-    const res = editing && editing.name
-      ? await updateTemplate(editing.name, body)
-      : await createTemplate({ name: d.name, ...body });
-    if (res.ok) {
-      setEditorOpen(false);
-      const list = await listTemplates();
-      if (list.ok && list.data) setTemplates(list.data);
-    }
-  };
-
-  const handleRandomAvatar = async () => {
-    const res = await randomAvatar();
-    if (res.ok && res.data?.avatar) {
-      const row = res.data.avatar;
-      setAvatars((p) => (p.some((a) => a.id === row.id) ? p : [...p, row]));
-      setEditing((p) => (p ? { ...p, avatar: row.id } : p));
-    }
-  };
-
-  const confirmDelete = async () => {
-    if (!pendingDelete) return;
-    await deleteTemplate(pendingDelete);
-    setPendingDelete(null);
-    const list = await listTemplates();
-    if (list.ok && list.data) setTemplates(list.data);
-  };
-
-  const confirmCreateInstance = async () => {
-    const name = instanceName.trim();
-    if (!name) { setInstanceErr(t('roles.instance_name_required')); return; }
-    if (name.length > 64) { setInstanceErr(t('roles.instance_name_too_long')); return; }
-    if (!instanceFor) return;
-    const res = await createInstance({ templateName: instanceFor, memberName: name, isLeader: false });
-    if (res.ok) setInstanceFor(null);
-    else setInstanceErr(res.error ?? t('roles.create_failed'));
-  };
-
-  const mcpOptions = Array.from(new Set(templates.flatMap((t) => t.availableMcps.map((m) => m.name))));
-  const existingNames = templates.map((t) => t.name);
-  const isEdit = !!(editing && editing.name);
+  const mcpOptions = useMemo(
+    () => Array.from(new Set(page.templates.flatMap((t) => t.availableMcps.map((m) => m.name)))),
+    [page.templates],
+  );
+  const existingNames = useMemo(() => page.templates.map((t) => t.name), [page.templates]);
+  const isEdit = !!(page.editing && page.editing.name);
+  const statusLabel = paStatus === 'RUNNING' ? '在线' : '离线';
 
   return (
     <PanelWindow>
-      <div className="role-list-page__head">
-        <h1 className="role-list-page__title">{t('roles.title')}</h1>
-        <div className="role-list-page__actions">
-          <Button variant="primary" size="sm" onClick={handleCreate}>
+      <header className="role-list-page__header">
+        <div className="role-list-page__brand">
+          <Logo size={26} status={paStatus === 'RUNNING' ? 'online' : 'offline'} />
+          <span className="role-list-page__brand-name">{paConfig?.name ?? 'MTEAM'}</span>
+          <StatusDot status={paStatus === 'RUNNING' ? 'online' : 'offline'} size="sm" />
+          <span className="role-list-page__brand-status">{statusLabel}</span>
+        </div>
+        <div className="role-list-page__tools">
+          <div className="role-list-page__search">
+            <Input value={page.query} onChange={page.setQuery} placeholder="搜索员工 / 角色 / MCP…" />
+          </div>
+          <Button variant="primary" size="sm" onClick={page.handleCreate}>
             <span className="role-list-page__btn-label">
-              <Icon name="plus" size={12} /><span>{t('roles.create')}</span>
+              <Icon name="plus" size={12} /><span>新建成员</span>
             </span>
           </Button>
-          <div className="role-list-page__close">
-            <Button variant="icon" size="sm" onClick={() => window.close()}>
-              <Icon name="close" size={20} />
-            </Button>
-          </div>
+          <Button variant="icon" size="sm" onClick={() => window.electronAPI?.openTeamPanel()}>
+            <Icon name="team" size={20} />
+          </Button>
+          <Button variant="icon" size="sm" onClick={() => window.close()}>
+            <Icon name="close" size={20} />
+          </Button>
         </div>
-      </div>
+      </header>
+
+      <section className="role-list-page__title-area">
+        <h1 className="role-list-page__title">数字员工</h1>
+        <p className="role-list-page__subtitle">浏览、筛选团队里的每一位成员，查看在线状态与最近协作。</p>
+      </section>
+
       <div className="role-list-page__body">
-        <TemplateList
-          templates={templates as TplListRow[]}
-          onSelect={(n) => { setInstanceFor(n); setInstanceName(''); setInstanceErr(''); }}
-          onEdit={handleEdit}
-          onDelete={(n) => setPendingDelete(n)}
+        <WorkerListPanel
+          workers={workers}
+          stats={stats}
+          tab={tab}
+          onTabChange={setTab}
+          searchQuery={page.query}
+          loading={loading}
+          onChat={page.handleChat}
+          onViewMore={page.handleViewMore}
         />
       </div>
 
+      <footer className="role-list-page__footer">
+        <span className="role-list-page__cheer" aria-hidden>✨</span>
+        <span className="role-list-page__cheer-text">今天也辛苦各位数字员工了，继续冲！</span>
+        <Button variant="ghost" size="sm" onClick={() => console.log('[worker-list] open activity view (TODO: next wave)')}>团队活跃度</Button>
+      </footer>
+
       <Modal
-        open={editorOpen}
-        onClose={() => setEditorOpen(false)}
-        title={isEdit ? t('roles.edit_prefix', { name: editing!.name }) : t('roles.create')}
+        open={page.editorOpen}
+        onClose={() => page.setEditorOpen(false)}
+        title={isEdit ? `编辑：${page.editing!.name}` : '新建成员'}
         size="lg"
       >
         <TemplateEditor
-          template={editing ? toDraft(editing) : undefined}
+          template={page.editing ? toDraft(page.editing) : undefined}
           mcpOptions={mcpOptions}
-          avatars={avatars}
+          avatars={page.avatars}
           existingNames={existingNames}
           isEdit={isEdit}
-          onSave={handleSave}
-          onCancel={() => setEditorOpen(false)}
-          onRandomAvatar={handleRandomAvatar}
+          onSave={page.handleSave}
+          onCancel={() => page.setEditorOpen(false)}
+          onRandomAvatar={page.handleRandomAvatar}
         />
       </Modal>
 
       <ConfirmDialog
-        open={!!pendingDelete}
-        title={t('roles.delete_template_title')}
-        message={t('roles.delete_template_message', { name: pendingDelete ?? '' })}
-        variant="danger"
-        confirmLabel={t('common.delete')}
-        onConfirm={confirmDelete}
-        onCancel={() => setPendingDelete(null)}
+        open={!!page.chatHint}
+        title="提示"
+        message={page.chatHint ?? ''}
+        confirmLabel="知道了"
+        onConfirm={() => page.setChatHint(null)}
+        onCancel={() => page.setChatHint(null)}
       />
-
-      <Modal
-        open={!!instanceFor}
-        onClose={() => setInstanceFor(null)}
-        title={t('roles.create_instance_title', { name: instanceFor ?? '' })}
-        size="sm"
-      >
-        <div className="role-list-page__inst-form">
-          <FormField label={t('roles.instance_name_label')} required error={instanceErr}>
-            <Input value={instanceName} onChange={setInstanceName} placeholder={t('roles.instance_name_placeholder')} error={!!instanceErr} />
-          </FormField>
-          <div className="role-list-page__inst-actions">
-            <Button variant="primary" size="sm" onClick={confirmCreateInstance}>{t('common.create')}</Button>
-            <Button variant="ghost" size="sm" onClick={() => setInstanceFor(null)}>{t('common.cancel')}</Button>
-          </div>
-        </div>
-      </Modal>
     </PanelWindow>
   );
 }

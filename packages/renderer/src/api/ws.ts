@@ -6,6 +6,7 @@ import type {
   SnapshotMessage,
   TurnsResponseMessage,
   TurnHistoryResponseMessage,
+  WorkersResponseMessage,
   WsClient,
 } from './ws-protocol';
 
@@ -14,6 +15,10 @@ export type {
   ConfigurePrimaryAgentBody,
   TurnsResponseMessage,
   TurnHistoryResponseMessage,
+  WorkersResponseMessage,
+  WorkerView,
+  WorkerStatus,
+  WorkersStatsResponse,
   GetTurnHistoryParams,
   WsClient,
 } from './ws-protocol';
@@ -34,6 +39,7 @@ export function createWsClient(userId = 'local'): WsClient {
   let onSn: ((s: SnapshotMessage) => void) | null = null;
   let onTr: ((m: TurnsResponseMessage) => void) | null = null;
   let onTh: ((m: TurnHistoryResponseMessage) => void) | null = null;
+  let onWr: ((m: WorkersResponseMessage) => void) | null = null;
   let onRc: (() => void) | null = null;
   // 建连期的出站 buffer：subscribe/prompt 可能在 OPEN 之前就被调用。
   let pending: object[] = [];
@@ -83,6 +89,7 @@ export function createWsClient(userId = 'local'): WsClient {
         else if (m.type === 'error') onEr?.(m);
         else if (m.type === 'get_turns_response') onTr?.(m as TurnsResponseMessage);
         else if (m.type === 'get_turn_history_response') onTh?.(m as TurnHistoryResponseMessage);
+        else if (m.type === 'get_workers_response') onWr?.(m as WorkersResponseMessage);
       } catch { /* bad json */ }
     };
     ws.onclose = () => { ws = null; if (!disposed) timer = setTimeout(connect, 3000); };
@@ -141,6 +148,11 @@ export function createWsClient(userId = 'local'): WsClient {
       if (requestId) m.requestId = requestId;
       send(m);
     },
+    getWorkers(requestId?) {
+      const m: Record<string, unknown> = { op: 'get_workers' };
+      if (requestId) m.requestId = requestId;
+      send(m);
+    },
     ping: () => send({ op: 'ping' }),
     close() {
       disposed = true;
@@ -163,6 +175,7 @@ export function createWsClient(userId = 'local'): WsClient {
       onSn = null;
       onTr = null;
       onTh = null;
+      onWr = null;
       onRc = null;
     },
     onEvent: (h) => { onEv = h; },
@@ -179,6 +192,7 @@ export function createWsClient(userId = 'local'): WsClient {
     },
     onTurnsResponse: (h) => { onTr = h; },
     onTurnHistoryResponse: (h) => { onTh = h; },
+    onWorkersResponse: (h) => { onWr = h; },
     onReconnect: (h) => { onRc = h; },
     readyState: () => ws?.readyState ?? WebSocket.CLOSED,
   };

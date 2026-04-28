@@ -1,0 +1,288 @@
+.worker-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(44, 50, 64, 0.62), rgba(24, 26, 34, 0.72));
+  backdrop-filter: blur(32px) saturate(150%);
+  -webkit-backdrop-filter: blur(32px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.18),
+    0 4px 14px rgba(0, 0, 0, 0.24);
+  color: rgba(230, 237, 247, 0.92);
+  box-sizing: border-box;
+  -webkit-app-region: no-drag;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.worker-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(120, 170, 255, 0.24);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.2),
+    0 6px 18px rgba(0, 0, 0, 0.3),
+    0 0 14px rgba(120, 170, 255, 0.16);
+}
+
+.worker-card--offline {
+  opacity: 0.78;
+}
+
+.worker-card__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.worker-card__avatar {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(20, 22, 28, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.14);
+}
+
+.worker-card__avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.worker-card__avatar-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(230, 237, 247, 0.92);
+  background: linear-gradient(135deg, rgba(120, 170, 255, 0.3), rgba(160, 140, 220, 0.22));
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.worker-card--offline .worker-card__avatar-img,
+.worker-card--offline .worker-card__avatar-fallback {
+  filter: grayscale(0.5);
+}
+
+.worker-card__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.worker-card__name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.worker-card__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.96);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.worker-card__status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+
+.worker-card__status-chip[data-status='online'] {
+  color: rgba(140, 230, 180, 0.95);
+  background: rgba(60, 180, 120, 0.14);
+  border-color: rgba(60, 180, 120, 0.3);
+}
+
+.worker-card__status-chip[data-status='idle'] {
+  color: rgba(245, 185, 110, 0.95);
+  background: rgba(230, 150, 70, 0.14);
+  border-color: rgba(230, 150, 70, 0.3);
+}
+
+.worker-card__status-chip[data-status='offline'] {
+  color: rgba(200, 205, 215, 0.7);
+  background: rgba(120, 125, 140, 0.12);
+  border-color: rgba(120, 125, 140, 0.24);
+}
+
+.worker-card__status-text {
+  line-height: 1;
+}
+
+.worker-card__role {
+  font-size: 12px;
+  color: rgba(230, 237, 247, 0.62);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worker-card__desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: rgba(230, 237, 247, 0.68);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(1.55em * 2);
+}
+
+.worker-card__mcps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.worker-card__mcps-more {
+  font-size: 11px;
+  color: rgba(230, 237, 247, 0.5);
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.worker-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.worker-card__activity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  font-size: 11px;
+  color: rgba(230, 237, 247, 0.62);
+}
+
+.worker-card__activity-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.worker-card__activity-logo {
+  display: inline-flex;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.worker-card__activity-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.worker-card__instances {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: rgba(120, 170, 255, 0.78);
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(120, 170, 255, 0.1);
+}
+
+.worker-card__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.worker-card__action-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.worker-card__actions .btn {
+  height: 26px;
+  min-width: 26px;
+  padding: 0 6px;
+  border-radius: 8px;
+}
+
+.worker-card__actions .btn--dots {
+  height: 26px;
+  width: 26px;
+  padding: 0;
+}
+
+.worker-card__more {
+  position: relative;
+}
+
+.worker-card__menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  min-width: 128px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(28, 30, 38, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(16px);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.worker-card__menu-item {
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 7px 10px;
+  font-size: 12px;
+  text-align: left;
+  color: rgba(230, 237, 247, 0.88);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.worker-card__menu-item:hover,
+.worker-card__menu-item:focus-visible {
+  background: rgba(120, 170, 255, 0.14);
+  outline: none;
+}

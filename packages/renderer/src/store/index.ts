@@ -8,3 +8,4 @@ export * from './wsStore';
 export * from './primaryAgentStore';
 export * from './teamStore';
 export * from './templateStore';
+export * from './workerStore';

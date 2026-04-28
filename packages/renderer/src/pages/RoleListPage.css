@@ -1,24 +1,40 @@
-.role-list-page__head {
+.role-list-page__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 24px 12px;
+  gap: var(--space-4);
+  padding: 20px 24px 8px;
   -webkit-app-region: drag;
 }
 
-.role-list-page__title {
-  font-size: 18px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.92);
-  margin: 0;
+.role-list-page__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   -webkit-app-region: no-drag;
 }
 
-.role-list-page__actions {
-  display: flex;
-  gap: 10px;
+.role-list-page__brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  letter-spacing: 0.2px;
+}
+
+.role-list-page__brand-status {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.role-list-page__tools {
+  display: inline-flex;
   align-items: center;
+  gap: var(--space-2);
   -webkit-app-region: no-drag;
+}
+
+.role-list-page__search {
+  width: 220px;
 }
 
 .role-list-page__btn-label {
@@ -27,45 +43,52 @@
   gap: 4px;
 }
 
-.role-list-page__close {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 150ms ease, color 150ms ease;
-}
-.role-list-page__close:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-}
-.role-list-page__close .btn {
-  width: 100%;
-  height: 100%;
+.role-list-page__title-area {
+  padding: 12px 24px 16px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  color: inherit;
+  flex-direction: column;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.role-list-page__title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.94);
+  letter-spacing: 0.3px;
+}
+
+.role-list-page__subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
 }
 
 .role-list-page__body {
-  padding: 0 24px 24px;
-  max-height: calc(100vh - 80px);
+  padding: 0 24px 16px;
+  max-height: calc(100vh - 200px);
   overflow-y: auto;
   -webkit-app-region: no-drag;
 }
 
-.role-list-page__inst-form {
+.role-list-page__footer {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 12px 24px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  -webkit-app-region: no-drag;
 }
 
-.role-list-page__inst-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+.role-list-page__cheer {
+  font-size: 14px;
+}
+
+.role-list-page__cheer-text {
+  flex: 1;
+  font-size: 12px;
+  color: var(--color-text-secondary);
 }

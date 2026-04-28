@@ -1,4 +1,4 @@
-import { useAgentStore, useNotificationStore, usePrimaryAgentStore, useTeamStore, useTemplateStore, primaryAgentBridge } from '../store';
+import { useAgentStore, useNotificationStore, usePrimaryAgentStore, useTeamStore, useTemplateStore, useWorkerStore, primaryAgentBridge } from '../store';
 import type { AgentState, PrimaryAgentRow } from '../api/primaryAgent';
 import type { TeamRow, TeamMemberRow } from '../api/teams';
 import { getTemplate } from '../api/templates';
@@ -115,6 +115,8 @@ export function handleTemplateEvent(t: string, e: Record<string, unknown>) {
   const st = useTemplateStore.getState();
   if (t === 'template.deleted') {
     st.removeTemplate(name);
+    // worker-status subscriber 不 emit 删除事件，前端自行清 worker 缓存（workers-api.md §推送）
+    useWorkerStore.getState().removeByName(name);
     return;
   }
   // created / updated: payload 里只有 templateName，拉全量补齐
@@ -126,12 +128,33 @@ export function handleTemplateEvent(t: string, e: Record<string, unknown>) {
   });
 }
 
+export function handleWorkerEvent(t: string, e: Record<string, unknown>) {
+  if (t !== 'worker.status_changed') return;
+  const name = String(e.name ?? '');
+  if (!name) return;
+  const rawStatus = String(e.status ?? '');
+  if (rawStatus !== 'online' && rawStatus !== 'idle' && rawStatus !== 'offline') return;
+  const instanceCount = Number(e.instanceCount ?? 0);
+  const teams = Array.isArray(e.teams) ? (e.teams as unknown[]).map((x) => String(x)) : [];
+  useWorkerStore.getState().upsertByName({
+    name,
+    status: rawStatus,
+    instanceCount,
+    teams,
+  });
+}
+
 export function handleOtherEvent(t: string, e: Record<string, unknown>) {
   if (t === 'notification.delivered') {
     useNotificationStore.getState().push({
       id: String(e.eventId ?? e.sourceEventId ?? Date.now()),
       title: String(e.sourceEventType ?? 'notification'), message: '', time: String(e.ts ?? ''),
     });
+    return;
+  }
+  if (t.startsWith('worker.')) {
+    handleWorkerEvent(t, e);
+    return;
   }
   // comm.message_sent/received 不在这里插消息：
   // - 用户消息由 ExpandedView.handleSend 本地直接 addMessage；

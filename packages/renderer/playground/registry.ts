@@ -50,6 +50,8 @@ import NotificationCenter from '../src/organisms/NotificationCenter';
 import AgentList from '../src/organisms/AgentList';
 import TemplateEditor from '../src/organisms/TemplateEditor';
 import TemplateList from '../src/organisms/TemplateList';
+import WorkerCard from '../src/organisms/WorkerCard';
+import WorkerListPanel from '../src/organisms/WorkerListPanel';
 
 export type PropType = 'string' | 'number' | 'boolean' | 'enum';
 
@@ -1271,6 +1273,108 @@ export const registry: ComponentEntry[] = [
       onEdit: () => {},
       onDelete: () => {},
       onCreate: () => {},
+    }),
+  },
+  {
+    name: 'WorkerCard',
+    layer: 'organisms',
+    group: 'full',
+    component: WorkerCard,
+    props: [
+      {
+        name: 'status',
+        type: 'enum',
+        options: ['online', 'idle', 'offline'],
+        default: 'online',
+        description: '员工在线状态（由实例聚合）',
+      },
+      { name: 'instanceCount', type: 'number', default: 2, description: '该员工当前实例数' },
+    ],
+    defaults: {
+      name: 'frontend-dev',
+      role: '前端开发专家',
+      description: '负责 React/TypeScript 组件开发、页面对接、响应式布局与可访问性优化。沟通务实、讲究细节。',
+      avatar: 'avatar-03',
+      status: 'online',
+      mcps: ['mteam', 'mnemo', 'filesystem', 'git', 'github'],
+      instanceCount: 2,
+      lastActivity: {
+        summary: '和 Leader 协作完成登录页样式',
+        ts: '2026-04-27T10:32:15.420Z',
+      },
+      teams: ['官网重构', '移动端适配'],
+    },
+    note: '员工卡片：头像+名称+状态胶囊；描述 3 行截断；MCP Tag（最多 3 个，超出 +N）；底部最近协作 + 💬 + ⋯',
+    handlers: () => ({
+      onChat: () => {},
+      onViewMore: () => {},
+    }),
+  },
+  {
+    name: 'WorkerListPanel',
+    layer: 'organisms',
+    group: 'full',
+    component: WorkerListPanel,
+    props: [
+      {
+        name: 'tab',
+        type: 'enum',
+        options: ['all', 'template', 'online'],
+        default: 'all',
+        description: '筛选 Tab（all / template / online）',
+      },
+      { name: 'searchQuery', type: 'string', default: '', description: '搜索词（本地过滤 name/role/description/mcps）' },
+      { name: 'loading', type: 'boolean', default: false, description: '加载态（无数据时显示）' },
+    ],
+    defaults: {
+      tab: 'all',
+      searchQuery: '',
+      loading: false,
+      stats: { total: 3, online: 2, idle: 1, offline: 1 },
+      workers: [
+        {
+          name: 'frontend-dev',
+          role: '前端开发专家',
+          description: '负责 React/TypeScript 组件开发、页面对接、响应式布局。',
+          persona: '务实、注重细节',
+          avatar: 'avatar-03',
+          mcps: ['mteam', 'mnemo', 'filesystem'],
+          status: 'online',
+          instanceCount: 2,
+          teams: ['官网重构'],
+          lastActivity: { summary: '协作完成登录页样式', at: '2026-04-27T10:32:15.420Z' },
+        },
+        {
+          name: 'backend-dev',
+          role: '后端开发专家',
+          description: '负责 API 设计、数据建模、性能优化。',
+          persona: '',
+          avatar: 'avatar-05',
+          mcps: ['mteam', 'mnemo', 'github'],
+          status: 'online',
+          instanceCount: 1,
+          teams: ['官网重构'],
+          lastActivity: { summary: '完成订单接口压测', at: '2026-04-27T09:18:04.100Z' },
+        },
+        {
+          name: 'qa-engineer',
+          role: '质量工程师',
+          description: '自动化测试、回归验证、发布质量守门人。',
+          persona: '',
+          avatar: 'avatar-08',
+          mcps: ['mteam'],
+          status: 'idle',
+          instanceCount: 1,
+          teams: [],
+          lastActivity: null,
+        },
+      ],
+    },
+    note: '员工大列表：TabFilter + StatsBar + WorkerCard 网格；本地搜索/筛选；空态/加载态',
+    handlers: (setValues) => ({
+      onTabChange: (next: unknown) => setValues((prev) => ({ ...prev, tab: next })),
+      onChat: () => {},
+      onViewMore: () => {},
     }),
   },
   {
