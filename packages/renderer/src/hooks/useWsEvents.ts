@@ -118,9 +118,9 @@ export function useWsEvents(): void {
       activeClient.onTurnHistoryResponse((msg) => {
         const pending = pendingRequests.get(msg.requestId);
         pendingRequests.delete(msg.requestId);
-        const currentId = usePrimaryAgentStore.getState().instanceId;
-        if (pending && pending.driverId !== currentId) return;
-        applyTurnHistoryResponse(msg);
+        const driverId = pending?.driverId ?? usePrimaryAgentStore.getState().instanceId;
+        if (!driverId) return;
+        applyTurnHistoryResponse(driverId, msg);
       });
 
       activeClient.subscribe('global');

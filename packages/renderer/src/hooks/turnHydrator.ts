@@ -1,10 +1,10 @@
-// Turn 快照/冷历史 → messageStore 的还原逻辑。
+// Turn 快照/冷历史 → messageStore 的还原逻辑（per-instance 分桶版）。
 //
 // 职责：
-// - `applyTurnsResponse`：热快照（active + recent）还原；配合 WS `get_turns_response`。
-// - `applyTurnHistoryResponse`：冷历史分页还原；配合 WS `get_turn_history_response`。
+// - `applyTurnsResponse(driverId, msg)`：热快照（active + recent）写入 `byInstance[driverId]`。
+// - `applyTurnHistoryResponse(driverId, msg)`：冷历史分页写入 `byInstance[driverId]`。
 //
-// 从 useWsEvents 拆出来，保证主 effect 文件保持聚焦。
+// 两个 API 均显式接 driverId，不再隐式 fallback 到 primary instance。
 
 import type { TurnHistoryResponseMessage, TurnsResponseMessage } from '../api/ws';
 import type { Turn, TurnBlock as ApiTurnBlock } from '../api/driver-turns';
@@ -42,9 +42,10 @@ function mapBlocks(blocks: ApiTurnBlock[]): StoreTurnBlock[] {
   return out;
 }
 
-// 把 active turn 还原到 messageStore：若本地已有同 turnId 的消息则 replace，否则 addMessage。
-function restoreActiveTurn(turn: Turn) {
+// 把 active turn 还原到指定 bucket：若桶内已有同 turnId 的消息则 replace，否则 add。
+function restoreActiveTurn(iid: string, turn: Turn) {
   const ms = useMessageStore.getState();
+  const bucket = ms.byInstance[iid];
   const rawBlocks = mapBlocks(turn.blocks);
   const textBlock = rawBlocks.find((b) => b.type === 'text');
   const thinkingBlock = rawBlocks.find((b) => b.type === 'thinking');
@@ -53,10 +54,10 @@ function restoreActiveTurn(turn: Turn) {
   const flatContent = textBlock?.content ?? '';
   // TurnStatus 'active' = 正在进行；'done'/'error' 已收尾。
   const streaming = turn.status === 'active';
-  const existing = ms.messages.find((m) => m.turnId === turn.turnId);
-  const msg = {
+  const existing = bucket?.messages.find((m) => m.turnId === turn.turnId);
+  const msg: Message = {
     id: turn.turnId,
-    role: 'agent' as const,
+    role: 'agent',
     content: flatContent,
     time: turn.userInput?.ts ?? turn.startTs ?? '',
     turnId: turn.turnId,
@@ -64,23 +65,25 @@ function restoreActiveTurn(turn: Turn) {
     streaming,
     thinking: !textBlock && !!thinkingBlock,
   };
-  if (existing) ms.replaceMessage(existing.id, { ...existing, ...msg });
-  else ms.addMessage(msg);
+  if (existing) ms.replaceMessageFor(iid, existing.id, { ...existing, ...msg });
+  else ms.addMessageFor(iid, msg);
 }
 
-// recent（已结束）若本地还在 streaming，强制收尾 —— 防止错过 turn.completed 事件悬挂。
-function reconcileRecentTurns(recent: Turn[]) {
+// recent（已结束）若桶内还在 streaming，强制收尾 —— 防止错过 turn.completed 事件悬挂。
+function reconcileRecentTurns(iid: string, recent: Turn[]) {
   const ms = useMessageStore.getState();
+  const bucket = ms.byInstance[iid];
+  if (!bucket) return;
   for (const t of recent) {
-    const existing = ms.messages.find((m) => m.turnId === t.turnId);
+    const existing = bucket.messages.find((m) => m.turnId === t.turnId);
     if (!existing || existing.streaming === false) continue;
-    ms.completeTurn(t.turnId);
+    ms.completeTurnFor(iid, t.turnId);
   }
 }
 
 export function applyTurnsResponse(driverId: string, msg: TurnsResponseMessage) {
-  if (msg.active && msg.active.driverId === driverId) restoreActiveTurn(msg.active);
-  if (msg.recent?.length) reconcileRecentTurns(msg.recent);
+  if (msg.active && msg.active.driverId === driverId) restoreActiveTurn(driverId, msg.active);
+  if (msg.recent?.length) reconcileRecentTurns(driverId, msg.recent);
 }
 
 // 冷历史 Turn → 2 条 Message：userInput 还原 user 消息，turn 本身还原 agent 消息。
@@ -109,13 +112,15 @@ function turnToMessages(turn: Turn): Message[] {
   return userText ? [userMsg, agentMsg] : [agentMsg];
 }
 
-// 冷历史 → messageStore。后端 items 按 endTs DESC 返回，渲染需按时间升序（旧→新）。
+// 冷历史 → byInstance[driverId]。后端 items 按 endTs DESC 返回，渲染按时间升序（旧→新）。
 // 已有同 turnId 的消息跳过，避免覆盖 active turn 或 WS 事件流里的 streaming 态。
-export function applyTurnHistoryResponse(msg: TurnHistoryResponseMessage) {
+export function applyTurnHistoryResponse(driverId: string, msg: TurnHistoryResponseMessage) {
   const items = msg.items ?? [];
   if (!items.length) return;
   const ms = useMessageStore.getState();
-  const existingTurnIds = new Set(ms.messages.filter((m) => m.turnId).map((m) => m.turnId));
+  const bucket = ms.byInstance[driverId];
+  const current = bucket?.messages ?? [];
+  const existingTurnIds = new Set(current.filter((m) => m.turnId).map((m) => m.turnId));
   const asc = [...items].reverse();
   const additions: Message[] = [];
   for (const turn of asc) {
@@ -123,6 +128,6 @@ export function applyTurnHistoryResponse(msg: TurnHistoryResponseMessage) {
     additions.push(...turnToMessages(turn));
   }
   if (!additions.length) return;
-  // 历史先于实时消息：prepend 到当前列表前。
-  ms.setMessages([...additions, ...ms.messages]);
+  // 历史先于实时消息：prepend 到当前桶前。
+  ms.setMessagesFor(driverId, [...additions, ...current]);
 }
