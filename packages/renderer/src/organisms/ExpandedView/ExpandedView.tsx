@@ -6,19 +6,25 @@ import type { DropdownOption } from '../../atoms/Dropdown';
 import { listCli, type CliInfo } from '../../api/cli';
 import {
   useMessageStore,
-  selectMessages,
+  selectPrimaryMessages,
   useInputStore,
   selectInputText,
   selectSetInputText,
   selectClearInput,
   usePrimaryAgentStore,
   selectPaConfig,
+  selectPaInstanceId,
 } from '../../store';
-import { sendUserPrompt, cancelCurrentTurn } from '../../hooks/promptDispatcher';
+import {
+  sendUserPrompt,
+  cancelCurrentTurn,
+  isTurnStreaming,
+} from '../../hooks/promptDispatcher';
 import './ExpandedView.css';
 
 export default function ExpandedView() {
-  const messages = useMessageStore(selectMessages);
+  const primaryIid = usePrimaryAgentStore(selectPaInstanceId);
+  const messages = useMessageStore((s) => selectPrimaryMessages(s, primaryIid));
 
   const inputText = useInputStore(selectInputText);
   const setInputText = useInputStore(selectSetInputText);
@@ -67,12 +73,19 @@ export default function ExpandedView() {
     if (!text.trim()) return;
     // 连发支持：正在 streaming 时入队，turn.completed 后自动 flush；
     // 非 streaming 时立即本地 echo user + 插入 pending 占位 + WS prompt。
-    sendUserPrompt(text);
+    // 显式传 primaryIid，不依赖 dispatcher 的 deprecated fallback。
+    if (!primaryIid) return;
+    sendUserPrompt(text, primaryIid);
     clearText();
-  }, [clearText]);
+  }, [clearText, primaryIid]);
 
-  // 口径复用 isTurnStreaming：agent 消息 streaming=true && turnId 非空，即真正进入 turn.started。
-  const streaming = messages.some((m) => m.role === 'agent' && m.streaming === true && !!m.turnId);
+  const handleStop = useCallback(() => {
+    if (!primaryIid) return;
+    cancelCurrentTurn(primaryIid);
+  }, [primaryIid]);
+
+  // 契约 §4.2：用 isTurnStreaming(iid) 权威判定，而不是自己再扫一遍 messages。
+  const streaming = primaryIid ? isTurnStreaming(primaryIid) : false;
 
   return (
     <div className="expanded-view">
@@ -82,7 +95,7 @@ export default function ExpandedView() {
         onInputChange={setInputText}
         onSend={handleSend}
         streaming={streaming}
-        onStop={cancelCurrentTurn}
+        onStop={handleStop}
         toolBar={
           <ToolBar
             modelOptions={modelOptions}

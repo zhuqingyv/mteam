@@ -11,34 +11,38 @@ import {
   handleOtherEvent,
 } from './wsEventHandlers';
 import { applyTurnHistoryResponse, applyTurnsResponse } from './turnHydrator';
+import { useInstanceSubscriptions } from './useInstanceSubscriptions';
+import { useSubscribedInstanceIds } from './instanceSubRegistry';
 
 // WS 连接生命周期 hook。
 //
 // 职责：
-// - 建 WsClient、订阅 global + instance scope、按 instanceId 切换订阅。
+// - 建 WsClient、订阅 global scope；instance scope 订阅交给 useInstanceSubscriptions。
 // - snapshot → primaryAgentStore（config / status / agentState / instanceId）。
 // - WS 事件分流到 handle* 处理器。
 // - instanceId 出现/变更 → 发 `get_turns` / `get_turn_history`（主 Agent 全 WS 数据源）。
 // - 断线重连 → 补发 `get_turns` 覆盖中断期丢事件。
 // - 15s 心跳 + pendingRequests 30s 超时回收。
+//
+// instance scope 订阅集合 = [primary, ...extra]；extra 由 addInstanceSub/removeInstanceSub
+// 在 CanvasNode 展开时动态登记（见 instanceSubRegistry）。
+
+export { addInstanceSub, removeInstanceSub } from './instanceSubRegistry';
 
 export function useWsEvents(): void {
+  // 订阅管理：primary 的 instanceId 由 store 驱动；额外 id 来自 registry。
+  // useInstanceSubscriptions 自己做 diff + debounce，无需手动 subscribe/unsubscribe。
+  const client = useWsStore((s) => s.client);
+  const primaryInstanceId = usePrimaryAgentStore((s) => s.instanceId);
+  const subscribedIds = useSubscribedInstanceIds(primaryInstanceId);
+  useInstanceSubscriptions(subscribedIds, client);
+
   useEffect(() => {
-    let client: ReturnType<typeof createWsClient> | null = null;
-    let currentInstanceSub: string | null = null;
+    let activeClient: ReturnType<typeof createWsClient> | null = null;
     let unsubStore: (() => void) | null = null;
 
-    const syncInstanceSub = (nextId: string | null) => {
-      if (!client) return;
-      if (nextId === currentInstanceSub) return;
-      if (currentInstanceSub) client.unsubscribe('instance', currentInstanceSub);
-      if (nextId) client.subscribe('instance', nextId);
-      currentInstanceSub = nextId;
-    };
-
-    // 记录每个 get_turns / get_turn_history 请求对应的 driverId，
-    // 响应到达时校验 —— instanceId 可能已切换，旧响应不能污染新 driver 的视图。
-    // 带 expiresAt：响应丢失时 30s 自动回收，防止 Map 无界增长。
+    // 每个 get_turns / get_turn_history 请求绑定 driverId —— 响应到达时校验，
+    // instanceId 可能已切换；30s 自动回收防止 Map 无界增长。
     const REQUEST_TTL_MS = 30_000;
     const pendingRequests = new Map<
       string,
@@ -56,19 +60,17 @@ export function useWsEvents(): void {
       }
     };
     const sendGetTurns = (driverId: string) => {
-      if (!client) return;
-      client.getTurns(driverId, 20, makeRequestId('turns', driverId));
+      activeClient?.getTurns(driverId, 20, makeRequestId('turns', driverId));
     };
     const sendGetTurnHistory = (driverId: string) => {
-      if (!client) return;
-      client.getTurnHistory(driverId, { limit: 20 }, makeRequestId('history', driverId));
+      activeClient?.getTurnHistory(driverId, { limit: 20 }, makeRequestId('history', driverId));
     };
 
     try {
-      client = createWsClient('local');
-      useWsStore.getState().setClient(client);
+      activeClient = createWsClient('local');
+      useWsStore.getState().setClient(activeClient);
 
-      client.onSnapshot((m) => {
+      activeClient.onSnapshot((m) => {
         const pa = m.primaryAgent as import('../api/primaryAgent').PrimaryAgentRow | null | undefined;
         if (pa) {
           usePrimaryAgentStore.setState({
@@ -82,7 +84,7 @@ export function useWsEvents(): void {
         }
       });
 
-      client.onEvent((e: { type: string; [k: string]: unknown }) => {
+      activeClient.onEvent((e: { type: string; [k: string]: unknown }) => {
         const t = e.type;
         if (t.startsWith('primary_agent.')) handlePrimaryAgentEvent(t, e);
         else if (t.startsWith('driver.')) handleDriverEvent(t, e);
@@ -93,7 +95,7 @@ export function useWsEvents(): void {
         else handleOtherEvent(t, e);
       });
 
-      client.onAck((ack: { ok?: boolean; requestId?: string; reason?: string; error?: string; [k: string]: unknown }) => {
+      activeClient.onAck((ack: { ok?: boolean; requestId?: string; reason?: string; error?: string; [k: string]: unknown }) => {
         const rid = typeof ack?.requestId === 'string' ? ack.requestId : undefined;
         const ok = ack?.ok !== false;
         const reason = ack?.reason ?? ack?.error;
@@ -101,11 +103,11 @@ export function useWsEvents(): void {
         if (!ok && !rid) usePrimaryAgentStore.setState({ lastError: reason ?? 'ws ack failed' });
       });
 
-      client.onError((err: { error?: string; message?: string; [k: string]: unknown }) => {
+      activeClient.onError((err: { error?: string; message?: string; [k: string]: unknown }) => {
         usePrimaryAgentStore.setState({ lastError: err?.error ?? err?.message ?? 'ws error' });
       });
 
-      client.onTurnsResponse((msg) => {
+      activeClient.onTurnsResponse((msg) => {
         const pending = pendingRequests.get(msg.requestId);
         pendingRequests.delete(msg.requestId);
         const driverId = pending?.driverId ?? usePrimaryAgentStore.getState().instanceId;
@@ -113,7 +115,7 @@ export function useWsEvents(): void {
         applyTurnsResponse(driverId, msg);
       });
 
-      client.onTurnHistoryResponse((msg) => {
+      activeClient.onTurnHistoryResponse((msg) => {
         const pending = pendingRequests.get(msg.requestId);
         pendingRequests.delete(msg.requestId);
         const currentId = usePrimaryAgentStore.getState().instanceId;
@@ -121,12 +123,10 @@ export function useWsEvents(): void {
         applyTurnHistoryResponse(msg);
       });
 
+      activeClient.subscribe('global');
 
-      client.subscribe('global');
-
-      const initialId = usePrimaryAgentStore.getState().instanceId;
-      syncInstanceSub(initialId);
       // 首次已有 instanceId（snapshot 已到）→ 立即拉冷历史 + 热快照（全走 WS）。
+      const initialId = usePrimaryAgentStore.getState().instanceId;
       if (initialId) {
         sendGetTurnHistory(initialId);
         sendGetTurns(initialId);
@@ -134,8 +134,8 @@ export function useWsEvents(): void {
 
       unsubStore = usePrimaryAgentStore.subscribe((s, prev) => {
         if (s.instanceId === prev.instanceId) return;
-        syncInstanceSub(s.instanceId);
-        // instanceId 从无到有 / 变更 → 拉新 driver 的历史与热快照。
+        // instance scope 的 sub/unsub 由顶层 useInstanceSubscriptions 接管；
+        // 这里只补拉新 driver 的冷历史 + 热快照。
         if (s.instanceId) {
           sendGetTurnHistory(s.instanceId);
           sendGetTurns(s.instanceId);
@@ -143,32 +143,30 @@ export function useWsEvents(): void {
       });
 
       // 断线重连：subscribe 已由 ws.ts 自动重发；此处补拉 turn 热快照覆盖中断期事件。
-      client.onReconnect(() => {
+      activeClient.onReconnect(() => {
         const id = usePrimaryAgentStore.getState().instanceId;
         if (id) sendGetTurns(id);
       });
 
-      const hb = setInterval(() => client?.ping(), 15_000);
+      const hb = setInterval(() => activeClient?.ping(), 15_000);
       const sweep = setInterval(sweepPendingRequests, REQUEST_TTL_MS);
       return () => {
         clearInterval(hb);
         clearInterval(sweep);
         pendingRequests.clear();
         unsubStore?.();
-        if (client && currentInstanceSub) client.unsubscribe('instance', currentInstanceSub);
-        currentInstanceSub = null;
         useWsStore.getState().setClient(null);
         // client 关闭代表 WS 生命周期结束（非自动重连期），清空用户消息队列，
         // 否则遗留的 pending text 会在下一次挂载时错乱。
         useMessageStore.getState().clearPending();
-        client?.close();
+        activeClient?.close();
       };
     } catch {
       return () => {
         unsubStore?.();
         useWsStore.getState().setClient(null);
         useMessageStore.getState().clearPending();
-        client?.close();
+        activeClient?.close();
       };
     }
   }, []);
