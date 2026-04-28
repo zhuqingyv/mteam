@@ -109,7 +109,7 @@ interface TabFilterProps {
 
 ### 2.2 StatsBar （molecules）
 
-**用途**: 统计卡片（成员总数/在线中/空闲中）
+**用途**: 统计卡片（成员总数/在线中/空闲中），支持交互筛选
 
 **Props 接口设计**:
 ```tsx
@@ -127,9 +127,15 @@ interface StatsBarProps {
 - 三张或四张小卡片并列
 - 每张卡片：大数字 + 小文案标签 + 圆点指示器
 - 背景 `surface-glass-light`，圆角 `--radius-md`
-- 可点击触发筛选
+- ✨ **可点击触发筛选**（新增交互，2026-04-28 pm-role-v2 审阅确认）
 
-**使用场景**: 角色列表窗口顶部统计展示
+**交互规则**（pm-role-v2 审阅补充）:
+- 点击"成员总数 X" → 切换 TabFilter 到"全部成员"
+- 点击"在线 Y" → 切换 TabFilter 到"在线中"
+- 点击"空闲 Z" → 切换 TabFilter 到"在线中"（仅显示空闲）
+- 卡片响应状态：按下阴影加深、指示点高亮
+
+**使用场景**: 角色列表窗口顶部统计展示 + 快捷筛选入口
 
 ---
 
@@ -140,7 +146,7 @@ interface StatsBarProps {
 **当前 TemplateCard 展示**:
 - 头像 + 模板名 + role 标签 + 描述 + MCP 标签 + 更新时间 + 操作按钮
 
-**升级需求** (对照 workers-api.md):
+**升级需求** (对照 workers-api.md，2026-04-28 pm-role-v2 审阅补充):
 ```tsx
 interface WorkerCardProps {
   worker: {
@@ -152,18 +158,34 @@ interface WorkerCardProps {
     mcps: string[];         // MCP 名称列表
     status: 'online' | 'idle' | 'offline';
     instanceCount: number;
-    teams: string[];
+    teams: string[];        // 所在团队列表（待确认是否显示在卡片上）
     lastActivity?: {
-      summary: string;
+      summary: string;      // 自然语言文案（待确认格式）
       at: string;           // ISO 时间
     } | null;
   };
-  onEdit?: (workerName: string) => void;
-  onCreate?: (workerName: string) => void;
-  onDelete?: (workerName: string) => void;
-  onMessage?: (workerName: string) => void;
+  // 核心交互
+  onMessage?: (workerName: string) => void;         // 聊天按钮
+  onEdit?: (workerName: string) => void;           // 编辑模板
+  onCreate?: (workerName: string) => void;         // 创建实例
+  onDelete?: (workerName: string) => void;         // 删除模板
+  onViewMore?: (action: 'detail' | 'activity') => void;  // 更多菜单（查详情/工作统计）
+  
+  // 显示模式控制
+  lastActivityDisplayMode?: 'compact' | 'full';    // compact: 仅显示协作对象名字; full: 完整文案
 }
 ```
+
+**WorkerCard 更新明细** (pm-role-v2 审阅后确认):
+1. ✅ `lastActivityDisplayMode` 支持两个模式
+   - `compact`（默认）：从 summary 正则提取第一个协作对象名字
+     - 正则规则: `/与\s*(\S+?)\s*(?:和|协作)/`（待后端确认格式）
+     - 显示格式: `👥 [名字] M 💬`
+     - 降级：解析失败时显示 `👥 最近协作`
+   - `full`：直接显示完整 summary 文案
+2. ✅ `teams` 字段保留在 props 中，但暂不在卡片上显示（设计空间限制）
+   - 可在"详情页"或"工作统计"页展示
+3. ✅ 新增 `onViewMore` callback，统一处理"查详情"和"工作统计"两个操作
 
 **新增视觉**:
 - 状态标签（在线/空闲/离线），用 `StatusDot` + 文字
@@ -310,27 +332,54 @@ playground/
 
 ## 7. 验收标准
 
-### 组件库层面
+### 组件库层面（基础）
 
 - [ ] ✓ 0 个 playground 组件注册失败
 - [ ] ✓ 所有新/升级组件在 playground 展示正常、props 可调、Events 有日志
 - [ ] ✓ 0 个组件缺 TypeScript 类型定义
 - [ ] ✓ 单测覆盖新组件交互（TabFilter 切换、StatsBar 点击、WorkerCard 操作）
 
+### StatsBar 层面（pm-role-v2 审阅新增）
+
+- [ ] ✓ T1.4 StatsBar 点击交互验收
+  - 点击"在线 4" → TabFilter 自动切换到"在线中"
+  - 点击"成员总数 6" → TabFilter 自动切换到"全部成员"
+  - 卡片按下时有视觉反馈（阴影/高亮）
+  - 列表实时过滤，无闪烁
+
+### WorkerCard 层面（pm-role-v2 审阅补充）
+
+- [ ] ✓ lastActivityDisplayMode='compact' 时，能正确提取协作对象名字
+  - 规则：`/与\s*(\S+?)\s*(?:和|协作)/`
+  - 示例验证：summary="与 Alice 和 Bob 协作发起 PR" → 显示"👥 Alice M 💬"
+  - 失败降级：显示"👥 最近协作"
+- [ ] ✓ lastActivityDisplayMode='full' 时，完整显示 summary 文案
+- [ ] ✓ `onViewMore` callback 生效
+  - 点击"查看详情" → `onViewMore('detail')`
+  - 点击"工作统计" → `onViewMore('activity')`
+- [ ] ✓ 操作按钮底部排列一致，间距规范（对齐设计稿 40.png）
+
 ### 角色列表窗口层面
 
 - [ ] ✓ 获取 `get_workers` 响应 < 500ms，列表渲染
-- [ ] ✓ 筛选 Tab 点击切换生效（全部/角色模板/在线中）
-- [ ] ✓ 统计卡片数字更新
+- [ ] ✓ TabFilter 点击切换生效（全部/角色模板/在线中）
+- [ ] ✓ StatsBar 卡片点击关联筛选
 - [ ] ✓ WorkerCard 显示完整信息（头像+名称+角色+状态+实例数+最近协作+MCP 标签）
-- [ ] ✓ 卡片操作按钮（编辑/创建/删除/消息）可点击
+- [ ] ✓ 卡片操作按钮（编辑/创建/删除/消息/更多） 可点击
 - [ ] ✓ 搜索框 + 筛选组合使用无冲突
+- [ ] ✓ 聊天按钮点击 → 查 `/api/role-instances` 找 ACTIVE → 跳转 teamCanvas
 
 ### 聊天面板层面
 
 - [ ] ✓ 气泡布局、间距贴近 DESIGN-REFERENCE 40.png
 - [ ] ✓ Thinking 态三点动画流畅（60fps）
 - [ ] ✓ 消息输入 → 发送 → 接收流程完整
+
+### 后端依赖确认（待回复）
+
+- ⏳ `lastActivity.summary` 格式是否统一为"与<name>..."开头？
+- ⏳ `get_workers` 响应时间预期（假设 <500ms）
+- ⏳ `worker.status_changed` 事件的 emit 条件（status/instanceCount/teams 变化时）
 
 ---
 
