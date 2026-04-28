@@ -1,6 +1,5 @@
-// 首次启动注入 11 个默认角色模板。仅在 role_templates 表为空时插入,
-// 用户已有模板则整张跳过,避免覆盖用户修改。avatar 值对应 renderer
-// assets/avatars/<avatar>.png。
+// 启动时逐条 INSERT OR IGNORE 11 个默认角色模板。
+// 已有同名模板不覆盖（用户修改优先）。avatar 值对应 renderer assets/avatars/<avatar>.png。
 import { getDb } from '../db/connection.js';
 import { RoleTemplate, type TemplateMcpConfig } from './role-template.js';
 
@@ -99,20 +98,15 @@ const DEFAULT_TEMPLATES: DefaultTemplate[] = [
 
 export function ensureDefaultTemplates(): void {
   const db = getDb();
-  const row = db
-    .prepare('SELECT COUNT(*) AS n FROM role_templates')
-    .get() as { n: number };
-  if (row.n > 0) return;
+  const now = new Date().toISOString();
+  const stmt = db.prepare(
+    `INSERT OR IGNORE INTO role_templates
+       (name, role, description, persona, avatar, available_mcps, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
   const tx = db.transaction(() => {
     for (const t of DEFAULT_TEMPLATES) {
-      RoleTemplate.create({
-        name: t.name,
-        role: t.role,
-        description: t.description,
-        persona: t.persona,
-        avatar: t.avatar,
-        availableMcps: STD_MCPS,
-      });
+      stmt.run(t.name, t.role, t.description, t.persona, t.avatar, JSON.stringify(STD_MCPS), now, now);
     }
   });
   tx();

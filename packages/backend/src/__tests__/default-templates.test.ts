@@ -166,15 +166,32 @@ describe('ensureDefaultTemplates', () => {
     expect(RoleTemplate.findByName('product-manager')).not.toBeNull();
   });
 
-  it('已有数据时整张跳过，不覆盖用户模板', () => {
+  it('已有非默认模板时补齐缺失的默认模板，且不覆盖用户自定义模板', () => {
     RoleTemplate.create({ name: 'user-custom', role: 'dev' });
 
     ensureDefaultTemplates();
 
     const all = RoleTemplate.listAll();
-    expect(all.length).toBe(1);
-    expect(all[0]!.name).toBe('user-custom');
-    expect(RoleTemplate.findByName('frontend-dev')).toBeNull();
+    // 11 个默认 + 1 个 user-custom
+    expect(all.length).toBe(DEFAULT_TEMPLATE_COUNT + 1);
+    expect(RoleTemplate.findByName('user-custom')).not.toBeNull();
+    expect(RoleTemplate.findByName('frontend-dev')).not.toBeNull();
+  });
+
+  it('已有同名默认模板时 INSERT OR IGNORE 不覆盖（用户修改优先）', () => {
+    RoleTemplate.create({
+      name: 'frontend-dev',
+      role: '用户自定义的前端',
+      persona: 'my persona',
+    });
+
+    ensureDefaultTemplates();
+
+    const frontend = RoleTemplate.findByName('frontend-dev')!;
+    expect(frontend.role).toBe('用户自定义的前端');
+    expect(frontend.persona).toBe('my persona');
+    // 其他 10 个默认仍被补齐
+    expect(RoleTemplate.listAll().length).toBe(DEFAULT_TEMPLATE_COUNT);
   });
 
   it('二次调用（已插入 11 个）不重复插入', () => {
