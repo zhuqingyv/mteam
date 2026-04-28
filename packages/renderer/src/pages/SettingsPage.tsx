@@ -167,7 +167,7 @@ export default function SettingsPage() {
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
         title={editing ? t('roles.edit_prefix', { name: editing.name }) : t('settings.template.new')}
-        size="lg"
+        size="md"
       >
         <TemplateEditor
           template={editing ? toDraft(editing) : undefined}

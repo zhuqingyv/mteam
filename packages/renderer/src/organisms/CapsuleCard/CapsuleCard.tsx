@@ -3,8 +3,8 @@ import StatusDot from '../../atoms/StatusDot';
 import Button from '../../atoms/Button';
 import Icon from '../../atoms/Icon';
 import TitleBlock from '../../molecules/TitleBlock';
-import MenuDots from '../../molecules/MenuDots';
 import DragHandle from '../../molecules/DragHandle';
+import { useCapsuleDrag } from '../../hooks/useCapsuleDrag';
 import { useLocale } from '../../i18n';
 import './CapsuleCard.css';
 
@@ -35,24 +35,30 @@ export default function CapsuleCard({
   if (animating) cls.push('card--animating');
   if (bodyVisible) cls.push('card--body-visible');
 
-  const handleCollapsedClick = () => {
+  const handleTap = () => {
     if (online === false) return;
     onToggle?.();
   };
 
+  const drag = useCapsuleDrag(handleTap);
+
   return (
     <div className={cls.join(' ')}>
       <div className="card__drag"><DragHandle /></div>
-      <div className="card__logo"><Logo size={expanded ? 24 : 44} status={resolvedLogoStatus} /></div>
+      <div className="card__logo">
+        <Logo size={expanded ? 24 : 44} status={resolvedLogoStatus} />
+      </div>
       {!expanded && (
         <div
           className="card__collapsed"
-          onClick={handleCollapsedClick}
+          {...drag}
           role="button"
           tabIndex={online === false ? -1 : 0}
         >
           <TitleBlock title={name} subtitle={subtitle} badgeText={badgeText} badgeCount={messageCount} />
-          <MenuDots asDragHandle />
+          <span className="card__expand-hint">
+            <Icon name="expand" size={22} />
+          </span>
         </div>
       )}
       <div className="card__expanded-head">

@@ -16,7 +16,6 @@ export function useCapsuleToggle() {
   const [animating, setAnimating] = useState(false);
   const [bodyVisible, setBodyVisible] = useState(false);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const draggingRef = useRef(false);
   const lockedRef = useRef(false);
 
   useEffect(() => {
@@ -30,26 +29,16 @@ export function useCapsuleToggle() {
     }
   }, [setExpanded]);
 
-  useEffect(() => {
-    const api = window.electronAPI;
-    if (!api?.onDragStart || !api?.onDragEnd) return;
-    const offStart = api.onDragStart(() => { draggingRef.current = true; });
-    const offEnd = api.onDragEnd(() => { draggingRef.current = false; });
-    return () => { offStart(); offEnd(); };
-  }, []);
-
   const schedule = (fn: () => void, ms: number) => {
     timersRef.current.push(setTimeout(fn, ms));
   };
 
   const toggle = () => {
-    if (draggingRef.current) return;
     if (lockedRef.current) return;
     lockedRef.current = true;
     for (const t of timersRef.current) clearTimeout(t);
     timersRef.current = [];
     if (!expanded) {
-      // 展开：先 resize + 切到 expanded 形态，动画跑完再让 body 淡入
       setAnimating(true);
       setExpanded(true);
       setBodyVisible(false);
@@ -60,7 +49,6 @@ export function useCapsuleToggle() {
         lockedRef.current = false;
       }, RESIZE_MS + BODY_FADE_MS);
     } else {
-      // 收起：先淡出 body，再 resize，最后才切回胶囊形态
       setAnimating(true);
       setBodyVisible(false);
       schedule(() => {

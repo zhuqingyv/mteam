@@ -16,6 +16,8 @@ interface WorkerListPanelProps {
   loading?: boolean;
   onChat?: (name: string) => void;
   onViewMore?: (name: string, action: 'detail' | 'activity') => void;
+  // 当外层需要把 TabFilter/StatsBar 提到滚动容器之外（固定表头布局）时关掉内置工具条。
+  showToolbar?: boolean;
 }
 
 // 运行时员工筛选（前端本地）。
@@ -48,6 +50,7 @@ export default function WorkerListPanel({
   loading = false,
   onChat,
   onViewMore,
+  showToolbar = true,
 }: WorkerListPanelProps) {
   const filtered = useMemo(
     () => applySearch(applyTab(workers, tab), searchQuery),
@@ -64,10 +67,16 @@ export default function WorkerListPanel({
 
   return (
     <section className="worker-list-panel" aria-label="数字员工列表">
-      <div className="worker-list-panel__toolbar">
-        <TabFilter tabs={tabs} activeKey={tab} onChange={(k) => onTabChange(k as WorkerListTab)} />
-        <StatsBar stats={stats} />
-      </div>
+      {showToolbar && (
+        <>
+          <div className="worker-list-panel__tabs">
+            <TabFilter tabs={tabs} activeKey={tab} onChange={(k) => onTabChange(k as WorkerListTab)} />
+          </div>
+          <div className="worker-list-panel__stats">
+            <StatsBar stats={stats} />
+          </div>
+        </>
+      )}
 
       {loading && workers.length === 0 ? (
         <div className="worker-list-panel__state" role="status">加载中…</div>

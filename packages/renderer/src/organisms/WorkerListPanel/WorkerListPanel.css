@@ -5,12 +5,16 @@
   width: 100%;
 }
 
-.worker-list-panel__toolbar {
+.worker-list-panel__tabs {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-4);
-  flex-wrap: wrap;
+}
+
+.worker-list-panel__stats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
 }
 
 .worker-list-panel__grid {

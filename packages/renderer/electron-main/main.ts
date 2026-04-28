@@ -133,6 +133,21 @@ ipcMain.on('window:open-team-panel', () => openPanel('team'));
 ipcMain.on('window:open-settings', () => openPanel('settings'));
 ipcMain.on('window:open-role-list', () => openPanel('roles'));
 
+ipcMain.on('window:start-drag', (_e, payload: { screenX: number; screenY: number }) => {
+  if (!mainWindow) return;
+  const [wx, wy] = mainWindow.getPosition();
+  (mainWindow as any).__dragOrigin = { wx, wy, sx: payload.screenX, sy: payload.screenY };
+});
+ipcMain.on('window:drag-move', (_e, payload: { screenX: number; screenY: number }) => {
+  if (!mainWindow) return;
+  const o = (mainWindow as any).__dragOrigin;
+  if (!o) return;
+  mainWindow.setPosition(
+    Math.round(o.wx + (payload.screenX - o.sx)),
+    Math.round(o.wy + (payload.screenY - o.sy)),
+  );
+});
+
 const RESIZE_DIR_MAP: Record<string, string> = {
   top: 'top', bottom: 'bottom', left: 'left', right: 'right',
   tl: 'top-left', tr: 'top-right', bl: 'bottom-left', br: 'bottom-right',

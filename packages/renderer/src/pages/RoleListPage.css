@@ -1,4 +1,12 @@
+.role-list-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
 .role-list-page__header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -44,6 +52,7 @@
 }
 
 .role-list-page__title-area {
+  flex-shrink: 0;
   padding: 12px 24px 16px;
   display: flex;
   flex-direction: column;
@@ -66,14 +75,23 @@
   line-height: 1.5;
 }
 
+.role-list-page__tabs,
+.role-list-page__stats {
+  flex-shrink: 0;
+  padding: 4px 24px;
+  -webkit-app-region: no-drag;
+}
+
 .role-list-page__body {
-  padding: 0 24px 16px;
-  max-height: calc(100vh - 200px);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  padding: 8px 24px 16px;
   -webkit-app-region: no-drag;
 }
 
 .role-list-page__footer {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;

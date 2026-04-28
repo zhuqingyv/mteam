@@ -897,7 +897,7 @@ export const registry: ComponentEntry[] = [
       { name: 'bodyVisible', type: 'boolean', default: false, description: '展开动画结束后 body 淡入' },
     ],
     defaults: { name: 'M-TEAM', agentCount: 3, taskCount: 2, messageCount: 5, online: true, logoStatus: 'online', expanded: false, bodyVisible: false },
-    note: '收起态整条胶囊可点击 toggle，三点也冒泡到 toggle；展开态 card__collapsed 不在 DOM。展开动画依赖 Electron',
+    note: '收起态 Logo/名称/统计/背景点击均 toggle；右侧六点是拖动手柄（app-region:drag，仅 Electron 生效）。展开态 card__collapsed 不在 DOM',
     handlers: (setValues) => ({
       onToggle: () => setValues((p) => ({ ...p, expanded: !p.expanded, bodyVisible: !p.expanded })),
     }),

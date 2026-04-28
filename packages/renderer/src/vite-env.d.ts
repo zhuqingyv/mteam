@@ -17,6 +17,8 @@ interface Window {
     openTeamPanel: () => void;
     openSettings: () => void;
     openRoleList: () => void;
+    startDrag: (screenX: number, screenY: number) => void;
+    dragMove: (screenX: number, screenY: number) => void;
     onDragStart?: (cb: () => void) => () => void;
     onDragEnd?: (cb: () => void) => () => void;
   };

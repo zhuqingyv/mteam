@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import PanelWindow from '../templates/PanelWindow';
 import WorkerListPanel, { type WorkerListTab } from '../organisms/WorkerListPanel';
 import TemplateEditor from '../organisms/TemplateEditor';
+import TabFilter from '../molecules/TabFilter';
+import StatsBar from '../molecules/StatsBar';
 import Modal from '../atoms/Modal';
 import ConfirmDialog from '../molecules/ConfirmDialog';
 import Button from '../atoms/Button';
@@ -56,9 +58,15 @@ export default function RoleListPage() {
   const existingNames = useMemo(() => page.templates.map((t) => t.name), [page.templates]);
   const isEdit = !!(page.editing && page.editing.name);
   const statusLabel = paStatus === 'RUNNING' ? '在线' : '离线';
+  const filterTabs = useMemo(() => ([
+    { key: 'all', label: '全部', count: stats.total },
+    { key: 'template', label: '模板', count: stats.total },
+    { key: 'online', label: '在线', count: stats.online },
+  ]), [stats.total, stats.online]);
 
   return (
     <PanelWindow>
+      <div className="role-list-page">
       <header className="role-list-page__header">
         <div className="role-list-page__brand">
           <Logo size={26} status={paStatus === 'RUNNING' ? 'online' : 'offline'} />
@@ -89,6 +97,14 @@ export default function RoleListPage() {
         <p className="role-list-page__subtitle">浏览、筛选团队里的每一位成员，查看在线状态与最近协作。</p>
       </section>
 
+      <div className="role-list-page__tabs">
+        <TabFilter tabs={filterTabs} activeKey={tab} onChange={(k) => setTab(k as WorkerListTab)} />
+      </div>
+
+      <div className="role-list-page__stats">
+        <StatsBar stats={stats} />
+      </div>
+
       <div className="role-list-page__body">
         <WorkerListPanel
           workers={workers}
@@ -99,6 +115,7 @@ export default function RoleListPage() {
           loading={loading}
           onChat={page.handleChat}
           onViewMore={page.handleViewMore}
+          showToolbar={false}
         />
       </div>
 
@@ -107,12 +124,13 @@ export default function RoleListPage() {
         <span className="role-list-page__cheer-text">今天也辛苦各位数字员工了，继续冲！</span>
         <Button variant="ghost" size="sm" onClick={() => console.log('[worker-list] open activity view (TODO: next wave)')}>团队活跃度</Button>
       </footer>
+      </div>
 
       <Modal
         open={page.editorOpen}
         onClose={() => page.setEditorOpen(false)}
         title={isEdit ? `编辑：${page.editing!.name}` : '新建成员'}
-        size="lg"
+        size="md"
       >
         <TemplateEditor
           template={page.editing ? toDraft(page.editing) : undefined}

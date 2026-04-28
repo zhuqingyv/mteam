@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Button from '../../atoms/Button';
 import Input from '../../atoms/Input';
 import Textarea from '../../atoms/Textarea';
@@ -53,6 +53,11 @@ export default function TemplateEditor({
   const [mcps, setMcps] = useState<string[]>(template?.availableMcps ?? []);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [touched, setTouched] = useState(false);
+
+  // template.avatar 由外部改变时（如 onRandomAvatar 从 API 拿到新头像）同步内部 state。
+  useEffect(() => {
+    setAvatar(template?.avatar ?? null);
+  }, [template?.avatar]);
 
   const nameError = useMemo(() => {
     if (!touched && !name) return '';

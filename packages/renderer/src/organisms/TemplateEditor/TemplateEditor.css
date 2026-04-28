@@ -3,7 +3,7 @@
   flex-direction: column;
   gap: 14px;
   padding: 18px 20px;
-  width: 420px;
+  width: 100%;
   border-radius: 16px;
   background: linear-gradient(135deg, rgba(40, 44, 56, 0.65), rgba(28, 30, 38, 0.72));
   backdrop-filter: blur(40px) saturate(150%);
