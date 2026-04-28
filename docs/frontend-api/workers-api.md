@@ -31,8 +31,8 @@ role_templates（员工定义：name / role / description / persona / avatar / a
 - **纯读**，只通过 WS 查询，不改任何数据。
 - **不暴露 HTTP 端点**（`/api/panel/workers` 不存在；请勿调用）。
 - 员工的增删改走模板通道（`/api/panel/templates/*`，见 [templates-and-mcp.md](./templates-and-mcp.md)），实例的启停走 `/api/panel/instances/*`（见 [instances-api.md](./instances-api.md)）。
-- 员工的"在线/最近工作/所在团队"是实时从底层表聚合的投影，不依赖单独的缓存表。前端若要实时更新员工状态，订阅 `instance.*` / `team.*` / `turn.*` 事件后重新发起 `get_workers` 请求，或按需轮询。
-- 本接口不推送 WS 事件，只响应前端主动请求（request/response 模式，和 `get_turns` / `get_turn_history` 一致）。
+- 员工的"在线/最近工作/所在团队"是实时从底层表聚合的投影，不依赖单独的缓存表。
+- 请求/响应模式（`get_workers` / `get_worker_activity`）+ 增量推送（`worker.status_changed`）双通道：首屏拉一次全量，之后靠推送增量更新，**不需要轮询**。`lastActivity` 变化不触发推送，如需更新最近工作用 `get_workers` 重拉。
 
 ---
 
@@ -157,6 +157,65 @@ role_templates（员工定义：name / role / description / persona / avatar / a
 
 ---
 
+## 实时推送：`worker.status_changed`
+
+员工 `status` / `instanceCount` / `teams` 变化时后端主动推送，前端不需要轮询。由 `worker-status.subscriber` 监听 `instance.* / driver.started / driver.stopped / turn.started / turn.completed` 后重算全量员工列表，对比上一次快照，差异条目才 emit。
+
+**下行事件（按 `event.event.type` 分发）**：
+
+```json
+{
+  "type": "event",
+  "id": "evt_abc123",
+  "event": {
+    "type": "worker.status_changed",
+    "name": "frontend-dev",
+    "status": "online",
+    "instanceCount": 2,
+    "teams": ["官网重构"],
+    "ts": "2026-04-27T10:32:15.420Z",
+    "eventId": "evt_abc123"
+  }
+}
+```
+
+**字段说明**：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `name` | `string` | 员工身份锚点（= `role_templates.name`） |
+| `status` | `WorkerStatus` | `online` / `idle` / `offline` |
+| `instanceCount` | `number` | 该员工当前实例数（含所有状态） |
+| `teams` | `string[]` | 该员工实例关联的团队名列表（去重） |
+
+**前端对接流程**：
+
+1. WS 连上 → 发 `{op:'get_workers', requestId}` 拿全量快照渲染员工卡片
+2. 之后只靠 `worker.status_changed` 增量更新本地缓存（按 `name` 主键 upsert `status / instanceCount / teams`）
+3. **不需要轮询**；`lastActivity` 非 status 口径，如需更新最近工作在关键节点（如订阅到 `turn.completed`）主动重拉 `get_workers`
+
+**不会触发 `worker.status_changed` 的变化**：
+
+- `lastActivity` 改变（不在 status 口径）
+- `role / description / persona / avatar / mcps` 改变（听 `template.updated`）
+- 模板被删除（听 `template.deleted`，前端自行从列表移除；subscriber 清本地快照但不 emit）
+
+**TypeScript 契约**：
+
+```ts
+interface WorkerStatusChangedEvent {
+  type: 'worker.status_changed';
+  name: string;
+  status: 'online' | 'idle' | 'offline';
+  instanceCount: number;
+  teams: string[];
+  ts: string;
+  eventId?: string;
+}
+```
+
+---
+
 ## TypeScript 契约
 
 ```ts
@@ -225,8 +284,8 @@ export interface WsGetWorkerActivityResponse {
 
 | 场景 | 做法 |
 |---|---|
-| 员工大列表 | WS 发 `{op:'get_workers', requestId}` → 收 `get_workers_response` 渲染卡片；订 `instance.created/activated/deleted` + `team.member_joined/left` 重新发 `get_workers` 或本地重算 |
-| 员工卡片右上角状态点 | 读 `workers[i].status` 直接映射 `online/idle/offline` 三色 |
+| 员工大列表 | WS 发 `{op:'get_workers', requestId}` → 收 `get_workers_response` 渲染卡片；之后订 `worker.status_changed` 增量更新，不再轮询 |
+| 员工卡片右上角状态点 | 读 `workers[i].status` 直接映射 `online/idle/offline` 三色；`worker.status_changed` 到达就刷该卡片 |
 | 点击员工卡片聊天按钮 | 用 `worker.name` 去 `/api/panel/instances` 找该模板下的 `ACTIVE` 实例，拿到 `teamId` → 前端跳 teamCanvas；若无 ACTIVE 实例，引导用户创建实例或进模板编辑 |
 | 员工工作量图表 | WS 发 `{op:'get_worker_activity', range:'day', requestId}` 画近 N 天折线图；切粒度改 `range` |
 | 单员工详情页活跃度 | WS 发 `{op:'get_worker_activity', range:'hour', workerName:'frontend-dev', requestId}` |

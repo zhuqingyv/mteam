@@ -61,6 +61,7 @@
 | turn         | `turn.started` / `block_updated` / `completed` / `error` | Agent 工作流聚合块（思考/文本/工具/计划/用量） | [turn-events.md](./turn-events.md) |
 | notification | `notification.delivered`                          | 通知指针（含 `sourceEventId` 指向原事件） | [bus-events §notification.delivered](./bus-events.md) · [notification-and-visibility.md](./notification-and-visibility.md) |
 | action_item  | `action_item.created` / `updated` / `reminder` / `resolved` / `timeout` | 待办（task/approval/decision/authorization）生命周期；reminder 仅投 assignee | [bus-events §action_item](./bus-events.md) · [action-items-api.md](./action-items-api.md) |
+| worker       | `worker.status_changed` | 数字员工在线/空闲/离线 / instanceCount / teams 增量推送；首屏发 `get_workers` 拉全量，之后靠推送，不轮询 | [bus-events §worker](./bus-events.md) · [workers-api §实时推送](./workers-api.md) |
 
 > `driver.thinking` / `driver.text` / `driver.tool_call` / `driver.tool_result` / `driver.turn_done` 已从 WS 白名单移除，前端不要订阅，统一看 `turn.*`。
 

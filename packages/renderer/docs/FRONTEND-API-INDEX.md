@@ -184,7 +184,7 @@
 - **员工 = 角色模板的用户视角包装**：一个员工（`role_templates.name`）可能有多个实例（`role_instances`），在线状态从实例聚合
 - 点击员工卡片聊天按钮 → 用 `worker.name` 找该模板的 ACTIVE 实例 → 前端跳转 teamCanvas
 - 员工定义的增删改走 `/api/panel/templates/*`（模块 6），不在本模块
-- 本接口不推 WS 事件；实时更新订阅 `instance.*` / `team.*` / `turn.*` 后重新发 `get_workers` 请求，或定时轮询
+- **实时推送 `worker.status_changed`**：后端在 `instance.* / driver.* / turn.*` 触发时重算全量员工列表，差异条目 emit `{name, status, instanceCount, teams}`。前端首屏 `get_workers` 拉快照，之后靠该事件增量更新，**不需要轮询**。`lastActivity` 变化不推送（需要最近工作更新时在关键节点重拉 `get_workers`）。
 
 ---
 

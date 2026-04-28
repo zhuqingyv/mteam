@@ -42,7 +42,9 @@ interface PrimaryAgentRow {
   systemPrompt: string;
   mcpConfig: McpToolVisibility[];
   status: 'STOPPED' | 'RUNNING';
-  agentState: AgentState;        // 工作状态，snapshot 和 state_changed 事件均携带
+  agentState?: AgentState;       // 工作状态，snapshot 和 state_changed 事件均携带
+  sandbox: boolean;              // true=DockerRuntime / false=HostRuntime；主 Agent 默认 true
+  autoApprove: boolean;          // true=ACP requestPermission 自动 allow / false=一律 cancelled；主 Agent 默认 true
   createdAt: string;             // ISO
   updatedAt: string;
 }
@@ -55,6 +57,8 @@ interface PrimaryAgentConfig {    // 全部可选，增量 upsert
   cliType?: string;
   systemPrompt?: string;
   mcpConfig?: McpToolVisibility[];
+  sandbox?: boolean;
+  autoApprove?: boolean;
 }
 ```
 

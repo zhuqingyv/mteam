@@ -80,6 +80,16 @@ ACP driver 层流式输出，按 `driverId` 过滤分发。
 | `driver.tool_result`  | `driverId`                              |
 | `driver.turn_done`    | `driverId`                              |
 
+### worker.*
+
+由 `worker-status.subscriber` 监听 `instance.* / driver.started / driver.stopped / turn.started / turn.completed` 重算全量员工列表、对比快照后增量 emit。前端配合 `get_workers` 首屏快照，完全不需要轮询。详见 [workers-api §实时推送](./workers-api.md)。
+
+| type                     | 关键字段                                         |
+| ------------------------ | ------------------------------------------------ |
+| `worker.status_changed`  | `name` `status`（`online`/`idle`/`offline`） `instanceCount` `teams`[] |
+
+> `lastActivity` 变化 / 模板元信息（role / persona / avatar / mcps）变化不触发 `worker.status_changed`。模板元信息改动听 `template.updated` / `template.deleted`。
+
 ### container.*
 
 | type                  | 关键字段                                                           |

@@ -334,6 +334,26 @@ export type WsDownstream =
 }
 ```
 
+数字员工状态变化（`worker.status_changed`）也走这条通道下发，前端订阅 `global` scope 即可收到：
+
+```json
+{
+  "type": "event",
+  "id": "evt_abc123",
+  "event": {
+    "type": "worker.status_changed",
+    "name": "frontend-dev",
+    "status": "online",
+    "instanceCount": 2,
+    "teams": ["官网重构"],
+    "ts": "2026-04-27T10:32:15.420Z",
+    "eventId": "evt_abc123"
+  }
+}
+```
+
+详见 [workers-api §实时推送](./workers-api.md)。
+
 ### gap-replay
 
 补发批次。`upTo=null` 表示无 gap；非 null 时 = 本批最新一条 id（正常）或最老一条 id（超量，前端拿它作为新的 `lastMsgId` 再次 `subscribe` 续拉）。
@@ -388,6 +408,8 @@ export type WsDownstream =
     "mcpConfig": [],
     "status": "RUNNING",
     "agentState": "idle",
+    "sandbox": true,
+    "autoApprove": true,
     "createdAt": "2026-04-25T00:00:00.000Z",
     "updatedAt": "2026-04-25T00:00:00.000Z"
   }
