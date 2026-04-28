@@ -52,6 +52,12 @@ import TemplateEditor from '../src/organisms/TemplateEditor';
 import TemplateList from '../src/organisms/TemplateList';
 import WorkerCard from '../src/organisms/WorkerCard';
 import WorkerListPanel from '../src/organisms/WorkerListPanel';
+import CanvasNode from '../src/molecules/CanvasNode';
+import { CanvasNodeExpanded } from '../src/molecules/CanvasNode';
+import InstanceChatPanel from '../src/organisms/InstanceChatPanel';
+import ChatList from '../src/molecules/ChatList';
+import CanvasTopBar from '../src/molecules/CanvasTopBar';
+import ZoomControl from '../src/molecules/ZoomControl';
 
 export type PropType = 'string' | 'number' | 'boolean' | 'enum';
 
@@ -1421,6 +1427,183 @@ export const registry: ComponentEntry[] = [
       ],
     },
     note: 'Turn 块渲染 demo：thinking→text→tool_call→tool_result→text',
+  },
+  {
+    name: 'CanvasNode',
+    layer: 'molecules',
+    group: 'team',
+    component: CanvasNode,
+    props: [
+      { name: 'name', type: 'string', default: 'Claude', description: '节点名' },
+      {
+        name: 'status',
+        type: 'enum',
+        options: ['idle', 'thinking', 'responding', 'offline'],
+        default: 'thinking',
+        description: '四态状态色：idle 绿 / thinking 黄 / responding 蓝 / offline 灰',
+      },
+      {
+        name: 'cliType',
+        type: 'enum',
+        options: ['claude', 'codex', 'gemini', 'aider', 'cursor', 'copilot', 'unknown'],
+        default: 'claude',
+        description: 'CLI 类型（驱动 AgentLogo）',
+      },
+      { name: 'isLeader', type: 'boolean', default: false, description: '是否 leader（加粗/描边）' },
+      { name: 'taskCount', type: 'number', default: 2, description: '任务数徽章' },
+      { name: 'unreadCount', type: 'number', default: 3, description: '未读计数（红点）' },
+      { name: 'messageCount', type: 'number', default: 12, description: '消息总数' },
+      { name: 'x', type: 'number', default: 20, description: 'X 位置' },
+      { name: 'y', type: 'number', default: 20, description: 'Y 位置' },
+    ],
+    defaults: {
+      id: 'node-1',
+      name: 'Claude',
+      status: 'thinking',
+      cliType: 'claude',
+      isLeader: false,
+      taskCount: 2,
+      unreadCount: 3,
+      messageCount: 12,
+      x: 20,
+      y: 20,
+    },
+    note: '收起态画布节点；status 四态可切换（idle/thinking/responding/offline）；unreadCount>0 显示红点；taskCount/messageCount 在 meta 行显示；位移>3px 触发 onDragEnd，未越阈值视为点击 onOpen',
+    handlers: () => ({ onOpen: () => {}, onDragEnd: () => {} }),
+  },
+  {
+    name: 'CanvasNodeExpanded',
+    layer: 'molecules',
+    group: 'team',
+    component: CanvasNodeExpanded,
+    props: [
+      { name: 'name', type: 'string', default: 'Claude', description: '节点名' },
+      {
+        name: 'status',
+        type: 'enum',
+        options: ['idle', 'thinking', 'responding', 'offline'],
+        default: 'responding',
+        description: '四态状态色',
+      },
+    ],
+    defaults: { id: 'node-1', name: 'Claude', status: 'responding' },
+    renderChildren: () =>
+      React.createElement(
+        'div',
+        { style: { padding: '20px 24px', color: 'rgba(230,237,247,0.8)', fontSize: 13, lineHeight: 1.6 } },
+        '展开态主区 children 插槽：S4-G2a 会装入 ChatList + InstanceChatPanelConnected。',
+      ),
+    note: '展开态 420×540 面板；顶栏 Avatar + name + StatusDot + 最小化/关闭按钮；顶栏拖拽 onDragHeader(dx,dy)，主区是 children 插槽',
+    handlers: () => ({ onMinimize: () => {}, onClose: () => {}, onDragHeader: () => {} }),
+  },
+  {
+    name: 'InstanceChatPanel',
+    layer: 'organisms',
+    group: 'full',
+    component: InstanceChatPanel,
+    props: [
+      { name: 'instanceId', type: 'string', default: 'inst-claude-1', description: '实例 ID' },
+      { name: 'peerId', type: 'string', default: 'user', description: '对端 ID（user / leader-id / member-id）' },
+      { name: 'peerName', type: 'string', default: '我', description: '对端名称（placeholder 用）' },
+      { name: 'streaming', type: 'boolean', default: false, description: '流式中 — 发送按钮变停止按钮' },
+      { name: 'inputValue', type: 'string', default: '', description: '输入内容' },
+      { name: 'emptyHint', type: 'string', default: '', description: '空列表提示（messages.length===0 时显示）' },
+      { name: 'disabled', type: 'boolean', default: false, description: '禁用输入（peer 不支持发送时用）' },
+    ],
+    defaults: {
+      instanceId: 'inst-claude-1',
+      peerId: 'user',
+      peerName: '我',
+      streaming: false,
+      inputValue: '',
+      emptyHint: '',
+      disabled: false,
+      messages: [
+        { id: 'm1', role: 'agent', agentName: 'Claude', content: '你好，我是 Claude，当前实例 inst-claude-1。', time: '20:48' },
+        { id: 'm2', role: 'user', content: '帮我分析一下登录流程', time: '20:49', read: true },
+        {
+          id: 'm3',
+          role: 'agent',
+          agentName: 'Claude',
+          content: '好的，我先读一下相关文件：',
+          time: '20:49',
+          toolCalls: [
+            { id: 't1', toolName: 'read_file', status: 'done', summary: '读取 auth.ts', duration: '0.2s' },
+            { id: 't2', toolName: 'grep', status: 'running', summary: '搜索 login 调用点' },
+          ],
+        },
+      ],
+    },
+    note: 'instanceId + peerId 双维度驱动；内部复用 ChatPanel（agents=[] 抑制切换器）；数据 props 驱动不读 store；disabled 态禁输入；messages 空 + emptyHint 非空时显示提示',
+    handlers: (setValues) => ({
+      onInputChange: (v: unknown) => setValues((p) => ({ ...p, inputValue: v as string })),
+      onSend: () => setValues((p) => ({ ...p, inputValue: '' })),
+      onStop: () => {},
+    }),
+  },
+  {
+    name: 'ChatList',
+    layer: 'molecules',
+    group: 'chat',
+    component: ChatList,
+    props: [
+      { name: 'activeId', type: 'string', default: 'user', description: '当前激活的 peer id' },
+      { name: 'collapsed', type: 'boolean', default: false, description: '收起态（仅头像列）' },
+      { name: 'emptyHint', type: 'string', default: 'No chats yet', description: '空态提示' },
+    ],
+    defaults: {
+      activeId: 'user',
+      collapsed: false,
+      emptyHint: 'No chats yet',
+      items: [
+        { id: 'user', name: '我', role: 'user', lastMessage: '帮我分析登录流程', lastTime: '20:49', unread: 0 },
+        { id: 'leader-1', name: 'Leader', role: 'leader', lastMessage: '已安排给 claude-frontend', lastTime: '20:45', unread: 2 },
+        { id: 'member-1', name: 'Codex', role: 'member', lastMessage: '后端接口已完成', lastTime: '20:30', unread: 0 },
+        { id: 'member-2', name: 'Gemini', role: 'member', lastMessage: '', lastTime: '', unread: 99 },
+        { id: 'member-3', name: 'Aider', role: 'member', lastMessage: '等待任务分配', lastTime: '19:58' },
+      ],
+    },
+    note: 'ChatList + ChatListItem：头像（首字母兜底）+ 名称 + lastMessage（省略）+ lastTime + unread badge；activeId 高亮；role=leader 头像带绿点；支持 overflow-y 内部滚动',
+    handlers: () => ({
+      // onSelect 走 CONTROLLED_PROP_BY_CALLBACK 自动更新 activeId
+      onSelect: () => {},
+    }),
+  },
+  {
+    name: 'CanvasTopBar',
+    layer: 'molecules',
+    group: 'team',
+    component: CanvasTopBar,
+    props: [
+      { name: 'teamName', type: 'string', default: 'Frontend', description: '团队名' },
+      { name: 'memberCount', type: 'number', default: 4, description: '成员数' },
+      { name: 'zoomPercent', type: 'number', default: 100, description: '缩放百分比（0-300，自动 clamp）' },
+    ],
+    defaults: { teamName: 'Frontend', memberCount: 4, zoomPercent: 100 },
+    note: '画布顶栏：左 {teamName} · {memberCount} 成员；右 [zoom%] [适应画布] [+ 新成员] [齿轮] [关闭]；所有按钮走 atoms/Button + Icon',
+    handlers: () => ({
+      onZoomMenu: () => {},
+      onFit: () => {},
+      onNewMember: () => {},
+      onSettings: () => {},
+      onClose: () => {},
+    }),
+  },
+  {
+    name: 'ZoomControl',
+    layer: 'molecules',
+    group: 'team',
+    component: ZoomControl,
+    props: [
+      { name: 'zoom', type: 'number', default: 1, description: '缩放比例（1=100%）' },
+    ],
+    defaults: { zoom: 1 },
+    note: '[-] [zoom%] [+] 三按钮；双击中间百分比触发 onReset；绝对定位由 parent 决定',
+    handlers: (setValues) => ({
+      onZoomIn: () => setValues((p) => ({ ...p, zoom: Math.min(3, ((p.zoom as number) || 1) + 0.1) })),
+      onZoomOut: () => setValues((p) => ({ ...p, zoom: Math.max(0.25, ((p.zoom as number) || 1) - 0.1) })),
+      onReset: () => setValues((p) => ({ ...p, zoom: 1 })),
+    }),
   },
 ];
 
