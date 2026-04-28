@@ -10,7 +10,11 @@
 import { spawn } from 'node:child_process';
 import { bus as defaultBus, type EventBus } from '../bus/index.js';
 import { makeBase } from '../bus/helpers.js';
+import { globalTicker } from '../ticker/ticker.js';
+import type { Ticker } from '../ticker/types.js';
 import type { CliInfo } from './types.js';
+
+const POLL_TASK_ID = 'cli-scanner-poll';
 
 const WHITELIST: readonly string[] = ['claude', 'codex'];
 const SCAN_TIMEOUT_MS = 3000;
@@ -63,12 +67,13 @@ async function scanAllAsync(): Promise<Map<string, CliInfo>> {
 
 export class CliManager {
   private snapshot: Map<string, CliInfo> = new Map();
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private scheduled = false;
   private readyPromise: Promise<void> | null = null;
 
   constructor(
     private readonly eventBus: EventBus = defaultBus,
     private readonly intervalMs: number = POLL_INTERVAL_MS,
+    private readonly ticker: Ticker = globalTicker,
   ) {}
 
   // boot() 不阻塞：触发异步首次扫描，立即返回。
@@ -77,12 +82,14 @@ export class CliManager {
     if (!this.readyPromise) {
       this.readyPromise = this.scanAndDiff();
     }
-    if (this.timer) return;
-    this.timer = setInterval(() => {
-      void this.poll();
-    }, this.intervalMs);
-    // 不让定时器阻止进程退出：测试和 SIGINT 路径依赖这一点。
-    if (typeof this.timer.unref === 'function') this.timer.unref();
+    if (this.scheduled) return;
+    this.ticker.schedule({
+      id: POLL_TASK_ID,
+      fireAt: Date.now() + this.intervalMs,
+      repeat: this.intervalMs,
+      callback: () => { void this.poll(); },
+    });
+    this.scheduled = true;
   }
 
   // 等首次扫描完成。未 boot 时立即 resolve（调用方自己的责任）。
@@ -91,9 +98,9 @@ export class CliManager {
   }
 
   teardown(): void {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
+    if (this.scheduled) {
+      this.ticker.cancel(POLL_TASK_ID);
+      this.scheduled = false;
     }
     this.snapshot.clear();
     this.readyPromise = null;

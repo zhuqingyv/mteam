@@ -83,8 +83,19 @@ export default function TeamPage() {
     createTeam({ name: name.trim(), leaderInstanceId }).catch(() => {});
   };
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') window.close(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <PanelWindow>
+      <div className="team-page__close">
+        <Button variant="icon" size="sm" onClick={() => window.close()}>
+          <Icon name="close" size={20} />
+        </Button>
+      </div>
       {hasTeams ? (
         <TeamMonitorPanel
           teams={sidebarTeams}

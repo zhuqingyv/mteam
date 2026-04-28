@@ -56,6 +56,7 @@
 | container    | `container.started` / `exited` / `crashed`       | 容器生命周期                    | [bus-events §container](./bus-events.md) |
 | turn         | `turn.started` / `block_updated` / `completed` / `error` | Agent 工作流聚合块（思考/文本/工具/计划/用量） | [turn-events.md](./turn-events.md) |
 | notification | `notification.delivered`                          | 通知指针（含 `sourceEventId` 指向原事件） | [bus-events §notification.delivered](./bus-events.md) · [notification-and-visibility.md](./notification-and-visibility.md) |
+| action_item  | `action_item.created` / `updated` / `reminder` / `resolved` / `timeout` | 待办（task/approval/decision/authorization）生命周期；reminder 仅投 assignee | [bus-events §action_item](./bus-events.md) · [action-items-api.md](./action-items-api.md) |
 
 > `driver.thinking` / `driver.text` / `driver.tool_call` / `driver.tool_result` / `driver.turn_done` 已从 WS 白名单移除，前端不要订阅，统一看 `turn.*`。
 
@@ -140,6 +141,18 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | POST   | `/api/panel/avatars/restore` | 还原内置头像 | [avatars-api §restore](./avatars-api.md) |
 | GET    | `/api/panel/avatars/random`  | 随机一个头像 | [avatars-api §random](./avatars-api.md) |
 
+### 2.7b ActionItem（待办）⚠️ 前端走 `/api/panel/action-items/*`
+
+| 方法 | 路径 | 一句话 | 详细 |
+|---|---|---|---|
+| POST   | `/api/panel/action-items`             | 创建待办（kind=task/approval/decision/authorization，deadline 必须 > now+1s） | [action-items-api §POST](./action-items-api.md) |
+| GET    | `/api/panel/action-items`             | 列表（`assigneeId` / `creatorId` / `status` 过滤）                            | [action-items-api §GET-list](./action-items-api.md) |
+| GET    | `/api/panel/action-items/:id`         | 查单个                                                                        | [action-items-api §GET-one](./action-items-api.md) |
+| PUT    | `/api/panel/action-items/:id/resolve` | 解决（body `{status: done\|rejected}`）                                        | [action-items-api §resolve](./action-items-api.md) |
+| PUT    | `/api/panel/action-items/:id/cancel`  | 取消（创建方主动放弃）                                                         | [action-items-api §cancel](./action-items-api.md) |
+
+对应 WS 事件：`action_item.created / updated / reminder / resolved / timeout`，详见 [action-items-api §WS 事件](./action-items-api.md)。
+
 ### 2.7 Primary Agent（总控）⚠️ 前端已改走 WS（下列 HTTP 仅内部/调试）
 
 > ## 🟢 设计原则（硬性约束）
@@ -182,6 +195,7 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 > /api/panel/primary-agent  → /api/primary-agent      (整树转发)
 > /api/panel/cli            → /api/cli                (整树转发)
 > /api/panel/avatars        → /api/avatars            (整树转发)
+> /api/panel/action-items   → /api/action-items       (整树转发)
 > /api/panel/driver/:id/turns                         (见 §2.8，Turn 内存快照；前端改走 WS get_turns)
 > /api/panel/driver/:id/turn-history                  (见 §2.8，Turn 冷历史翻页；前端改走 WS get_turn_history)
 > ```
@@ -214,6 +228,11 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | DELETE | `/api/panel/avatars/:id`        | `/api/avatars/:id`        | 删除/隐藏头像（内置软删、自定义真删） |
 | POST   | `/api/panel/avatars/restore`    | `/api/avatars/restore`    | 还原所有被隐藏的内置头像 |
 | GET    | `/api/panel/avatars/random`     | `/api/avatars/random`     | 随机返回一个可见头像 |
+| POST   | `/api/panel/action-items`             | `/api/action-items`             | 创建待办 |
+| GET    | `/api/panel/action-items`             | `/api/action-items`             | 列表（assigneeId/creatorId/status 过滤） |
+| GET    | `/api/panel/action-items/:id`         | `/api/action-items/:id`         | 查单个 |
+| PUT    | `/api/panel/action-items/:id/resolve` | `/api/action-items/:id/resolve` | 解决（done/rejected） |
+| PUT    | `/api/panel/action-items/:id/cancel`  | `/api/action-items/:id/cancel`  | 取消 |
 | GET    | `/api/panel/driver/:id/turns`   | —（独立实现）             | Turn 内存快照（**仅内部/调试**；前端走 WS `get_turns`，见 §2.8） |
 | GET    | `/api/panel/driver/:id/turn-history` | —（独立实现）        | Turn 冷历史翻页（**仅内部/调试**；前端走 WS `get_turn_history`，见 §2.8） |
 
@@ -232,6 +251,7 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | `McpConfig`       | mcp-store HTTP            | MCP 服务器配置                                                    | [templates-and-mcp §types](./templates-and-mcp.md) |
 | `CliInfo`         | cli HTTP                  | CLI 可用性快照                                                    | [templates-and-mcp §types](./templates-and-mcp.md) |
 | `AvatarRow`       | avatars HTTP              | 头像记录（id/filename/builtin/hidden/createdAt）                 | [avatars-api §types](./avatars-api.md) |
+| `ActionItem` / `ActionItemKind` / `ActionItemStatus` / `ActorId` | action-items HTTP + WS | 待办（4 kind × 6 status，creator/assignee 都是 ActorId）          | [action-items-api §types](./action-items-api.md) |
 | `PrimaryAgentRow` | primary-agent HTTP        | 总控配置（`mcpConfig`: `{serverName,mode,tools?}`，和模板不同！） | [primary-agent-api §types](./primary-agent-api.md) |
 | `Turn` / `TurnBlock` | WS `turn.*` / HTTP 快照 | Agent 工作流聚合块，按 `blockId` upsert                           | [turn-events §types](./turn-events.md) |
 | `NotificationConfig` / `ProxyMode` / `CustomRule` | 通知配置 | 通知代理策略（proxy_all/direct/custom）                          | [notification-config §types](./notification-config.md) · [notification-and-visibility.md](./notification-and-visibility.md) |
@@ -252,6 +272,9 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | 起总控                          | `POST /api/primary-agent/config` → `.../start`   | 先配再起；WS 订 `instance:<PrimaryAgentRow.id>` 收 `turn.*` |
 | 断线重连                        | WS `get_turns { driverId, limit:20 }` → WS `subscribe` 带 `lastMsgId` | 主 Agent 只有 WS 一个数据源；先 `get_turns` 拉快照再订阅，`gap-replay` 保证排在实时 event 前 |
 | 查看历史对话（上滑加载）       | WS `get_turn_history { driverId, limit:20, beforeEndTs?, beforeTurnId? }` → 翻页带游标 | 返回 `{items, hasMore, nextCursor}`，keyset 分页 |
+| 创建待办 / 审批请求             | `POST /api/panel/action-items`（kind=task/approval/decision/authorization）| 收到 `action_item.created` 推送；assignee 到期前收 `action_item.reminder`，超时收 `action_item.timeout` |
+| 查看待办列表                    | `GET /api/panel/action-items?assigneeId=local` 或 `?creatorId=xxx` | 无过滤时只返回未完结项（pending+in_progress）；按 deadline ASC 排 |
+| 解决 / 取消待办                 | `PUT /api/panel/action-items/:id/resolve {status:done\|rejected}` 或 `/cancel` | 都会 emit `action_item.resolved`，`outcome` ∈ done/rejected/cancelled |
 
 ---
 
@@ -367,6 +390,7 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | [teams-api.md](./teams-api.md)                               | 团队 HTTP |
 | [templates-and-mcp.md](./templates-and-mcp.md)               | 模板 / MCP 商店 / CLI 扫描 / MCP 工具搜索 |
 | [avatars-api.md](./avatars-api.md)                           | 头像库 CRUD + 随机 |
+| [action-items-api.md](./action-items-api.md)                 | 待办（task/approval/decision/authorization）HTTP + WS |
 | [primary-agent-api.md](./primary-agent-api.md)               | 总控 Agent 生命周期 HTTP + WS 联动 |
 | [sessions-and-auth.md](./sessions-and-auth.md)               | WS `userId` 约定 / user scope 越权 / sessions/register |
 | [notification-and-visibility.md](./notification-and-visibility.md) | 通知代理 + 可见性过滤机制 |

@@ -136,6 +136,24 @@
 
 ---
 
+### 模块 6b：待办系统（ActionItem）
+
+**职责**：task / approval / decision / authorization 四类人机协作待办的创建、解决、取消、提醒
+
+| 文档 | 路径 |
+|------|------|
+| 待办 API | [docs/frontend-api/action-items-api.md](../../../docs/frontend-api/action-items-api.md) |
+
+**接入要点**：
+- HTTP CRUD：`/api/panel/action-items`（POST 创建 / GET 列表 / GET :id / PUT :id/resolve / PUT :id/cancel）
+- WS 事件：`action_item.created` / `updated` / `reminder` / `resolved` / `timeout`
+- 待办面板按 `deadline ASC` 排（最急的在前）；kind 区分样式（approval/authorization 用弹窗，task/decision 用列表项）
+- assignee 是谁就谁收 `reminder`（reminder 不投 creator / team）
+- 创建方按钮 = 取消；受理方按钮 = 完成 / 拒绝
+- `deadline` 必须 > `Date.now() + 1000`，否则后端拒 400
+
+---
+
 ### 模块 7：通知 + 可见性
 
 **职责**：通知设置（三种代理模式）、可见性规则

@@ -39,6 +39,9 @@ import {
   processManager,
 } from '../process-manager/index.js';
 import { makeBase } from '../bus/helpers.js';
+import { globalTicker } from '../ticker/ticker.js';
+import type { ActionItemScheduler } from '../action-item/scheduler.js';
+import { createActionItemScheduler } from './action-item-wiring.js';
 
 const PID_SNAPSHOT_PATH =
   process.env.TEAM_HUB_PID_SNAPSHOT ||
@@ -137,6 +140,7 @@ export function startServer(port?: number): http.Server {
   mcpManager.boot();
   cliManager.boot();
   let mcpHttpHandle: McpHttpHandle | null = null;
+  let actionItemScheduler: ActionItemScheduler | null = null;
   // comm.start 与 mcp-http listen 无依赖，并行启动；主 Agent 只依赖 mcp-http（mteam-primary）
   // 红线：bootSubscribers 必须早于 primaryAgent.boot（EventBus 无 replay，晚订阅会丢 driver.started）
   Promise.all([
@@ -157,6 +161,8 @@ export function startServer(port?: number): http.Server {
           getPrimaryAgentInstanceId: () => primaryAgent.getConfig()?.id ?? null,
         },
       }, { sandbox: { enabled: process.env.TEAM_HUB_SANDBOX === '1', transport: (process.env.TEAM_HUB_MCP_TRANSPORT as 'http' | 'stdio') ?? 'stdio' }, policy: { enabled: process.env.TEAM_HUB_POLICY === '1' } });
+      actionItemScheduler = createActionItemScheduler(globalTicker, defaultBus, comm.router);
+      actionItemScheduler.boot();
       primaryAgent.boot();
     })
     .catch((e) => process.stderr.write(`[v2] startup failed: ${(e as Error).message}\n`));
@@ -179,8 +185,10 @@ export function startServer(port?: number): http.Server {
         try { await mcpHttpHandle.close(); }
         catch (e) { process.stderr.write(`[v2] mcp-http close failed: ${(e as Error).message}\n`); }
       }
+      try { actionItemScheduler?.teardown(); } catch { /* ignore */ }
       mcpManager.teardown();
       cliManager.teardown();
+      globalTicker.destroy();
       try { await primaryAgent.teardown(); }
       catch (e) { process.stderr.write(`[v2] primary-agent teardown failed: ${(e as Error).message}\n`); }
       // 最后兜底：processManager 里还存活的全部 kill（SIGTERM → 2s → SIGKILL）。
