@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { TentacleRenderer, type BoxGeometry, type TentacleParams } from '../fx/tentacle-renderer';
+import type { ActiveEdge } from '../types/chat';
 
 export interface TentacleAgent {
   id: string;
@@ -8,30 +9,32 @@ export interface TentacleAgent {
 
 const LEADER_COLOR: [number, number, number] = [74, 163, 255];
 const MEMBER_COLOR: [number, number, number] = [160, 170, 200];
+const IDLE_FLOOR = 0.35;
 
 /**
  * Drive a TentacleRenderer from React.
  *
  * - `canvasRef`: the WebGL <canvas>. Must share a positioned ancestor with the
- *   AgentCard DOM nodes so their bounding rects are comparable.
- * - `agents`: current set of cards (order not important). Leader → every
- *   non-leader member gets a tentacle.
- * - `getCardElement(id)`: returns the live DOM node for an agent card so we
- *   can read its current position every frame. Positions are not passed in
- *   because AgentCard owns its drag state internally.
- *
- * The renderer is created once per canvas and kept alive for the hook's
- * lifetime; tentacles are re-computed on each animation frame from live DOM.
+ *   node DOM nodes so their bounding rects are comparable.
+ * - `agents`: current set of nodes. Leader + members used for the fallback
+ *   (full leader→members) rendering when no `activeEdges` are passed.
+ * - `getCardElement(id)`: returns the live DOM node for an agent so we can
+ *   read its current position every frame.
+ * - `activeEdges` (S6-M2)：传入后只画列出的边；颜色按 intensity 调亮度，暗→亮。
+ *    不传 → 兼容旧行为，画全量 leader → members。
  */
 export function useTentacles(
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
   agents: TentacleAgent[],
   getCardElement: (id: string) => HTMLElement | null,
+  activeEdges?: ActiveEdge[],
 ) {
   const agentsRef = useRef(agents);
   agentsRef.current = agents;
   const getElRef = useRef(getCardElement);
   getElRef.current = getCardElement;
+  const edgesRef = useRef<ActiveEdge[] | undefined>(activeEdges);
+  edgesRef.current = activeEdges;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -54,7 +57,9 @@ export function useTentacles(
       if (parent) {
         const baseRect = parent.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
-        const list = buildTentacles(agentsRef.current, getElRef.current, baseRect, dpr);
+        const list = edgesRef.current
+          ? buildActiveTentacles(edgesRef.current, getElRef.current, baseRect, dpr)
+          : buildLeaderTentacles(agentsRef.current, getElRef.current, baseRect, dpr);
         renderer.setTentacles(list);
       }
       rafId = requestAnimationFrame(tick);
@@ -70,7 +75,8 @@ export function useTentacles(
   }, [canvasRef]);
 }
 
-function rectToBox(el: HTMLElement, base: DOMRect, dpr: number): BoxGeometry | null {
+/** @internal exported for tests */
+export function rectToBox(el: HTMLElement, base: DOMRect, dpr: number): BoxGeometry | null {
   const r = el.getBoundingClientRect();
   if (r.width === 0 || r.height === 0) return null;
   return {
@@ -81,7 +87,13 @@ function rectToBox(el: HTMLElement, base: DOMRect, dpr: number): BoxGeometry | n
   };
 }
 
-function buildTentacles(
+/** @internal exported for tests */
+export function scaleColor(c: [number, number, number], k: number): [number, number, number] {
+  return [c[0] * k, c[1] * k, c[2] * k];
+}
+
+/** @internal exported for tests */
+export function buildLeaderTentacles(
   agents: TentacleAgent[],
   getEl: (id: string) => HTMLElement | null,
   base: DOMRect,
@@ -106,6 +118,31 @@ function buildTentacles(
       toBox: box,
       colorA: LEADER_COLOR,
       colorB: MEMBER_COLOR,
+    });
+  }
+  return out;
+}
+
+function buildActiveTentacles(
+  edges: ActiveEdge[],
+  getEl: (id: string) => HTMLElement | null,
+  base: DOMRect,
+  dpr: number,
+): TentacleParams[] {
+  const out: TentacleParams[] = [];
+  for (const e of edges) {
+    const fromEl = getEl(e.fromId);
+    const toEl = getEl(e.toId);
+    if (!fromEl || !toEl) continue;
+    const fromBox = rectToBox(fromEl, base, dpr);
+    const toBox = rectToBox(toEl, base, dpr);
+    if (!fromBox || !toBox) continue;
+    const k = IDLE_FLOOR + (1 - IDLE_FLOOR) * Math.max(0, Math.min(1, e.intensity));
+    out.push({
+      fromBox,
+      toBox,
+      colorA: scaleColor(LEADER_COLOR, k),
+      colorB: scaleColor(MEMBER_COLOR, k),
     });
   }
   return out;

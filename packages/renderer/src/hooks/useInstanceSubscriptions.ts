@@ -46,8 +46,8 @@ export class SubscriptionTracker {
     private readonly client: WsClient | null,
     private readonly debounceMs: number = SUBSCRIPTION_DEBOUNCE_MS,
     // 可注入定时器，方便单测用 fake clock；默认用原生 setTimeout / clearTimeout。
-    private readonly schedule: (cb: () => void, ms: number) => ReturnType<typeof setTimeout> = setTimeout,
-    private readonly cancel: (id: ReturnType<typeof setTimeout>) => void = clearTimeout,
+    private readonly schedule: (cb: () => void, ms: number) => ReturnType<typeof setTimeout> = (cb, ms) => setTimeout(cb, ms),
+    private readonly cancel: (id: ReturnType<typeof setTimeout>) => void = (id) => clearTimeout(id),
   ) {}
 
   // 请求最终状态为 next。hook 每次 useEffect 调一次。

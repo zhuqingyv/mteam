@@ -60,6 +60,14 @@ export interface ChatPeer {
   unread?: number;
 }
 
+// S6-M1 画布活跃边（INTERFACE-CONTRACTS §2 ActiveEdge）。
+export interface ActiveEdge {
+  fromId: string;
+  toId: string;
+  intensity: number;        // 0..1
+  lastActiveTs: number;     // epoch ms
+}
+
 // S4-M3 画布节点数据（INTERFACE-CONTRACTS §2 / §9）。
 export interface CanvasNodeData {
   id: string;
