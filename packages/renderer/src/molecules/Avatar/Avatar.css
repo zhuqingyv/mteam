@@ -1,12 +1,36 @@
 .avatar {
   position: relative;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
+}
+
+.avatar__img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .avatar .status-dot {
   position: absolute;
   right: 0;
   bottom: 2px;
+}
+
+.avatar__badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 50%;
+  background: rgba(20, 22, 30, 0.85);
+  box-shadow: 0 0 0 1.5px rgba(20, 22, 30, 0.9);
+  line-height: 0;
 }

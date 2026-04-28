@@ -32,7 +32,6 @@ const NAME_MAX = 64;
 const ROLE_MAX = 32;
 const PERSONA_MAX = 8192;
 
-const NAME_RE = /^[A-Za-z0-9_-]+$/;
 
 export default function TemplateEditor({
   template,
@@ -63,7 +62,6 @@ export default function TemplateEditor({
     if (!touched && !name) return '';
     if (!name.trim()) return t('template.name_required');
     if (name.length > NAME_MAX) return t('template.name_too_long', { max: NAME_MAX });
-    if (!NAME_RE.test(name)) return t('template.name_pattern');
     if (!isEdit && existingNames.includes(name)) return t('template.name_duplicate');
     return '';
   }, [name, existingNames, isEdit, touched, t]);

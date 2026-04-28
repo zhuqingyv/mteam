@@ -45,11 +45,18 @@
 .canvas-node--dragging {
   cursor: grabbing;
   transform: scale(1.04);
-  z-index: 10;
   box-shadow:
     inset 0 1px 2px rgba(255, 255, 255, 0.41),
     inset 0 0 28px rgba(160, 180, 240, 0.33),
     0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+/* S5-G2 越界回弹：位置平滑过渡到夹回点 */
+.canvas-node--rebounding {
+  transition:
+    left 150ms ease-out,
+    top 150ms ease-out,
+    box-shadow 150ms ease;
 }
 
 .canvas-node--leader {
@@ -59,50 +66,21 @@
 .canvas-node__head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
-.canvas-node__avatar {
-  position: relative;
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  overflow: visible;
-  display: inline-flex;
+.canvas-node__head-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.canvas-node__head-top {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, rgba(120, 130, 170, 0.45), rgba(60, 70, 100, 0.60));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-}
-
-.canvas-node__avatar-img {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-  display: block;
-}
-
-.canvas-node__avatar-initial {
-  font: 600 13px/1 "SF Pro Display", -apple-system, system-ui, sans-serif;
-  color: rgba(255, 255, 255, 0.92);
-  text-transform: uppercase;
-}
-
-.canvas-node__avatar-badge {
-  position: absolute;
-  right: -3px;
-  bottom: -3px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: rgba(20, 22, 28, 0.92);
-  box-shadow: 0 0 0 1.5px rgba(20, 22, 28, 0.92);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  gap: 6px;
 }
 
 .canvas-node__name {
@@ -131,7 +109,6 @@
 .canvas-node__meta {
   display: flex;
   gap: 10px;
-  margin-top: 4px;
   font-size: 11px;
   line-height: 1.4;
   color: rgba(230, 237, 247, 0.6);

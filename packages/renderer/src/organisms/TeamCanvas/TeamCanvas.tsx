@@ -19,10 +19,15 @@ interface TeamCanvasProps {
   onAgentDragEnd?: (id: string, x: number, y: number) => void;
   onAgentOpen?: (id: string) => void;
   onTransformCommit?: (t: Transform) => void;
+  /** 把节点 DOM 元素透出给外层（S5-G1 展开态 fixed 锚点计算用） */
+  onNodeElement?: (id: string, el: HTMLElement | null) => void;
+  /** S5-G2：传入画布尺寸后 CanvasNode 拖拽越界自动 clamp+回弹 */
+  canvasSize?: { width: number; height: number };
 }
 
 export default function TeamCanvas({
   agents, initialTransform, onAgentDragEnd, onAgentOpen, onTransformCommit,
+  onNodeElement, canvasSize,
 }: TeamCanvasProps) {
   const { viewportRef, containerRef, onPanStart, reset, isPanning, getZoom, setTransform } =
     useCanvasTransform({ onTransformCommit });
@@ -70,9 +75,11 @@ export default function TeamCanvas({
             onOpen={onAgentOpen}
             onDragEnd={(x, y) => onAgentDragEnd?.(a.id, x, y)}
             getZoom={getZoom}
+            canvasSize={canvasSize}
             elementRef={(el) => {
               if (el) cardEls.current.set(a.id, el);
               else cardEls.current.delete(a.id);
+              onNodeElement?.(a.id, el);
             }}
           />
         ))}

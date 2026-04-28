@@ -17,6 +17,8 @@ interface TeamMonitorPanelProps {
   onCreateTeam?: () => void;
   onAgentDragEnd?: (id: string, x: number, y: number) => void;
   onAgentOpen?: (id: string) => void;
+  onNodeElement?: (id: string, el: HTMLElement | null) => void;
+  canvasSize?: { width: number; height: number };
   canvasTransform?: Transform;
   onCanvasTransformCommit?: (t: Transform) => void;
   collapsed?: boolean;
@@ -25,6 +27,7 @@ interface TeamMonitorPanelProps {
 
 export default function TeamMonitorPanel({
   teams, agents, activeTeamId, onSelectTeam, onCreateTeam, onAgentDragEnd, onAgentOpen,
+  onNodeElement, canvasSize,
   canvasTransform, onCanvasTransformCommit,
   collapsed = false, onToggleCollapsed,
 }: TeamMonitorPanelProps) {
@@ -68,6 +71,8 @@ export default function TeamMonitorPanel({
           initialTransform={canvasTransform}
           onAgentDragEnd={onAgentDragEnd}
           onAgentOpen={onAgentOpen}
+          onNodeElement={onNodeElement}
+          canvasSize={canvasSize}
           onTransformCommit={onCanvasTransformCommit}
         />
       </div>
