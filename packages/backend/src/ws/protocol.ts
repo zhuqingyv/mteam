@@ -50,6 +50,13 @@ export interface WsPing {
   op: 'ping';
 }
 
+/** 中断当前 Turn：向 ACP agent 发 session/cancel。agent 会 emit turn.completed(stopReason='cancelled')。 */
+export interface WsCancelTurn {
+  op: 'cancel_turn';
+  instanceId: string;
+  requestId?: string;
+}
+
 /** 配置主 Agent（切 cliType 触发重启）。协议层只收窄为非空 string，未知值由业务层拒。 */
 export interface WsConfigurePrimaryAgent {
   op: 'configure_primary_agent';
@@ -96,6 +103,7 @@ export type WsUpstream =
   | WsUnsubscribe
   | WsPrompt
   | WsPing
+  | WsCancelTurn
   | WsConfigurePrimaryAgent
   | WsGetTurns
   | WsGetTurnHistory

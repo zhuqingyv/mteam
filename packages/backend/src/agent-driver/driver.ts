@@ -92,6 +92,14 @@ export class AgentDriver {
     }
   }
 
+  // ACP session/cancel notification：agent 中止后会以 stopReason='cancelled' resolve 当前 prompt，
+  // 触发正常的 turn.completed 路径；本方法不改 status 也不自己 emit。
+  async interrupt(): Promise<void> {
+    if (this.status !== 'WORKING') return;
+    if (!this.conn || !this.sessionId) return;
+    await this.conn.cancel({ sessionId: this.sessionId });
+  }
+
   async stop(): Promise<void> {
     if (this.status === 'STOPPED') return;
     await this.teardown();

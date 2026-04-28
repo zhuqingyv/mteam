@@ -16,6 +16,7 @@ import type {
 import { isWsUpstream } from './protocol.js';
 import { buildGapReplay } from './gap-replayer.js';
 import { handleConfigurePrimaryAgent } from './handle-configure.js';
+import { handleCancelTurn } from './handle-cancel.js';
 import { handleGetTurns, handleGetTurnHistory } from './handle-turns.js';
 import { handleGetWorkers, handleGetWorkerActivity } from './handle-workers.js';
 import type { PrimaryAgentConfig, PrimaryAgentRow } from '../primary-agent/types.js';
@@ -99,6 +100,8 @@ function routeUpstream(
       return void handlePrompt(ws, ctx, deps, msg);
     case 'ping':
       return sendDown(ws, { type: 'pong', ts: new Date().toISOString() });
+    case 'cancel_turn':
+      return handleCancelTurn(ws, deps, msg);
     case 'configure_primary_agent':
       return handleConfigurePrimaryAgent(ws, deps, msg);
     case 'get_turns':

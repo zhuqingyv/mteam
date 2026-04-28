@@ -22,6 +22,7 @@
 | `unsubscribe` | `scope`, `id?`                                          | 退订                                              | [ws-protocol.md §unsubscribe](./ws-protocol.md) |
 | `prompt`      | `instanceId`, `text`, `requestId?`                      | 向 instance（成员或 primary agent）投递一条用户消息，fire-and-forget | [ws-protocol.md §prompt](./ws-protocol.md) · [message-flow §场景1](./message-flow.md) |
 | `ping`        | —                                                       | 心跳；建议 30s 一次                                | [ws-protocol.md §ping](./ws-protocol.md) |
+| `cancel_turn` | `instanceId`, `requestId?`                              | 中断 agent 当前 Turn（停止生成）；ack 立即回，后端发 `turn.completed(stopReason='cancelled')` | [ws-protocol.md §cancel_turn](./ws-protocol.md) |
 | `configure_primary_agent` | `cliType`, `name?`, `systemPrompt?`, `requestId?` | 配置主 Agent（切 cliType 触发 stop→start，全走事件流） | [ws-protocol.md §configure_primary_agent](./ws-protocol.md) · [primary-agent-api §迁移对照](./primary-agent-api.md) |
 | `get_turns`   | `driverId`, `limit?`, `requestId?`                                  | 拉 turn 内存快照（`{ active, recent }`，断线重连先拉这条）                           | [ws-protocol.md §get_turns](./ws-protocol.md) · [turn-events §4 快照查询](./turn-events.md) |
 | `get_turn_history` | `driverId`, `limit?`, `beforeEndTs?`, `beforeTurnId?`, `requestId?` | 拉 turn 持久化冷历史（keyset 翻页，上滑加载）                                       | [ws-protocol.md §get_turn_history](./ws-protocol.md) · [turn-events §8 冷历史接口](./turn-events.md) |
@@ -59,7 +60,7 @@
 | driver (部分)| `driver.started` / `stopped` / `error`            | Agent 在线/离线；**其余 `driver.*` 前端改用 `turn.*`** | [bus-events §driver](./bus-events.md) · [turn-events.md](./turn-events.md) |
 | container    | `container.started` / `exited` / `crashed`       | 容器生命周期                    | [bus-events §container](./bus-events.md) |
 | turn         | `turn.started` / `block_updated` / `completed` / `error` | Agent 工作流聚合块（思考/文本/工具/计划/用量） | [turn-events.md](./turn-events.md) |
-| notification | `notification.delivered`                          | 通知指针（含 `sourceEventId` 指向原事件） | [bus-events §notification.delivered](./bus-events.md) · [notification-and-visibility.md](./notification-and-visibility.md) |
+| notification | `notification.delivered`                          | 两条路径：①路由代理通知指针（`target + sourceEventType + sourceEventId`）；②通知中心富事件（Phase 5 新增，带 `notificationId / channel / severity / kind / title / body / payload`，`channel='system'` 时 Electron 弹 OS 通知） | [bus-events §notification.delivered](./bus-events.md) · [notification-center-api.md](./notification-center-api.md) · [notification-and-visibility.md](./notification-and-visibility.md) |
 | action_item  | `action_item.created` / `updated` / `reminder` / `resolved` / `timeout` | 待办（task/approval/decision/authorization）生命周期；reminder 仅投 assignee | [bus-events §action_item](./bus-events.md) · [action-items-api.md](./action-items-api.md) |
 | worker       | `worker.status_changed` | 数字员工在线/空闲/离线 / instanceCount / teams 增量推送；首屏发 `get_workers` 拉全量，之后靠推送，不轮询 | [bus-events §worker](./bus-events.md) · [workers-api §实时推送](./workers-api.md) |
 
@@ -160,6 +161,16 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 
 > **数字员工（workers）前端只走 WS**：`get_workers` / `get_worker_activity`（见 §1.1 / §1.2），**不提供 HTTP 端点**。详见 [workers-api.md](./workers-api.md)。
 
+### 2.7c 工作流模板（项目模板）⚠️ 前端走 `/api/panel/workflows/*`
+
+| 方法 | 路径 | 一句话 | 详细 |
+|---|---|---|---|
+| GET    | `/api/panel/workflows`                      | 列所有工作流模板（内置 + 自定义，内置在前） | [workflows-api §GET](./workflows-api.md) |
+| POST   | `/api/panel/workflows`                      | 创建自定义工作流模板（`builtin=false`）     | [workflows-api §POST](./workflows-api.md) |
+| POST   | `/api/panel/workflows/:name/launch`         | 一键启动：建 leader + team + 成员（串行调底层 HTTP） | [workflows-api §launch](./workflows-api.md) |
+
+launch 过程依赖链路：`POST /api/role-instances` × N + `POST /api/teams` + `POST /api/teams/:id/members` × (N-1)。错误直接透传底层 status/body（含 `409 QUOTA_EXCEEDED`），**已创建的实例不会自动回滚**。
+
 ### 2.7 Primary Agent（总控）⚠️ 前端已改走 WS（下列 HTTP 仅内部/调试）
 
 > ## 🟢 设计原则（硬性约束）
@@ -203,6 +214,7 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 > /api/panel/cli            → /api/cli                (整树转发)
 > /api/panel/avatars        → /api/avatars            (整树转发)
 > /api/panel/action-items   → /api/action-items       (整树转发)
+> /api/panel/workflows      → /api/workflows          (整树转发：GET 列表 / POST 创建 / POST :name/launch)
 > /api/panel/driver/:id/turns                         (见 §2.8，Turn 内存快照；前端改走 WS get_turns)
 > /api/panel/driver/:id/turn-history                  (见 §2.8，Turn 冷历史翻页；前端改走 WS get_turn_history)
 > ```
@@ -242,6 +254,9 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | GET    | `/api/panel/action-items/:id`         | `/api/action-items/:id`         | 查单个 |
 | PUT    | `/api/panel/action-items/:id/resolve` | `/api/action-items/:id/resolve` | 解决（done/rejected） |
 | PUT    | `/api/panel/action-items/:id/cancel`  | `/api/action-items/:id/cancel`  | 取消 |
+| GET    | `/api/panel/workflows`               | `/api/workflows`               | 列所有工作流模板（内置在前） |
+| POST   | `/api/panel/workflows`               | `/api/workflows`               | 创建自定义工作流模板 |
+| POST   | `/api/panel/workflows/:name/launch`  | `/api/workflows/:name/launch`  | 一键起项目（leader + team + 成员） |
 | GET    | `/api/panel/driver/:id/turns`   | —（独立实现）             | Turn 内存快照（**仅内部/调试**；前端走 WS `get_turns`，见 §2.8） |
 | GET    | `/api/panel/driver/:id/turn-history` | —（独立实现）        | Turn 冷历史翻页（**仅内部/调试**；前端走 WS `get_turn_history`，见 §2.8） |
 
@@ -265,6 +280,8 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | `PrimaryAgentRow` | primary-agent HTTP        | 总控配置（`mcpConfig`: `{serverName,mode,tools?}`，和模板不同！） | [primary-agent-api §types](./primary-agent-api.md) |
 | `Turn` / `TurnBlock` | WS `turn.*` / HTTP 快照 | Agent 工作流聚合块，按 `blockId` upsert                           | [turn-events §types](./turn-events.md) |
 | `NotificationConfig` / `ProxyMode` / `CustomRule` | 通知配置 | 通知代理策略（proxy_all/direct/custom）                          | [notification-config §types](./notification-config.md) · [notification-and-visibility.md](./notification-and-visibility.md) |
+| `NotificationRecord` / `NotificationKind` / `NotificationChannel` / `Severity` | 通知中心（Phase 5） | 通知实体 + WS `notification.delivered` 富事件字段（title/body/channel/severity/kind/payload） | [notification-center-api §types](./notification-center-api.md) |
+| `WorkflowTemplate` / `WorkflowRole` / `TaskChainStep` / `LaunchWorkflowInput` / `LaunchWorkflowResponse` | workflows HTTP | 工作流模板（项目模板）与一键 launch 契约 | [workflows-api §types](./workflows-api.md) |
 | `VisibilityRule`  | 可见性配置（建议端点）     | principal/target/effect，deny 优先                                | [notification-and-visibility §VisibilityRule](./notification-and-visibility.md) |
 
 ---
@@ -401,9 +418,11 @@ Base URL = backend HTTP host（如 `http://localhost:58590`）。全部返回 JS
 | [templates-and-mcp.md](./templates-and-mcp.md)               | 模板 / MCP 商店 / CLI 扫描 / MCP 工具搜索 |
 | [avatars-api.md](./avatars-api.md)                           | 头像库 CRUD + 随机 |
 | [action-items-api.md](./action-items-api.md)                 | 待办（task/approval/decision/authorization）HTTP + WS |
+| [workflows-api.md](./workflows-api.md)                       | 工作流模板（项目模板）：`GET` 列表 / `POST` 创建 / `POST :name/launch` 一键起项目 |
 | [workers-api.md](./workers-api.md)                           | 数字员工（角色模板视图）列表 + 活跃度（WS `get_workers` / `get_worker_activity`） |
 | [primary-agent-api.md](./primary-agent-api.md)               | 总控 Agent 生命周期 HTTP + WS 联动 |
 | [sessions-and-auth.md](./sessions-and-auth.md)               | WS `userId` 约定 / user scope 越权 / sessions/register |
-| [notification-and-visibility.md](./notification-and-visibility.md) | 通知代理 + 可见性过滤机制 |
+| [notification-and-visibility.md](./notification-and-visibility.md) | 通知代理路由 + 可见性过滤机制（`target+sourceEvent*` 指针） |
+| [notification-center-api.md](./notification-center-api.md)   | 通知中心（Phase 5）：`notification.delivered` 富事件字段 + OS 通知触发规则 + `NotificationRecord` |
 | [notification-config.md](./notification-config.md)           | 通知配置 TS 类型与建议 HTTP |
 | [../architecture-overview.md](../architecture-overview.md)    | 整体架构（后端视角，前端对接前可通读） |

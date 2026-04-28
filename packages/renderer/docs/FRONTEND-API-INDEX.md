@@ -156,16 +156,40 @@
 
 ### 模块 7：通知 + 可见性
 
-**职责**：通知设置（三种代理模式）、可见性规则
+**职责**：通知设置（三种代理模式）、可见性规则、**通知中心 OS 通知**
 
 | 文档 | 路径 |
 |------|------|
+| 通知中心 API（Phase 5） | [docs/frontend-api/notification-center-api.md](../../../docs/frontend-api/notification-center-api.md) |
 | 通知配置 | [docs/frontend-api/notification-config.md](../../../docs/frontend-api/notification-config.md) |
 | 可见性规则 | [docs/frontend-api/notification-and-visibility.md](../../../docs/frontend-api/notification-and-visibility.md) |
 
 **接入要点**：
-- 通知事件：`notification.delivered`（按 sourceEventId 去重）
-- 配置 API：待落地（当前只有 DAO，HTTP 端点 TODO）
+- `notification.delivered` 有**两条来源路径**，按字段判定：
+  - **路由代理路径**：只带 `target + sourceEventType + sourceEventId`。按 `sourceEventId` 去本地事件缓存找原事件渲染，**不要**弹 OS 通知。
+  - **通知中心路径（Phase 5）**：带 `notificationId / channel / severity / kind / title / body / payload`。`channel='system' | 'both'` 时 Electron 弹 OS 通知，`'in_app' | 'both'` 时追加到应用内通知抽屉。
+- 首个典型用例：**agent 配额超限**（kind=`quota_limit`, severity=`warn`, channel=`system`）。用户面板创建 agent 失败时 `POST /api/panel/instances` 返回 `409 { code:'QUOTA_EXCEEDED', resource, current, limit }`，**同步**推一条富事件，前端同源去重（`notificationId`）别重复提示。
+- 去重：两条路径各自有唯一 id（`notificationId` / `sourceEventId`），不要按事件本身的 `eventId` 去重。
+- 列表/未读计数/ack：DAO 已实现（`notification-center/repo.ts`），HTTP 端点**未挂载**，前端要用先跟后端对齐。
+- 通知代理配置 API：同样未落地（当前只有 DAO，HTTP 端点 TODO）。
+
+---
+
+### 模块 7b：工作流模板（项目模板）
+
+**职责**：列出模板库、创建自定义模板、一键启动（leader + team + 成员 + 首批任务）
+
+| 文档 | 路径 |
+|------|------|
+| 工作流 API | [docs/frontend-api/workflows-api.md](../../../docs/frontend-api/workflows-api.md) |
+
+**接入要点**：
+- HTTP：`GET /api/panel/workflows` / `POST /api/panel/workflows` / `POST /api/panel/workflows/:name/launch`
+- 首批内置 5 个模板：`code-review` / `fullstack-team` / `bug-fix` / `tech-research` / `doc-writing`（`builtin=true`，不可删）。
+- launch 按顺序串行调底层 `POST /api/role-instances` × N + `POST /api/teams` + `POST /api/teams/:id/members` × (N-1)；**中途失败不回滚**，前端要在重试前清理残留实例，否则 memberName 冲突。
+- 可能透传 `409 QUOTA_EXCEEDED`，响应体与 [instances-api POST](../../../docs/frontend-api/instances-api.md) 完全一致，同时会触发通知中心 `notification.delivered`（见模块 7）。
+- launch 过程的状态进展通过现有 bus 事件（`instance.created` / `team.created` / `team.member_joined`）推送，前端用返回的 `teamId` 订阅 `team:<teamId>` 即可收完整流；**workflow 本身不单独 emit 事件**。
+- `taskChain` 的链式触发由后端 `WorkflowChainSubscriber` 按 `action_item.resolved` 自动调度，**前端不参与**。
 
 ---
 

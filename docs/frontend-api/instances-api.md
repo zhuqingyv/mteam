@@ -78,7 +78,23 @@ PENDING --activate--> ACTIVE --request-offline--> PENDING_OFFLINE
 - `task` 可选，≤ 2048 字符
 - `leaderName` 可选，≤ 64 字符
 
-返回 `201` + `RoleInstance`（`status = 'PENDING'`）。模板不存在 `404`；校验失败 `400`。
+返回 `201` + `RoleInstance`（`status = 'PENDING'`）。
+
+错误：
+
+- 模板不存在 `404`
+- 校验失败 `400`
+- **配额超限 `409`** — 响应体形如：
+  ```json
+  {
+    "error": "agent count 5/5 exceeds quota",
+    "code": "QUOTA_EXCEEDED",
+    "resource": "agent",
+    "current": 5,
+    "limit": 5
+  }
+  ```
+  此时后端会**同时**落库一条 `quota_limit` 通知并推送 `notification.delivered`（`channel='system'` / `severity='warn'`，触发 OS 通知）。前端既可以直接根据 409 响应渲染提示，也可以让通知中心接管弹窗，二者**同源**不要重复提示（按 `notificationId` 去重）。详见 [notification-center-api.md](./notification-center-api.md)。
 
 副作用（subscriber 自动做）：
 

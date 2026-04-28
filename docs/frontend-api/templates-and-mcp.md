@@ -90,6 +90,8 @@ interface SearchHit {
 ### `DELETE /api/role-templates/:name`
 响应 `204`；`404` 不存在；`409` 仍被活跃实例引用（需先删实例）。
 
+> **创建实例时的配额限制**：模板本身不受配额管控，但**创建实例**（`POST /api/panel/instances`）可能返回 `409 { code: 'QUOTA_EXCEEDED', resource, current, limit }` 并**同时**推送 `notification.delivered`（`kind='quota_limit'`, `channel='system'`）。完整契约见 [instances-api.md §POST](./instances-api.md) 和 [notification-center-api.md](./notification-center-api.md)。
+
 ## MCP 商店 `/api/mcp-store`
 
 ### `GET /api/mcp-store`

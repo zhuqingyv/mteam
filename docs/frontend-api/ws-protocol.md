@@ -27,6 +27,7 @@ export interface WsSubscribe   { op: 'subscribe';   scope: SubscriptionScope; id
 export interface WsUnsubscribe { op: 'unsubscribe'; scope: SubscriptionScope; id?: string }
 export interface WsPrompt      { op: 'prompt';      instanceId: string; text: string; requestId?: string }
 export interface WsPing        { op: 'ping' }
+export interface WsCancelTurn  { op: 'cancel_turn'; instanceId: string; requestId?: string }
 export interface WsConfigurePrimaryAgent {
   op: 'configure_primary_agent';
   cliType: string;            // 必填，非空
@@ -60,7 +61,7 @@ export interface WsGetWorkerActivity {
   requestId?: string;
 }
 export type WsUpstream =
-  | WsSubscribe | WsUnsubscribe | WsPrompt | WsPing | WsConfigurePrimaryAgent
+  | WsSubscribe | WsUnsubscribe | WsPrompt | WsPing | WsCancelTurn | WsConfigurePrimaryAgent
   | WsGetTurns | WsGetTurnHistory | WsGetWorkers | WsGetWorkerActivity;
 
 // ---- 下行 ----
@@ -152,6 +153,23 @@ export type WsDownstream =
 ```json
 { "op": "ping" }
 ```
+
+### cancel_turn — 停止 Agent 生成
+
+**fire-and-forget** — 中断指定实例当前正在回复的 Turn。后端向 ACP agent 发 `session/cancel` notification，agent 会以 `stopReason='cancelled'` 提前结束当前 prompt，走正常的 `turn.completed` 事件路径。
+
+```json
+{ "op": "cancel_turn", "instanceId": "inst_abc", "requestId": "req_c1" }
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `instanceId` | string | 必填；成员用 `RoleInstance.id`，主 Agent 用 `PrimaryAgentRow.id` |
+| `requestId` | string | 可选；原样回填到 `ack.requestId` |
+
+- driver 不存在 → 下行 `error{code:'not_found'}`
+- driver 不在 WORKING（READY/STOPPED）→ 仍回 `ack{ok:true}`（幂等，后端内部 noop）
+- 成功 → 立即 `ack{ok:true}`；稍后后端 emit `turn.completed`（`stopReason='cancelled'`）推回前端
 
 ### configure_primary_agent
 

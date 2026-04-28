@@ -32,6 +32,7 @@ const SUBSCRIBE_KEYS = new Set(['op', 'scope', 'id', 'lastMsgId']);
 const UNSUBSCRIBE_KEYS = new Set(['op', 'scope', 'id']);
 const PROMPT_KEYS = new Set(['op', 'instanceId', 'text', 'requestId']);
 const PING_KEYS = new Set(['op']);
+const CANCEL_TURN_KEYS = new Set(['op', 'instanceId', 'requestId']);
 const CONFIGURE_PRIMARY_AGENT_KEYS = new Set([
   'op', 'cliType', 'name', 'systemPrompt', 'requestId',
 ]);
@@ -73,6 +74,13 @@ export function isWsUpstream(x: unknown): x is WsUpstream {
       );
     case 'ping':
       return hasOnlyKeys(x, PING_KEYS);
+    case 'cancel_turn':
+      return (
+        hasOnlyKeys(x, CANCEL_TURN_KEYS) &&
+        typeof x.instanceId === 'string' &&
+        x.instanceId.length > 0 &&
+        isOptString(x.requestId)
+      );
     case 'configure_primary_agent':
       return (
         hasOnlyKeys(x, CONFIGURE_PRIMARY_AGENT_KEYS) &&
