@@ -233,7 +233,7 @@ export const registry: ComponentEntry[] = [
       {
         name: 'name',
         type: 'enum',
-        options: ['close', 'send', 'chevron', 'chevron-down', 'settings', 'plus', 'check', 'check-double', 'team'],
+        options: ['close', 'send', 'stop', 'chevron', 'chevron-down', 'settings', 'plus', 'check', 'check-double', 'team'],
         default: 'send',
         description: '图标名',
       },
@@ -709,13 +709,15 @@ export const registry: ComponentEntry[] = [
     props: [
       { name: 'placeholder', type: 'string', default: '输入消息…', description: '占位符' },
       { name: 'value', type: 'string', default: '有什么我能帮你的？', description: '输入内容' },
+      { name: 'streaming', type: 'boolean', default: false, description: '流式中 — 发送按钮变停止按钮' },
     ],
-    defaults: { placeholder: '输入消息…', value: '有什么我能帮你的？' },
-    note: '可输入、Enter/点箭头发送（发送后清空）',
+    defaults: { placeholder: '输入消息…', value: '有什么我能帮你的？', streaming: false },
+    note: '可输入、Enter/点箭头发送（发送后清空）；streaming 时按钮变停止，点击触发 onStop',
     handlers: (setValues) => ({
       onSend: () => {
         setValues((prev) => ({ ...prev, value: '' }));
       },
+      onStop: () => {},
     }),
   },
   {

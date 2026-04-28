@@ -126,6 +126,11 @@ export function createWsClient(userId = 'local'): WsClient {
       if (requestId) m.requestId = requestId;
       send(m);
     },
+    cancelTurn(instanceId, requestId?) {
+      const m: Record<string, unknown> = { op: 'cancel_turn', instanceId };
+      if (requestId) m.requestId = requestId;
+      send(m);
+    },
     configurePrimaryAgent(body, requestId?) {
       const m: Record<string, unknown> = { op: 'configure_primary_agent', cliType: body.cliType };
       if (body.name !== undefined) m.name = body.name;

@@ -8,6 +8,8 @@ interface ChatInputProps {
   value?: string;
   onChange?: (value: string) => void;
   onSend?: () => void;
+  streaming?: boolean;
+  onStop?: () => void;
 }
 
 export default function ChatInput({
@@ -15,6 +17,8 @@ export default function ChatInput({
   value = '',
   onChange,
   onSend,
+  streaming = false,
+  onStop,
 }: ChatInputProps) {
   const { t } = useLocale();
   const resolvedPlaceholder = placeholder ?? t('chat.placeholder_generic');
@@ -35,8 +39,13 @@ export default function ChatInput({
     }
   };
 
+  const handleClick = () => {
+    if (streaming) onStop?.();
+    else onSend?.();
+  };
+
   return (
-    <div className="chat-input">
+    <div className="chat-input" data-streaming={streaming ? 'true' : undefined}>
       <textarea
         ref={ref}
         className="chat-input__textarea"
@@ -48,12 +57,12 @@ export default function ChatInput({
       />
       <button
         type="button"
-        className="chat-input__send"
-        onClick={() => onSend?.()}
-        disabled={!value.trim()}
-        aria-label={t('common.send')}
+        className={`chat-input__send${streaming ? ' chat-input__send--stop' : ''}`}
+        onClick={handleClick}
+        disabled={streaming ? false : !value.trim()}
+        aria-label={streaming ? t('common.stop') : t('common.send')}
       >
-        <Icon name="send" size={16} />
+        <Icon name={streaming ? 'stop' : 'send'} size={16} />
       </button>
     </div>
   );

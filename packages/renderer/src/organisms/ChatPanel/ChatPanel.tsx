@@ -37,6 +37,8 @@ interface ChatPanelProps {
   onSend?: () => void;
   onSelectAgent?: (id: string) => void;
   toolBar?: ReactNode;
+  streaming?: boolean;
+  onStop?: () => void;
 }
 
 export default function ChatPanel({
@@ -48,6 +50,8 @@ export default function ChatPanel({
   onSend,
   onSelectAgent,
   toolBar,
+  streaming = false,
+  onStop,
 }: ChatPanelProps) {
   const { t } = useLocale();
   const resolvedPlaceholder = inputPlaceholder ?? t('chat.placeholder_mteam');
@@ -85,6 +89,8 @@ export default function ChatPanel({
           value={inputValue}
           onChange={onInputChange}
           onSend={onSend}
+          streaming={streaming}
+          onStop={onStop}
         />
       </div>
     </div>

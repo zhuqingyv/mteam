@@ -79,3 +79,13 @@
   outline: 2px solid rgba(var(--color-accent-primary-rgb), 0.6);
   outline-offset: 2px;
 }
+
+.chat-input__send--stop {
+  background: rgba(var(--color-accent-primary-rgb), 0.92);
+  box-shadow: 0 2px 10px rgba(var(--color-accent-primary-rgb), 0.42);
+}
+
+.chat-input__send--stop:hover:not(:disabled) {
+  background: rgba(var(--color-accent-primary-rgb), 1);
+  box-shadow: 0 4px 14px rgba(var(--color-accent-primary-rgb), 0.55);
+}

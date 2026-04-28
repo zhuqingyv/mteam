@@ -10,6 +10,7 @@ const zhTW: Partial<Record<TranslationKey, string>> = {
   'common.edit': '編輯',
   'common.add': '新增',
   'common.send': '傳送',
+  'common.stop': '停止',
   'common.new': '新建',
   'common.expand': '展開',
   'common.collapse': '收起',

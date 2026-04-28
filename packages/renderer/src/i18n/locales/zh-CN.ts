@@ -8,6 +8,7 @@ const zhCN = {
   'common.edit': '编辑',
   'common.add': '添加',
   'common.send': '发送',
+  'common.stop': '停止',
   'common.new': '新建',
   'common.expand': '展开',
   'common.collapse': '收起',

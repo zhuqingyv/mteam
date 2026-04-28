@@ -3,6 +3,7 @@ import './Icon.css';
 type IconName =
   | 'close'
   | 'send'
+  | 'stop'
   | 'chevron'
   | 'chevron-down'
   | 'chevron-up'
@@ -28,6 +29,7 @@ interface IconDef {
 const SIMPLE: Record<string, string> = {
   close: 'M6 6l12 12M18 6L6 18',
   send: 'M3 12l18-9-7 18-3-8-8-1z',
+  stop: 'M6 6h12v12H6z',
   chevron: 'M9 6l6 6-6 6',
   'chevron-down': 'M6 9l6 6 6-6',
   'chevron-up': 'M6 15l6-6 6 6',
@@ -53,7 +55,7 @@ const COMPLEX: Record<string, IconDef> = {
   },
 };
 
-const FILL_ICONS = new Set<IconName>(['send', 'settings', 'team']);
+const FILL_ICONS = new Set<IconName>(['send', 'stop', 'settings', 'team']);
 
 export default function Icon({ name, size = 16, color = 'currentColor' }: IconProps) {
   const complex = COMPLEX[name];

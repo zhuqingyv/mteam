@@ -56,3 +56,12 @@ export function flushNextPending(): void {
   if (next === undefined) return;
   dispatchPromptNow(next);
 }
+
+// 用户点停止：清空待发队列 + 向 WS 发 cancel_turn。UI 状态回收完全走 turn.completed。
+export function cancelCurrentTurn(): void {
+  const iid = usePrimaryAgentStore.getState().instanceId;
+  const client = useWsStore.getState().client;
+  if (!iid || !client) return;
+  useMessageStore.getState().clearPending();
+  client.cancelTurn(iid, `cancel-${Date.now()}`);
+}

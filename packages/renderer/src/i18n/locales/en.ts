@@ -10,6 +10,7 @@ const en: Partial<Record<TranslationKey, string>> = {
   'common.edit': 'Edit',
   'common.add': 'Add',
   'common.send': 'Send',
+  'common.stop': 'Stop',
   'common.new': 'New',
   'common.expand': 'Expand',
   'common.collapse': 'Collapse',

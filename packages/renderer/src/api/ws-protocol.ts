@@ -82,6 +82,7 @@ export interface WsClient {
   subscribe: (scope: string, id?: string) => void;
   unsubscribe: (scope: string, id?: string) => void;
   prompt: (instanceId: string, text: string, requestId?: string) => void;
+  cancelTurn: (instanceId: string, requestId?: string) => void;
   configurePrimaryAgent: (body: ConfigurePrimaryAgentBody, requestId?: string) => void;
   getTurns: (driverId: string, limit?: number, requestId?: string) => void;
   getTurnHistory: (driverId: string, params: GetTurnHistoryParams, requestId?: string) => void;

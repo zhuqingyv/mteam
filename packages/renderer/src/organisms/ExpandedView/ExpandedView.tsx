@@ -14,7 +14,7 @@ import {
   usePrimaryAgentStore,
   selectPaConfig,
 } from '../../store';
-import { sendUserPrompt } from '../../hooks/promptDispatcher';
+import { sendUserPrompt, cancelCurrentTurn } from '../../hooks/promptDispatcher';
 import './ExpandedView.css';
 
 export default function ExpandedView() {
@@ -71,6 +71,9 @@ export default function ExpandedView() {
     clearText();
   }, [clearText]);
 
+  // 口径复用 isTurnStreaming：agent 消息 streaming=true && turnId 非空，即真正进入 turn.started。
+  const streaming = messages.some((m) => m.role === 'agent' && m.streaming === true && !!m.turnId);
+
   return (
     <div className="expanded-view">
       <ChatPanel
@@ -78,6 +81,8 @@ export default function ExpandedView() {
         inputValue={inputText}
         onInputChange={setInputText}
         onSend={handleSend}
+        streaming={streaming}
+        onStop={cancelCurrentTurn}
         toolBar={
           <ToolBar
             modelOptions={modelOptions}
