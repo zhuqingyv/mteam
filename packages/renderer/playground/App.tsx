@@ -12,7 +12,7 @@ import Logo from '../src/atoms/Logo';
 import NotificationCard from '../src/atoms/NotificationCard';
 import MessageBubble from '../src/molecules/MessageBubble';
 
-const PLAYGROUND_VERSION = '1.7.7';
+const PLAYGROUND_VERSION = '1.8.2';
 
 type Tab = Layer | 'scenes';
 

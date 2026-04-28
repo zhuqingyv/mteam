@@ -1,0 +1,98 @@
+.tab-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    135deg,
+    rgba(40, 44, 56, 0.65) 0%,
+    rgba(28, 30, 38, 0.72) 100%
+  );
+  backdrop-filter: blur(50px) saturate(150%);
+  -webkit-backdrop-filter: blur(50px) saturate(150%);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.36),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.25),
+    inset 0 0 18px rgba(180, 190, 220, 0.33),
+    inset 0 0 40px rgba(150, 160, 200, 0.20),
+    0 0 6px rgba(160, 170, 200, 0.3),
+    0 0 16px rgba(140, 150, 180, 0.2),
+    0 0 30px rgba(120, 130, 170, 0.12);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-ui);
+  -webkit-app-region: no-drag;
+}
+
+.tab-filter__item {
+  display: inline-flex;
+}
+
+.tab-filter .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  transition:
+    background var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard),
+    transform var(--duration-fast) var(--easing-standard);
+}
+
+.tab-filter .btn--ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-primary);
+}
+
+.tab-filter .btn--primary {
+  background: linear-gradient(135deg, #4aa3ff, #2d7ee6);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 2px 10px rgba(74, 163, 255, 0.35);
+}
+
+.tab-filter .btn--primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.tab-filter__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.tab-filter__label {
+  white-space: nowrap;
+}
+
+.tab-filter__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+}
+
+.tab-filter .btn--primary .tab-filter__count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}

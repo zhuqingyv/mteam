@@ -32,6 +32,8 @@ import ChatHeader from '../src/molecules/ChatHeader';
 import ChatInput from '../src/molecules/ChatInput';
 import AgentSwitcher from '../src/molecules/AgentSwitcher';
 import ToolBar from '../src/molecules/ToolBar';
+import TabFilter from '../src/molecules/TabFilter';
+import StatsBar from '../src/molecules/StatsBar';
 import DragHandle from '../src/molecules/DragHandle';
 import MessageBadge from '../src/molecules/MessageBadge';
 import TeamSidebarItem from '../src/atoms/TeamSidebarItem';
@@ -772,6 +774,58 @@ export const registry: ComponentEntry[] = [
       onTeamPanel: () => setValues((p) => ({ ...p, teamPanelActive: !p.teamPanelActive })),
       onSettings: () => {},
     }),
+  },
+  {
+    name: 'TabFilter',
+    layer: 'molecules',
+    group: 'nav',
+    component: TabFilter,
+    props: [
+      {
+        name: 'activeKey',
+        type: 'enum',
+        options: ['all', 'templates', 'online'],
+        default: 'all',
+        description: '当前激活 Tab 的 key',
+      },
+    ],
+    defaults: {
+      activeKey: 'all',
+      tabs: [
+        { key: 'all', label: '全部成员', icon: React.createElement(Icon, { name: 'team', size: 14 }) },
+        { key: 'templates', label: '角色模板', icon: React.createElement(Icon, { name: 'settings', size: 14 }) },
+        { key: 'online', label: '在线中', icon: React.createElement(StatusDot, { status: 'online', size: 'sm' }) },
+      ],
+    },
+    note: '发光玻璃胶囊容器 + 三 Tab 横排；active 用 primary 蓝色、inactive 用 ghost；icon/count 可选',
+    handlers: (setValues) => ({
+      onChange: (key: unknown) => setValues((p) => ({ ...p, activeKey: key as string })),
+    }),
+  },
+  {
+    name: 'StatsBar',
+    layer: 'molecules',
+    group: 'display-mol',
+    component: StatsBar,
+    props: [
+      {
+        name: 'activeKey',
+        type: 'enum',
+        options: ['', 'total', 'online', 'idle', 'offline'],
+        default: '',
+        description: '当前高亮的 cell；空字符串等价于 null（无选中）',
+      },
+    ],
+    defaults: {
+      activeKey: '',
+      stats: { total: 6, online: 4, idle: 2, offline: 0 },
+    },
+    handlers: (setValues) => ({
+      onStatClick: (k: unknown) => {
+        setValues((prev) => ({ ...prev, activeKey: prev.activeKey === k ? '' : (k as string) }));
+      },
+    }),
+    note: '右上统计条：total 用 team 图标，online 绿 / idle 橙 / offline 灰；offline 缺省不渲染。传 onStatClick 后 cell 变 button，带 hover 上浮 + active 凹陷；activeKey 蓝框高亮。数据来自 WS get_workers.stats',
   },
   {
     name: 'DragHandle',
