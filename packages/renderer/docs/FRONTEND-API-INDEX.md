@@ -53,6 +53,7 @@
 - 切 CLI：WS `{op:'configure_primary_agent', cliType:'codex'}`
 - 断线恢复：WS `{op:'get_turns', driverId, limit:20, requestId}` → 收 `get_turns_response` 拉内存快照
 - 历史翻页：WS `{op:'get_turn_history', driverId, limit:20, beforeEndTs?, beforeTurnId?, requestId}` → 收 `get_turn_history_response`（keyset 分页，上滑加载）
+- **权限模式**：主 Agent 两种模式 —— **全自动（默认）**：工具调用直接放行，前端不感知；**半自动**：每次工具调用后端下行 `permission_requested { instanceId, requestId, toolCall{name,title?,input?}, options[] }`，前端弹权限确认窗（工具名 + options 按钮列表），用户点选后上行 `{op:'permission_response', requestId, optionId}` 回包；**30s 超时**后端自动 `cancelled`。切换模式本期走设置入口（后端 `autoApprove` / `permissionMode` 字段，详见 primary-agent-api）。详见 [ws-protocol §permission_requested / §permission_response](../../../docs/frontend-api/ws-protocol.md)。
 - **主 Agent MCP 能力**（前端不直接调，但需知道主 Agent 能做什么）：主 Agent 使用 **mteam-primary** MCP（`create_leader` / `send_to_agent` / `list_addresses` / `get_team_status`）+ searchTools + mnemo。不使用 mteam（成员/Leader 工具集）。
 
 ---

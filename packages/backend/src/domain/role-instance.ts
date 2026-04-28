@@ -4,6 +4,7 @@ import { readMaxAgents } from '../system/quota-config.js';
 import { RoleStatus, resolveTransition } from './state-machine.js';
 import { stmt } from './role-instance-statements.js';
 import { QuotaExceededError } from './errors.js';
+import type { PermissionMode } from '../agent-driver/types.js';
 
 export { QuotaExceededError };
 
@@ -22,8 +23,8 @@ export interface RoleInstanceProps {
   task: string | null;
   /** true = DockerRuntime（沙箱）；false = HostRuntime。成员默认 false。 */
   sandbox: boolean;
-  /** true = 自动同意 ACP 权限请求；false = 一律 cancelled。成员默认 false。 */
-  autoApprove: boolean;
+  /** ACP 权限审批模式：auto=自动批准；manual=透传前端用户决策。默认 auto。 */
+  permissionMode: PermissionMode;
   createdAt: string;
 }
 
@@ -43,7 +44,7 @@ interface Row {
   team_id: string | null; project_id: string | null; status: string;
   session_id: string | null; session_pid: number | null; claude_session_id: string | null;
   leader_name: string | null; task: string | null;
-  sandbox: number; auto_approve: number;
+  sandbox: number; permission_mode: string | null;
   created_at: string;
 }
 
@@ -54,7 +55,8 @@ function rowToProps(r: Row): RoleInstanceProps {
     status: r.status as RoleStatus, sessionId: r.session_id, sessionPid: r.session_pid,
     claudeSessionId: r.claude_session_id,
     leaderName: r.leader_name, task: r.task,
-    sandbox: r.sandbox === 1, autoApprove: r.auto_approve === 1,
+    sandbox: r.sandbox === 1,
+    permissionMode: r.permission_mode === 'manual' ? 'manual' : 'auto',
     createdAt: r.created_at,
   };
 }
@@ -73,7 +75,7 @@ export class RoleInstance {
   leaderName: string | null;
   task: string | null;
   sandbox: boolean;
-  autoApprove: boolean;
+  permissionMode: PermissionMode;
   readonly createdAt: string;
 
   private constructor(p: RoleInstanceProps) {
@@ -82,7 +84,7 @@ export class RoleInstance {
     this.status = p.status; this.sessionId = p.sessionId; this.sessionPid = p.sessionPid;
     this.claudeSessionId = p.claudeSessionId; this.leaderName = p.leaderName;
     this.task = p.task;
-    this.sandbox = p.sandbox; this.autoApprove = p.autoApprove;
+    this.sandbox = p.sandbox; this.permissionMode = p.permissionMode;
     this.createdAt = p.createdAt;
   }
 
@@ -118,8 +120,8 @@ export class RoleInstance {
       teamId, projectId, status: 'PENDING',
       sessionId: null, sessionPid: null, claudeSessionId: null,
       leaderName, task,
-      // 成员默认保守：不沙箱、不自动批准。schema DEFAULT 已落库，这里只是 JS 侧镜像。
-      sandbox: false, autoApprove: false,
+      // 成员默认：不沙箱、permissionMode=auto（与 schema DEFAULT 对齐）。
+      sandbox: false, permissionMode: 'auto',
       createdAt: now,
     });
   }
@@ -193,7 +195,7 @@ export class RoleInstance {
       status: this.status, sessionId: this.sessionId, sessionPid: this.sessionPid,
       claudeSessionId: this.claudeSessionId, leaderName: this.leaderName,
       task: this.task,
-      sandbox: this.sandbox, autoApprove: this.autoApprove,
+      sandbox: this.sandbox, permissionMode: this.permissionMode,
       createdAt: this.createdAt,
     };
   }

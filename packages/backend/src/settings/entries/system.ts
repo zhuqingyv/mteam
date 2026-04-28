@@ -4,6 +4,10 @@
 
 import type { SettingEntry } from '../types.js';
 import { readMaxAgents, writeMaxAgents } from '../../system/quota-config.js';
+import {
+  readDefaultPermissionMode,
+  writeDefaultPermissionMode,
+} from '../../system/permission-config.js';
 
 export const systemEntries: SettingEntry[] = [
   {
@@ -22,6 +26,23 @@ export const systemEntries: SettingEntry[] = [
         throw new Error('system.maxAgents must be integer in [1, 500]');
       }
       writeMaxAgents(value);
+    },
+  },
+  {
+    key: 'system.defaultPermissionMode',
+    label: '默认权限模式',
+    description: 'auto=全自动批准 ACP 权限；manual=半自动（透传前端让用户确认）。实例级 permissionMode 优先级高于此默认。',
+    category: 'system',
+    schema: { type: 'string', enum: ['auto', 'manual'] },
+    readonly: false,
+    notify: 'none',
+    keywords: ['permission', 'auto', 'manual', '权限', '审批', '自动', '半自动'],
+    getter: () => readDefaultPermissionMode(),
+    setter: (value: unknown) => {
+      if (value !== 'auto' && value !== 'manual') {
+        throw new Error('system.defaultPermissionMode must be "auto" or "manual"');
+      }
+      writeDefaultPermissionMode(value);
     },
   },
 ];

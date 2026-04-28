@@ -18,7 +18,7 @@ function sampleRow(overrides: Partial<PrimaryAgentRow> = {}): PrimaryAgentRow {
     mcpConfig: [],
     status: 'RUNNING',
     sandbox: true,
-    autoApprove: true,
+    permissionMode: 'auto',
     createdAt: '2026-04-25T00:00:00Z',
     updatedAt: '2026-04-25T00:00:00Z',
     ...overrides,

@@ -98,6 +98,13 @@ export interface WsGetWorkerActivity {
   requestId?: string;
 }
 
+/** 用户对权限请求的回应。requestId 对应下行 permission_requested。 */
+export interface WsPermissionResponse {
+  op: 'permission_response';
+  requestId: string;
+  optionId: string;
+}
+
 export type WsUpstream =
   | WsSubscribe
   | WsUnsubscribe
@@ -108,7 +115,8 @@ export type WsUpstream =
   | WsGetTurns
   | WsGetTurnHistory
   | WsGetWorkers
-  | WsGetWorkerActivity;
+  | WsGetWorkerActivity
+  | WsPermissionResponse;
 
 // ----------------------------------------------------------------------------
 // 下行消息（后端 → 前端）
@@ -186,6 +194,15 @@ export interface WsGetWorkerActivityResponse {
   total: { turns: number; toolCalls: number };
 }
 
+/** ACP 权限请求透传给前端（permissionMode=manual）。前端弹窗展示 toolCall + options。 */
+export interface WsPermissionRequested {
+  type: 'permission_requested';
+  instanceId: string;
+  requestId: string;
+  toolCall: { name: string; title?: string; input?: unknown };
+  options: Array<{ optionId: string; name: string; kind: string }>;
+}
+
 export type WsDownstream =
   | WsEventDown
   | WsGapReplay
@@ -196,7 +213,8 @@ export type WsDownstream =
   | WsGetTurnsResponse
   | WsGetTurnHistoryResponse
   | WsGetWorkersResponse
-  | WsGetWorkerActivityResponse;
+  | WsGetWorkerActivityResponse
+  | WsPermissionRequested;
 
 // ----------------------------------------------------------------------------
 // 类型守卫 —— 实现在 protocol-guards.ts；re-export 保兼容旧 import 路径

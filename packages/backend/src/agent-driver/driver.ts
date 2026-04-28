@@ -110,20 +110,22 @@ export class AgentDriver {
 
   private async bringUp(): Promise<void> {
     const stream = acp.ndJsonStream(this.handle.stdin, this.handle.stdout);
-    const autoApprove = this.config.autoApprove === true;
+    const permissionMode = this.config.permissionMode ?? 'auto';
     const client: acp.Client = {
       sessionUpdate: async (params) => {
         const ev = this.adapter.parseUpdate(params.update);
         if (ev) this.emit(ev);
       },
-      // autoApprove=true：选 options[0] 返回 selected。team-lead 调研：ACP agent 端约定 options[0]
-      // 固定是 allow_* 类，按第一个选就等价于"用户点了允许"。
+      // auto：选 options[0] 返回 selected（ACP 约定 options[0] 固定是 allow_* 类）。
+      // manual：透传给前端，等 resolvePermission 被用户响应触发；超时 / reject → cancelled。
       // ACP 协议 outcome 只有 cancelled | selected 两种合法值 —— 没有 'approved'。
       requestPermission: async (params) => {
-        if (!autoApprove) return { outcome: { outcome: 'cancelled' } };
-        const first = params.options[0];
-        if (!first) return { outcome: { outcome: 'cancelled' } };
-        return { outcome: { outcome: 'selected', optionId: first.optionId } };
+        if (permissionMode === 'auto') {
+          const first = params.options[0];
+          if (!first) return { outcome: { outcome: 'cancelled' } };
+          return { outcome: { outcome: 'selected', optionId: first.optionId } };
+        }
+        return this.requestPermissionManual(params);
       },
     };
     this.conn = new acp.ClientSideConnection(() => client, stream);
@@ -137,6 +139,27 @@ export class AgentDriver {
       ...(this.adapter.sessionParams(this.config) as object),
     });
     this.sessionId = res.sessionId;
+  }
+
+  // manual 模式：onPermissionRequest 推给前端 → await pending（用户响应 / 30s 超时）；
+  // reject/无回调/空 options 都降级 cancelled。动态 import 避免反向依赖 ws/。
+  private async requestPermissionManual(
+    params: acp.RequestPermissionRequest,
+  ): Promise<acp.RequestPermissionResponse> {
+    const cb = this.config.onPermissionRequest;
+    if (!cb || !params.options.length) return { outcome: { outcome: 'cancelled' } };
+    const requestId = randomUUID();
+    const { createPendingPermission } = await import('../ws/handle-permission.js');
+    const pending = createPendingPermission(requestId);
+    const tc = params.toolCall as { title?: string; rawInput?: unknown } | undefined;
+    cb({
+      instanceId: this.id, requestId,
+      toolCall: { name: tc?.title ?? 'tool', input: tc?.rawInput },
+      options: params.options.map((o): { optionId: string; name: string; kind: string } =>
+        ({ optionId: o.optionId, name: o.name, kind: o.kind })),
+    });
+    try { return { outcome: { outcome: 'selected', optionId: await pending } }; }
+    catch { return { outcome: { outcome: 'cancelled' } }; }
   }
 
   private async teardown(): Promise<void> {

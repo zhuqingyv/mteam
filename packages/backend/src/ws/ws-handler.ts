@@ -19,6 +19,7 @@ import { handleConfigurePrimaryAgent } from './handle-configure.js';
 import { handleCancelTurn } from './handle-cancel.js';
 import { handleGetTurns, handleGetTurnHistory } from './handle-turns.js';
 import { handleGetWorkers, handleGetWorkerActivity } from './handle-workers.js';
+import { handlePermissionResponse } from './handle-permission.js';
 import type { PrimaryAgentConfig, PrimaryAgentRow } from '../primary-agent/types.js';
 import type { Turn } from '../agent-driver/turn-types.js';
 import type { ListRecentOpts, ListRecentResult } from '../turn-history/repo.js';
@@ -112,6 +113,8 @@ function routeUpstream(
       return handleGetWorkers(ws, msg);
     case 'get_worker_activity':
       return handleGetWorkerActivity(ws, msg);
+    case 'permission_response':
+      return handlePermissionResponse(ws, msg);
     default: {
       const never: never = msg;
       void never;

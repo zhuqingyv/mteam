@@ -60,9 +60,15 @@ export interface WsGetWorkerActivity {
   workerName?: string;
   requestId?: string;
 }
+export interface WsPermissionResponse {
+  op: 'permission_response';
+  requestId: string;    // 对应下行 permission_requested.requestId
+  optionId: string;     // 从 permission_requested.options[].optionId 里选一个
+}
 export type WsUpstream =
   | WsSubscribe | WsUnsubscribe | WsPrompt | WsPing | WsCancelTurn | WsConfigurePrimaryAgent
-  | WsGetTurns | WsGetTurnHistory | WsGetWorkers | WsGetWorkerActivity;
+  | WsGetTurns | WsGetTurnHistory | WsGetWorkers | WsGetWorkerActivity
+  | WsPermissionResponse;
 
 // ---- 下行 ----
 export interface WsEventDown { type: 'event';      id: string; event: Record<string, unknown> }
@@ -116,10 +122,18 @@ export interface WsGetWorkerActivityResponse {
   dataPoints: ActivityDataPoint[];
   total: { turns: number; toolCalls: number };
 }
+export interface WsPermissionRequested {
+  type: 'permission_requested';
+  instanceId: string;   // 触发权限请求的 driver（主 Agent 或成员）
+  requestId: string;    // 前端回包必须原样带回
+  toolCall: { name: string; title?: string; input?: unknown };
+  options: Array<{ optionId: string; name: string; kind: string }>;
+}
 export type WsDownstream =
   | WsEventDown | WsGapReplay | WsPong | WsAck | WsErrorDown | WsSnapshot
   | WsGetTurnsResponse | WsGetTurnHistoryResponse
-  | WsGetWorkersResponse | WsGetWorkerActivityResponse;
+  | WsGetWorkersResponse | WsGetWorkerActivityResponse
+  | WsPermissionRequested;
 ```
 
 ## 上行消息
@@ -338,6 +352,26 @@ export type WsDownstream =
 - `workerName` 不存在 → 下行 `error { code: 'not_found' }`
 - 详见 [workers-api.md](./workers-api.md)
 
+### permission_response — 用户对 ACP 权限请求的回应
+
+**半自动模式专用。** 后端在半自动下通过下行 `permission_requested` 把 ACP `session/request_permission` 透传给前端，前端弹窗展示工具名/参数 + 选项按钮，用户点选后发这条上行消息把结果带回后端 → 后端以 `outcome: 'selected', optionId` resolve ACP 请求 → agent 继续执行。
+
+```json
+{ "op": "permission_response", "requestId": "perm_abc", "optionId": "allow" }
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `requestId` | string | 必填；**原样**回填下行 `permission_requested.requestId` |
+| `optionId` | string | 必填；从 `permission_requested.options[].optionId` 里选一个；不在列表里或字段缺失 → 后端按超时处理 |
+
+**时序 / 错误处理**：
+
+- 前端收到 `permission_requested` 起 **30s 超时窗**。超时不响应 → 后端自动按 `outcome: 'cancelled'` resolve，agent 以"用户取消"分支继续；之后再发 `permission_response` 后端按陈旧丢弃（无 ack）。
+- 后端收到后不单独回 `ack`；是否生效可由 agent 的后续 `turn.block_updated` / `turn.completed` 路径间接观察。
+- 全自动模式（`autoApprove=true` / `permissionMode='auto'`）下后端不会推 `permission_requested`，前端发这条上行也会被后端静默忽略。
+- 可选 `optionId` 的 `kind` 取值示例：`allow_once` / `allow_always` / `reject_once` / `reject_always`（来自 ACP 协议，具体值由 agent 端给，前端**不要**硬编码白名单 —— 按 `permission_requested.options` 渲染按钮即可）。
+
 ## 下行消息
 
 ### event
@@ -441,6 +475,47 @@ export type WsDownstream =
 ```
 
 **status** 只会是 `'STOPPED' | 'RUNNING'` 两个值。**agentState** 为 `'idle' | 'thinking' | 'responding'`，反映总控当前工作状态（刷新页面时 snapshot 携带实时值）。driver 崩溃走服务端 self-heal；give_up 时 status 被置 `STOPPED`，前端按断线离线态渲染。
+
+### permission_requested
+
+**仅在半自动权限模式下下发。** ACP agent 发出 `session/request_permission` 时，后端透传给前端；前端弹权限确认窗，用户选完后发上行 `permission_response` 带回 `requestId + optionId`。
+
+```json
+{
+  "type": "permission_requested",
+  "instanceId": "inst_abc",
+  "requestId": "perm_01",
+  "toolCall": {
+    "name": "Read",
+    "title": "Read file",
+    "input": { "path": "/tmp/x.txt" }
+  },
+  "options": [
+    { "optionId": "allow",        "name": "Allow once",   "kind": "allow_once"   },
+    { "optionId": "allow_always", "name": "Allow always", "kind": "allow_always" },
+    { "optionId": "reject",       "name": "Reject",       "kind": "reject_once"  }
+  ]
+}
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `instanceId` | string | 触发该权限请求的 driver id；主 Agent 用 `PrimaryAgentRow.id`，成员用 `RoleInstance.id`。前端据此把弹窗定位到正确的会话窗口 |
+| `requestId` | string | 权限请求唯一 id；上行 `permission_response.requestId` **必须原样回填** |
+| `toolCall.name` | string | ACP 工具名（如 `Read` / `Write` / `Bash`） |
+| `toolCall.title` | string? | 工具的人类可读标题，缺省时前端退回到 `name` |
+| `toolCall.input` | unknown? | 工具参数对象（由 agent 给出，形状随工具而变）；前端原样展示，不做 schema 校验 |
+| `options` | Array | 可选项列表，至少 1 条 |
+| `options[].optionId` | string | 选项 id，上行 `permission_response.optionId` 填这个 |
+| `options[].name` | string | 按钮文案（ACP agent 端给的人类可读标签） |
+| `options[].kind` | string | ACP 约定的选项类别；常见 `allow_once` / `allow_always` / `reject_once` / `reject_always`，**前端按 `options` 原样渲染**，不要硬编码仅识别某些 kind |
+
+**时序 / 边界**：
+
+- **30s 超时**：前端必须在 30 秒内发 `permission_response`；超时后端自动按 `outcome: 'cancelled'` resolve ACP，agent 以"用户取消"分支继续。前端超时后再回也不会生效。
+- 全自动模式（`autoApprove=true` 或 `permissionMode='auto'`）下**不会**下发此消息，前端无需关心。
+- 未订阅 `instance` scope 时也会下发（权限请求不经订阅过滤，按连接级投递；未来可能收窄，前端不要依赖"订了才收到"）。
+- `permission_requested` **不走** `event` 通道，不是 bus 事件，没有 `id` 字段，不参与 `lastMsgId` 的 gap-replay 恢复。断线期间错过的权限请求会在后端 30s 超时后被 `cancelled`，不补推。
 
 ## 错误码表
 

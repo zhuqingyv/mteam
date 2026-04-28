@@ -235,16 +235,9 @@
   - [ ] 去除对 primary instance 的隐式假设
   - [ ] 单测：两个 driverId 各自 hydrate 不串
 
-### S3-M2 pendingPrompts per-instance
-- **类型**：独立模块
-- **文件**：S1-M1 已做大部分 / S1-M2 已调通；本任务确认并补 edge case
-- **复杂度**：S
-- **依赖**：S1-M1 + S1-M2
-- **完成判据**：
-  - [ ] `clearPending(iid)` 只清指定 iid 队列
-  - [ ] `cancelCurrentTurn(iid)` 只清 iid 自己队列，不碰其它
-  - [ ] 单测：A 排队 3 条 + B 正常发 1 条 → A cancel 后 B 队列不动
-- **说明**：若 S1 阶段已覆盖，本任务可 merge 进 S1-M2 的 PR，不单独产出
+### ~~S3-M2 pendingPrompts per-instance~~ **[已并入 S1-M1 AC]**
+- **状态**：🗑️ 删除（原任务空壳，edge case 单测已并入 S1-M1 完成判据最后一条）
+- **关联**：`clearPending(iid)` / `cancelCurrentTurn(iid)` 的实现在 S1-M2，其单测也覆盖此场景
 
 ### S3-M3 CanvasDebugPage 脚手架
 - **类型**：独立模块（临时页）
@@ -307,12 +300,13 @@
 - **类型**：独立模块
 - **文件**：`src/store/selectors/unread.ts`
 - **复杂度**：M
+- **依赖**：S1-M1（已在 S1-M1 AC 里落地 `markPeerRead` action）
 - **完成判据**：
   - [ ] 纯函数：`selectUnreadFor(state, instanceId, peerId)`：统计 bucket 里未 read 的消息数
   - [ ] 纯函数：`selectUnreadMap(state, instanceId)`：返回 `Record<peerId, number>`
   - [ ] 消息 `read` 字段语义：true = 已读（用户已打开过该 peer 的对话）
-  - [ ] 对应 action：`markPeerRead(instanceId, peerId)` —— 写到 S1-M1 的 store 里？本任务提供纯函数 + 推动 S1-M1 补这个 action（跨 Sprint 小回补，允许）
-  - [ ] 单测：未读统计 / 标记已读
+  - [ ] 本任务只出 selector 纯函数；`markPeerRead(iid, peerId)` action 已在 S1-M1 提供，直接消费即可
+  - [ ] 单测：未读统计 / 标记已读后 selector 归零
 
 ### S4-M3 TeamCanvas 节点数据组装
 - **类型**：独立模块
@@ -344,19 +338,34 @@
   - [ ] 旧 AgentCard 暂不删除（Sprint 6 统一清理）
   - [ ] 手测：画布仍渲染，节点状态色正确
 
-### S4-G2 CanvasNode 展开态装配 ChatList + InstanceChatPanel
+### S4-G2a CanvasNodeExpanded 装配 ChatList + InstanceChatPanelConnected（peer=user 路径）
 - **类型**：胶水层
 - **文件**：`src/molecules/CanvasNode/CanvasNodeExpanded.tsx`（覆盖 S2-M2 的 children slot）
-- **复杂度**：L
+- **复杂度**：M（~100 行）
 - **依赖**：S2-M2、S2-M3、S2-M4、S4-M1、S4-M2
 - **完成判据**：
-  - [ ] 展开态内部维护 `activePeerId: string`（默认 user）
-  - [ ] 左侧 `<ChatList items={peers} activeId onSelect />`
-  - [ ] 右侧 `<InstanceChatPanelConnected instanceId peerId=activePeerId />`
+  - [ ] 展开态内部维护 `activePeerId: string`（默认 `'user'`）
+  - [ ] 左侧 `<ChatList items={peers} activeId onSelect />`，peers 走 `selectPeersFor`
+  - [ ] 右侧 `<InstanceChatPanelConnected instanceId peerId={activePeerId} />`
   - [ ] 切换 peer → `markPeerRead(iid, peerId)` 清未读
-  - [ ] peer=user：发送走 ws.prompt（已有）
-  - [ ] peer=其它 instance：发送走 `POST /api/agents/:fromInstanceId/messages/send` + `comm.message_sent` 订阅显示回信
-  - [ ] 单测：切 peer 行为 / 发送路径分流
+  - [ ] peer=user 路径打通：消息过滤走 `selectMessagesForPeer(state, iid, 'user')`；发送走 ws.prompt（已有 dispatcher）
+  - [ ] peer !== 'user' 暂时显示"跨成员聊天接入中"占位（发送按钮 disable），该路径由 S4-G4 接入
+  - [ ] 单测：切 peer → selector 调用正确 / markPeerRead 被调用 / peer=user 消息能发送
+
+### S4-G2b comm.* 事件 → handleCommEvent → byInstance 双桶写入
+- **类型**：胶水层
+- **文件**：`src/hooks/handleCommEvent.ts`（新建独立模块）
+- **复杂度**：M（~80 行）
+- **依赖**：S1-M1、S1-G2
+- **完成判据**：
+  - [ ] `handleCommEvent(e)`：对 `comm.message_sent` / `comm.message_received` 事件做双桶写入——`byInstance[e.from]` 和 `byInstance[e.to]` 各写一条，保证双方展开都能看到
+  - [ ] 消息体包含 `{ id, from, to, text, ts, read: false, role: 'comm' }`，peer 过滤由 `selectMessagesForPeer` 处理
+  - [ ] 去重：同 msgId 只写一次（按 bucket 独立去重）
+  - [ ] 在 `useWsEvents` 订阅 `comm.*` 事件时调用本 handler
+  - [ ] 单测：
+    - comm.message_sent A→B → A 桶和 B 桶各得一条
+    - 同 msgId 重复推送 → 各桶仍只有一条
+    - 只订了 A 的 instance 也能通过 B 桶拿到自己收到的消息
 
 ### S4-G3 PanelWindow overflow + TeamMonitorPanel 去 __close + 装入 CanvasTopBar
 - **类型**：胶水层
@@ -369,16 +378,18 @@
   - [ ] `onClose` 保留 `window.close()` 行为
   - [ ] 手测：无原生滚动条 / 关闭按钮在顶栏右端
 
-### S4-G4 跨成员聊天 API 接入
+### S4-G4 sendAgentMessage API 接入 + peer=agent 发送路径
 - **类型**：胶水层
-- **文件**：`src/api/messages.ts` + dispatcher 内部分流
-- **复杂度**：M
+- **文件**：`src/api/messages.ts` + `CanvasNodeExpanded` / dispatcher 内部分流
+- **复杂度**：S
+- **依赖**：S4-G2a、S4-G2b
 - **完成判据**：
   - [ ] 先查 `docs/frontend-api/messages-api.md` 确认接口签名
-  - [ ] 新增 `sendAgentMessage(fromInstanceId, toInstanceId, text): Promise<{ok}>`；失败 throw
+  - [ ] 新增 `sendAgentMessage(fromInstanceId, toInstanceId, text): Promise<{ok}>`（走 `/api/panel/...` 入口，**不**直连底层）；失败 throw
   - [ ] 若接口缺失：降级为"跨成员聊天需后端支持"toast，不阻塞 S4 主干
-  - [ ] 订阅 `comm.*` 事件写入 `byInstance[receiverId]` 桶，from/to 作为 peer 过滤依据
-  - [ ] 单测：fetch mock 成功 / 失败两路径
+  - [ ] CanvasNodeExpanded 在 peer !== 'user' 时启用发送按钮，改走 `sendAgentMessage`（替换 S4-G2a 的 disabled 占位）
+  - [ ] 发送成功后依赖 S4-G2b 的 `comm.*` 订阅显示回写
+  - [ ] 单测：fetch mock 成功 / 失败两路径 + peer=agent 时 dispatcher 不调用 ws.prompt
 
 ---
 
@@ -543,12 +554,13 @@
 ## 进度面板
 
 > Sprint 执行期间由 team-lead 维护。以下为空白模板。
+> 每个任务闭环（含交叉验证）时，在对应行补 PR / 交叉验证者 / 验收日期。
 
-| Sprint | 状态 | 起始 | 完成 | 备注 |
-|---|---|---|---|---|
-| S1 | ⬜ 未开始 | | | |
-| S2 | ⬜ 未开始 | | | |
-| S3 | ⬜ 未开始 | | | |
-| S4 | ⬜ 未开始 | | | |
-| S5 | ⬜ 未开始 | | | |
-| S6 | ⬜ 未开始 | | | |
+| Sprint | 状态 | 起始 | 完成 | PR | 交叉验证者 | 验收日期 | 备注 |
+|---|---|---|---|---|---|---|---|
+| S1 | ⬜ 未开始 | | | | | | |
+| S2 | ⬜ 未开始 | | | | | | |
+| S3 | ⬜ 未开始 | | | | | | |
+| S4 | ⬜ 未开始 | | | | | | |
+| S5 | ⬜ 未开始 | | | | | | |
+| S6 | ⬜ 未开始 | | | | | | |

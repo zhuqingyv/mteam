@@ -1,10 +1,16 @@
-// AgentDriver.requestPermission autoApprove 行为回归。
-// 不起真 ACP 子进程：直接插 handle.stdin / stdout 手写 JSON-RPC，验证 SDK 侧收到的响应。
+// AgentDriver.requestPermission permissionMode 行为回归。
+// auto：选 options[0]；manual：推 onPermissionRequest + await ws pending；timeout → cancelled。
+// 真跑 ACP client/server pair（不 mock），验证 SDK 侧收到的 outcome。
 import { describe, it, expect } from 'bun:test';
 import * as acp from '@agentclientprotocol/sdk';
 import { AgentDriver } from '../driver.js';
-import type { DriverConfig } from '../types.js';
+import type { DriverConfig, DriverPermissionRequest } from '../types.js';
 import type { RuntimeHandle } from '../../process-runtime/types.js';
+import {
+  resolvePermission,
+  cancelAllPending,
+  pendingSize,
+} from '../../ws/handle-permission.js';
 
 function baseConfig(overrides: Partial<DriverConfig> = {}): DriverConfig {
   return {
@@ -16,25 +22,11 @@ function baseConfig(overrides: Partial<DriverConfig> = {}): DriverConfig {
   };
 }
 
-function fakeHandle(): RuntimeHandle {
-  return {
-    stdin: new WritableStream<Uint8Array>({ write() { /* noop */ } }),
-    stdout: new ReadableStream<Uint8Array>({ start(c) { c.close(); } }),
-    pid: 0,
-    async kill() { /* noop */ },
-    onExit() { /* noop */ },
-  };
+interface PermOption {
+  optionId: string;
+  name: string;
+  kind: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always';
 }
-
-interface PermOption { optionId: string; name: string; kind: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always' }
-
-// 调私有 bringUp 拿到 client 的 requestPermission handler。
-// driver 里 client 是方法闭包；最直接的办法是通过 ClientSideConnection 反射。
-// 改用另一条路：构造 driver 后用 (d as any).config.autoApprove 手工触发一次 client 逻辑的等价函数。
-// 精确验证方式：直接读 driver.ts 里导出的 pickAllowOption，但它是 file-local。
-// 折中：构造 driver + set config.autoApprove + 走一条最小 ACP stdio 握手，断言 handle.stdin 收到的响应。
-// 实际起进程开销大；这里改成端到端功能测试：起一条真 ACP client/server pair，server 端发 session/request_permission，
-// 断 client 侧 outcome。
 
 function pairStreams(): {
   aIn: ReadableStream<Uint8Array>;
@@ -42,38 +34,27 @@ function pairStreams(): {
   bIn: ReadableStream<Uint8Array>;
   bOut: WritableStream<Uint8Array>;
 } {
-  // A.out → B.in ； B.out → A.in
   let aInCtl!: ReadableStreamDefaultController<Uint8Array>;
   let bInCtl!: ReadableStreamDefaultController<Uint8Array>;
   const aIn = new ReadableStream<Uint8Array>({ start: (c) => { aInCtl = c; } });
   const bIn = new ReadableStream<Uint8Array>({ start: (c) => { bInCtl = c; } });
-  const aOut = new WritableStream<Uint8Array>({
-    write: (chunk) => { bInCtl.enqueue(chunk); },
-  });
-  const bOut = new WritableStream<Uint8Array>({
-    write: (chunk) => { aInCtl.enqueue(chunk); },
-  });
+  const aOut = new WritableStream<Uint8Array>({ write: (chunk) => { bInCtl.enqueue(chunk); } });
+  const bOut = new WritableStream<Uint8Array>({ write: (chunk) => { aInCtl.enqueue(chunk); } });
   return { aIn, aOut, bIn, bOut };
 }
 
-async function setupDriverWithClient(autoApprove: boolean): Promise<{
-  driver: AgentDriver;
-  agentConn: acp.AgentSideConnection;
-}> {
+async function setupDriver(
+  overrides: Partial<DriverConfig> = {},
+): Promise<{ driver: AgentDriver; agentConn: acp.AgentSideConnection }> {
   const pipes = pairStreams();
-  // handle 视角：stdin = driver 向"外"写入 → 应流向 agent 端
-  // stdout = driver 从"外"读 → 应从 agent 端来
   const handle: RuntimeHandle = {
-    stdin: pipes.aOut,  // driver 写到 aOut
-    stdout: pipes.aIn,  // driver 从 aIn 读
+    stdin: pipes.aOut,
+    stdout: pipes.aIn,
     pid: 0,
     async kill() {},
     onExit() {},
   };
-  const driver = new AgentDriver('drv-perm', baseConfig({ autoApprove }), handle);
-
-  // 服务端（agent）侧：收到 client 的 initialize/session/new 直接应答；
-  // 业务 methods 都返回 ok。
+  const driver = new AgentDriver('drv-perm', baseConfig(overrides), handle);
   const agentConn = new acp.AgentSideConnection(
     () => ({
       initialize: async () => ({
@@ -89,18 +70,15 @@ async function setupDriverWithClient(autoApprove: boolean): Promise<{
     }),
     acp.ndJsonStream(pipes.bOut, pipes.bIn),
   );
-
   await driver.start();
   return { driver, agentConn };
 }
 
-describe('AgentDriver.requestPermission autoApprove', () => {
-  it('autoApprove=true + 典型 options 序列 → selected options[0]', async () => {
-    // ACP agent 约定 options[0] 固定是 allow_* 类；driver 只信第一个。
-    const { driver, agentConn } = await setupDriverWithClient(true);
+describe('AgentDriver.requestPermission permissionMode', () => {
+  it("permissionMode='auto' → selected options[0]（自动批准）", async () => {
+    const { driver, agentConn } = await setupDriver({ permissionMode: 'auto' });
     const options: PermOption[] = [
       { optionId: 'opt-allow-once', name: 'Allow once', kind: 'allow_once' },
-      { optionId: 'opt-allow-always', name: 'Allow always', kind: 'allow_always' },
       { optionId: 'opt-rej', name: 'Reject', kind: 'reject_once' },
     ];
     const res = await agentConn.requestPermission({
@@ -113,29 +91,83 @@ describe('AgentDriver.requestPermission autoApprove', () => {
     await driver.stop();
   });
 
-  it('autoApprove=true + options 只有 allow_always → selected options[0]', async () => {
-    const { driver, agentConn } = await setupDriverWithClient(true);
+  it("permissionMode 未设置（默认 auto）→ selected options[0]", async () => {
+    const { driver, agentConn } = await setupDriver();
     const options: PermOption[] = [
-      { optionId: 'opt-allow-always', name: 'Allow always', kind: 'allow_always' },
-      { optionId: 'opt-rej', name: 'Reject', kind: 'reject_once' },
+      { optionId: 'opt-first', name: 'Allow', kind: 'allow_always' },
     ];
     const res = await agentConn.requestPermission({
-      sessionId: 'sess-x', options, toolCall: { toolCallId: 'tc-2' } as never,
+      sessionId: 'sess-x', options, toolCall: { toolCallId: 'tc-default' } as never,
     });
     expect(res.outcome.outcome).toBe('selected');
     if (res.outcome.outcome === 'selected') {
-      expect(res.outcome.optionId).toBe('opt-allow-always');
+      expect(res.outcome.optionId).toBe('opt-first');
     }
     await driver.stop();
   });
 
-  it('autoApprove=false / 未设置 → cancelled（历史行为不变）', async () => {
-    const { driver, agentConn } = await setupDriverWithClient(false);
+  it("permissionMode='manual' + 用户批准 → selected optionId", async () => {
+    const captured: DriverPermissionRequest[] = [];
+    const { driver, agentConn } = await setupDriver({
+      permissionMode: 'manual',
+      onPermissionRequest: (req) => { captured.push(req); },
+    });
+    const options: PermOption[] = [
+      { optionId: 'opt-allow-once', name: 'Allow once', kind: 'allow_once' },
+      { optionId: 'opt-rej', name: 'Reject', kind: 'reject_once' },
+    ];
+    // fire-and-forget：driver 会 await pending，等我们 resolve
+    const reqPromise = agentConn.requestPermission({
+      sessionId: 'sess-x', options, toolCall: { toolCallId: 'tc-manual' } as never,
+    });
+    // 等 onPermissionRequest 被回调
+    for (let i = 0; i < 100 && captured.length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(captured.length).toBe(1);
+    expect(captured[0].instanceId).toBe('drv-perm');
+    expect(captured[0].options).toHaveLength(2);
+    // 模拟前端回应：resolvePermission
+    const ok = resolvePermission(captured[0].requestId, 'opt-rej');
+    expect(ok).toBe(true);
+    const res = await reqPromise;
+    expect(res.outcome.outcome).toBe('selected');
+    if (res.outcome.outcome === 'selected') {
+      expect(res.outcome.optionId).toBe('opt-rej');
+    }
+    await driver.stop();
+  });
+
+  it("permissionMode='manual' + 超时/cancelAll → cancelled", async () => {
+    const captured: DriverPermissionRequest[] = [];
+    const { driver, agentConn } = await setupDriver({
+      permissionMode: 'manual',
+      onPermissionRequest: (req) => { captured.push(req); },
+    });
     const options: PermOption[] = [
       { optionId: 'opt-allow-once', name: 'Allow once', kind: 'allow_once' },
     ];
+    const reqPromise = agentConn.requestPermission({
+      sessionId: 'sess-x', options, toolCall: { toolCallId: 'tc-timeout' } as never,
+    });
+    for (let i = 0; i < 100 && captured.length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(captured.length).toBe(1);
+    // 不等 30s 真超时；直接 cancelAll 触发 reject → driver 降级 cancelled
+    cancelAllPending('test-timeout');
+    const res = await reqPromise;
+    expect(res.outcome.outcome).toBe('cancelled');
+    expect(pendingSize()).toBe(0);
+    await driver.stop();
+  });
+
+  it("permissionMode='manual' 没注入 onPermissionRequest → cancelled（降级）", async () => {
+    const { driver, agentConn } = await setupDriver({ permissionMode: 'manual' });
     const res = await agentConn.requestPermission({
-      sessionId: 'sess-x', options, toolCall: { toolCallId: 'tc-3' } as never,
+      sessionId: 'sess-x',
+      options: [{ optionId: 'opt-a', name: 'Allow', kind: 'allow_once' }],
+      toolCall: { toolCallId: 'tc-nocb' } as never,
     });
     expect(res.outcome.outcome).toBe('cancelled');
     await driver.stop();

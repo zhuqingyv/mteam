@@ -37,6 +37,16 @@ export interface McpServerSpec {
   headers?: Record<string, string>;
 }
 
+export type PermissionMode = 'auto' | 'manual';
+
+/** manual 模式下权限请求透传给前端的载荷。通过注入回调传出，不直接 import WS 模块。 */
+export interface DriverPermissionRequest {
+  instanceId: string;
+  requestId: string;
+  toolCall: { name: string; input?: unknown };
+  options: Array<{ optionId: string; name: string; kind: string }>;
+}
+
 export interface DriverConfig {
   agentType: AgentType;
   systemPrompt: string;
@@ -45,8 +55,10 @@ export interface DriverConfig {
   env?: Record<string, string>;
   /** W2-6：单次 prompt 超时；默认 2 分钟。测试用更短值触发超时路径。 */
   promptTimeoutMs?: number;
-  /** true 时 ACP requestPermission 自动选第一个 allow_* 选项；false/undefined 返回 cancelled。 */
-  autoApprove?: boolean;
+  /** 权限审批模式：'auto'=自动选 options[0]（全自动）；'manual'=透传前端用户决策。默认 'auto'。 */
+  permissionMode?: PermissionMode;
+  /** manual 模式下 driver 通过此回调把权限请求推出去（WS 广播由外层接入）。 */
+  onPermissionRequest?: (req: DriverPermissionRequest) => void;
 }
 
 // ---------- DriverEvent 联合（12 种）----------

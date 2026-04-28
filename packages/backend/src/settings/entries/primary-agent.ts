@@ -75,16 +75,19 @@ export const primaryAgentEntries: SettingEntry[] = [
     },
   },
   {
-    key: 'primary-agent.autoApprove',
-    label: '自动批准权限',
-    description: 'true=ACP requestPermission 自动 allow；false=一律 cancelled',
+    key: 'primary-agent.permissionMode',
+    label: '权限审批模式',
+    description: 'auto=全自动批准 ACP 权限；manual=半自动（透传前端让用户确认）',
     category: CATEGORY,
-    schema: { type: 'boolean' },
+    schema: { type: 'string', enum: ['auto', 'manual'] },
     readonly: false,
     notify: NOTIFY,
-    getter: () => readRow()?.autoApprove ?? null,
+    getter: () => readRow()?.permissionMode ?? null,
     setter: (value: unknown) => {
-      upsertConfig({ autoApprove: value as boolean });
+      if (value !== 'auto' && value !== 'manual') {
+        throw new Error('primary-agent.permissionMode must be "auto" or "manual"');
+      }
+      upsertConfig({ permissionMode: value });
     },
   },
 ];

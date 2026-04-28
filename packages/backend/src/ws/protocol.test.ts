@@ -323,7 +323,7 @@ describe('类型层级 · 编译期断言', () => {
           mcpConfig: [],
           status: 'RUNNING',
           sandbox: true,
-          autoApprove: true,
+          permissionMode: 'auto',
           createdAt: '2026-04-25T00:00:00Z',
           updatedAt: '2026-04-25T00:00:00Z',
         },

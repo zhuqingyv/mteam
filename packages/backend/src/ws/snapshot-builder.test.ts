@@ -19,7 +19,7 @@ describe('buildPrimaryAgentSnapshot', () => {
       mcpConfig: [],
       status: 'RUNNING',
       sandbox: true,
-      autoApprove: true,
+      permissionMode: 'auto',
       createdAt: '2026-04-25T00:00:00Z',
       updatedAt: '2026-04-25T00:00:00Z',
     };
@@ -37,7 +37,7 @@ describe('buildPrimaryAgentSnapshot', () => {
       mcpConfig: [],
       status: 'STOPPED',
       sandbox: true,
-      autoApprove: true,
+      permissionMode: 'auto',
       createdAt: '2026-04-25T00:00:00Z',
       updatedAt: '2026-04-25T00:00:00Z',
     };
@@ -56,7 +56,7 @@ describe('buildPrimaryAgentSnapshot', () => {
       ],
       status: 'RUNNING',
       sandbox: true,
-      autoApprove: true,
+      permissionMode: 'auto',
       createdAt: '2026-04-25T00:00:00Z',
       updatedAt: '2026-04-25T00:00:00Z',
     };

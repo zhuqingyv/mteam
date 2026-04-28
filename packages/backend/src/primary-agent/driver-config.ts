@@ -85,7 +85,7 @@ export function buildDriverConfig(input: BuildDriverConfigInput): {
     systemPrompt,
     mcpServers,
     cwd: input.cwd ?? homedir(),
-    autoApprove: row.autoApprove,
+    permissionMode: row.permissionMode ?? 'auto',
     env: {
       ...process.env as Record<string, string>,
       ROLE_INSTANCE_ID: row.id,

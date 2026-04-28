@@ -42,6 +42,7 @@ const GET_TURN_HISTORY_KEYS = new Set([
 ]);
 const GET_WORKERS_KEYS = new Set(['op', 'requestId']);
 const GET_WORKER_ACTIVITY_KEYS = new Set(['op', 'range', 'workerName', 'requestId']);
+const PERMISSION_RESPONSE_KEYS = new Set(['op', 'requestId', 'optionId']);
 
 function hasOnlyKeys(obj: Record<string, unknown>, allowed: Set<string>): boolean {
   for (const k of Object.keys(obj)) if (!allowed.has(k)) return false;
@@ -117,6 +118,14 @@ export function isWsUpstream(x: unknown): x is WsUpstream {
         x.range.length > 0 &&
         isOptString(x.workerName) &&
         isOptString(x.requestId)
+      );
+    case 'permission_response':
+      return (
+        hasOnlyKeys(x, PERMISSION_RESPONSE_KEYS) &&
+        typeof x.requestId === 'string' &&
+        x.requestId.length > 0 &&
+        typeof x.optionId === 'string' &&
+        x.optionId.length > 0
       );
     default:
       return false;

@@ -537,3 +537,17 @@ function extractPeerId(actor: ActorRef): string {
 | `templates/PanelWindow/PanelWindow.css` | `overflow: auto` | `overflow: hidden` |
 | `organisms/TeamMonitorPanel/*` | 右上角 `__close` 浮层 | 移除，close 进 CanvasTopBar |
 | `pages/TeamPage.tsx` | 直接 Esc→window.close | Esc 先关展开节点栈，栈空才 close |
+
+### 13.1 CDP 测试白名单类名（冻结）
+
+Phase 4 的 Playground CDP / 集成测试通过以下**实际类名**抓取节点，不允许改这几个 selector（改 DOM 先改这里再同步 CSS）：
+
+| 用途 | 实际类名 | 所在组件 |
+|---|---|---|
+| 左侧 team 侧栏的团队列表滚动容器 | `.tsb__list` | `molecules/TeamSidebar/TeamSidebar.css` |
+| 画布外层容器 | `.team-canvas` | `organisms/TeamCanvas` |
+| 单个 CanvasNode | `.canvas-node` | `molecules/CanvasNode` |
+| 展开态节点 | `.canvas-node--expanded` | `molecules/CanvasNode` |
+| 画布顶栏 | `.canvas-top-bar` | `molecules/CanvasTopBar` |
+
+> **注意**：历史文档里曾出现过 `.team-sidebar__teams-list` 这种 BEM 全名写法，**不对应当前实现**。TeamSidebar 用缩写命名空间 `.tsb`，列表容器是 `.tsb__list`。

@@ -14,8 +14,9 @@ import { migrateActionItems } from './migrations/2026-04-27-action-items.js';
 import { migrateSystemConfigs } from './migrations/2026-04-28-system-configs.js';
 import { migrateWorkflowTemplates } from './migrations/2026-04-28-workflow-templates.js';
 import { migrateNotifications } from './migrations/2026-04-28-notifications.js';
+import { migratePermissionMode } from './migrations/2026-04-28-permission-mode.js';
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const SCHEMA_NOTE = 'phase5-w1';
 
 const DEFAULT_DB_PATH = join(homedir(), '.claude', 'team-hub', 'v2.db');
@@ -104,6 +105,7 @@ export function getDb(): Database {
   migrateSystemConfigs(db);
   migrateWorkflowTemplates(db);
   migrateNotifications(db);
+  migratePermissionMode(db);
   recordVersion(db);
 
   handle = db;

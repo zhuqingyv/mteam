@@ -28,6 +28,7 @@
 | `get_turn_history` | `driverId`, `limit?`, `beforeEndTs?`, `beforeTurnId?`, `requestId?` | 拉 turn 持久化冷历史（keyset 翻页，上滑加载）                                       | [ws-protocol.md §get_turn_history](./ws-protocol.md) · [turn-events §8 冷历史接口](./turn-events.md) |
 | `get_workers` | `requestId?` | 拉数字员工列表 + 在线/空闲/离线统计（= 角色模板的视图聚合） | [workers-api §get_workers](./workers-api.md) |
 | `get_worker_activity` | `range`, `workerName?`, `requestId?` | 拉员工活跃度（`range` = minute/hour/day/month/year；不传 `workerName` = 全员聚合） | [workers-api §get_worker_activity](./workers-api.md) |
+| `permission_response` | `requestId`, `optionId` | 半自动权限模式下回应 `permission_requested`；`requestId` 原样回填，`optionId` 从下发 options 里挑 | [ws-protocol.md §permission_response](./ws-protocol.md) |
 
 ### 1.2 下行消息（后端 → 前端）
 
@@ -43,6 +44,7 @@
 | `get_turn_history_response` | `requestId`, `items`, `hasMore`, `nextCursor` —— `get_turn_history` 的应答（冷历史翻页） | [ws-protocol.md §get_turn_history_response](./ws-protocol.md) · [turn-events §8 冷历史接口](./turn-events.md) |
 | `get_workers_response` | `requestId`, `workers`, `stats` —— `get_workers` 的应答（员工列表聚合） | [workers-api §get_workers](./workers-api.md) |
 | `get_worker_activity_response` | `requestId`, `range`, `workerName`, `dataPoints`, `total` —— `get_worker_activity` 的应答（分桶时间序列） | [workers-api §get_worker_activity](./workers-api.md) |
+| `permission_requested` | `instanceId`, `requestId`, `toolCall{name,title?,input?}`, `options[]` —— 半自动权限模式下 ACP `session/request_permission` 透传，前端弹窗，30s 超时后端自动 cancelled | [ws-protocol.md §permission_requested](./ws-protocol.md) |
 
 ### 1.3 下行 bus 事件（`event.event.type`）
 

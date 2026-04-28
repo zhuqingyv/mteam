@@ -1,4 +1,5 @@
 import type { McpToolVisibility } from '../domain/role-template.js';
+import type { PermissionMode } from '../agent-driver/types.js';
 
 export type AgentState = 'idle' | 'thinking' | 'responding';
 
@@ -12,8 +13,8 @@ export interface PrimaryAgentRow {
   agentState?: AgentState;
   /** true = 走 DockerRuntime；false = HostRuntime。主 Agent 默认 true。 */
   sandbox: boolean;
-  /** true = ACP requestPermission 自动选 allow；false = 一律 cancelled。主 Agent 默认 true。 */
-  autoApprove: boolean;
+  /** ACP 权限审批模式：auto=自动批准（秘书身份默认）；manual=透传前端用户决策。 */
+  permissionMode: PermissionMode;
   createdAt: string;
   updatedAt: string;
 }
@@ -24,5 +25,5 @@ export interface PrimaryAgentConfig {
   systemPrompt?: string;
   mcpConfig?: McpToolVisibility[];
   sandbox?: boolean;
-  autoApprove?: boolean;
+  permissionMode?: PermissionMode;
 }
