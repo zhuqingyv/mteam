@@ -4,11 +4,21 @@ import type { PrimaryMcpEnv } from '../config.js';
 export const createLeaderSchema = {
   name: 'create_leader',
   description:
-    'Create a Leader role instance, a new team, and add the Leader as a team member. Returns { instanceId, teamId, memberName, teamName }.',
+    'Create a Leader role instance, a new team, and add the Leader as a team member. ' +
+    'templateName MUST be an existing role template name — do NOT invent names. ' +
+    'If unsure, call search_settings({q:"templates"}) first or query GET /api/panel/templates. ' +
+    'Built-in templates include: frontend-dev, backend-dev, fullstack-dev, qa-engineer, ' +
+    'tech-architect, code-reviewer, devops-engineer, ui-ux-designer, tech-writer, ' +
+    'perf-optimizer, product-manager. ' +
+    'Returns { instanceId, teamId, memberName, teamName } on success.',
   inputSchema: {
     type: 'object' as const,
     properties: {
-      templateName: { type: 'string', description: 'Role template name for the Leader.' },
+      templateName: {
+        type: 'string',
+        description:
+          'Existing role template name (e.g. frontend-dev). Use search_settings if unsure — never invent.',
+      },
       memberName: { type: 'string', description: 'Display name for the Leader.' },
       teamName: { type: 'string', description: 'Team name.' },
       description: { type: 'string', description: 'Optional team description.' },
@@ -49,7 +59,19 @@ export async function runCreateLeader(
     },
   );
   if (!createRes.ok || !createRes.body?.id) {
-    return { error: createRes.error ?? `create leader failed (HTTP ${createRes.status})` };
+    const errMsg = createRes.error ?? `create leader failed (HTTP ${createRes.status})`;
+    // 模板不存在时附上可用列表，避免主 Agent 再次瞎猜名字。
+    if (createRes.status === 404 && /template '.*' not found/.test(errMsg)) {
+      const tplRes = await httpJson<Array<{ name: string }>>(
+        `${env.hubUrl}/api/panel/templates`,
+        { method: 'GET' },
+      );
+      const availableTemplates = Array.isArray(tplRes.body)
+        ? tplRes.body.map((t) => t.name).filter((n): n is string => typeof n === 'string')
+        : [];
+      return { error: errMsg, availableTemplates };
+    }
+    return { error: errMsg };
   }
   const instanceId = createRes.body.id;
 

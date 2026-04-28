@@ -6,9 +6,9 @@ import { WS_EVENT_TYPES } from './ws.subscriber.js';
 import type { BusEvent, BusEventType } from '../types.js';
 
 describe('W2-H · bus 契约冻结', () => {
-  it('WS_EVENT_TYPES 集合尺寸 = 40（Phase 4 新增 5 条 action_item.*：35 → 40）', () => {
+  it('WS_EVENT_TYPES 集合尺寸 = 41（新增 worker.status_changed：40 → 41）', () => {
     // 漂移要么是新增事件该走 PR review，要么是误删，两种都要被捕获。
-    expect(WS_EVENT_TYPES.size).toBe(40);
+    expect(WS_EVENT_TYPES.size).toBe(41);
   });
 
   it('WS 白名单包含 comm.message_sent / comm.message_received', () => {

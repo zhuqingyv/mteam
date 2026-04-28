@@ -275,6 +275,19 @@ export type {
   TurnBusEventType,
 } from './turn-events.js';
 
+// ---------- worker ----------
+
+// 数字员工状态变化事件。由 worker-status.subscriber 监听 instance.* / driver.* /
+// turn.* 后重算，发现变化才 emit。前端走 WS 增量更新，避免轮询。
+// status 字面量与 worker/types.ts 的 WorkerStatus 保持一致。
+export interface WorkerStatusChangedEvent extends BusEventBase {
+  type: 'worker.status_changed';
+  name: string;
+  status: 'online' | 'idle' | 'offline';
+  instanceCount: number;
+  teams: string[];
+}
+
 // ---------- container / notification ----------
 
 // Container 生命周期事件：Stage 5 沙箱化，container.subscriber 根据 runtime 选择
@@ -423,4 +436,5 @@ export type BusEvent =
   | ActionItemUpdatedEvent
   | ActionItemReminderEvent
   | ActionItemResolvedEvent
-  | ActionItemTimeoutEvent;
+  | ActionItemTimeoutEvent
+  | WorkerStatusChangedEvent;

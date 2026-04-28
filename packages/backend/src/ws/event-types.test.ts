@@ -9,8 +9,12 @@ import { WS_EVENT_TYPES as REEXPORT } from '../bus/subscribers/ws.subscriber.js'
 import type { BusEventType } from '../bus/types.js';
 
 describe('W1-8 · WS_EVENT_TYPES 迁移', () => {
-  it('真源在 ws/event-types.ts：集合尺寸 = 40（Phase 4 新增 5 条 action_item.*）', () => {
-    expect(WS_EVENT_TYPES.size).toBe(40);
+  it('真源在 ws/event-types.ts：集合尺寸 = 41（新增 worker.status_changed）', () => {
+    expect(WS_EVENT_TYPES.size).toBe(41);
+  });
+
+  it('新增 worker.status_changed 暴露给前端（数字员工增量推送）', () => {
+    expect(WS_EVENT_TYPES.has('worker.status_changed')).toBe(true);
   });
 
   it('旧 ws.subscriber.ts 的 re-export 指向同一份 Set（同引用）', () => {

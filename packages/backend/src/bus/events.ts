@@ -53,6 +53,7 @@ export type {
   TurnBlockUpdatedEvent,
   TurnCompletedEvent,
   TurnErrorEvent,
+  WorkerStatusChangedEvent,
 } from './types.js';
 
 export class EventBus {

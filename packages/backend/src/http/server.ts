@@ -8,6 +8,8 @@ import { driverRegistry } from '../agent-driver/registry.js';
 import { ensureDefaults as ensureMcpDefaults } from '../mcp-store/store.js';
 import { ensureDefaultTemplates } from '../domain/default-templates.js';
 import { ensureBuiltinAvatars } from '../avatar/init.js';
+import { settingsRegistry } from '../settings/registry.js';
+import { ALL_SETTING_ENTRIES } from '../settings/entries/index.js';
 import { mcpManager } from '../mcp-store/mcp-manager.js';
 import { cliManager } from '../cli-scanner/manager.js';
 import { primaryAgent } from '../primary-agent/primary-agent.js';
@@ -54,6 +56,7 @@ export function createServer(): http.Server {
   ensureMcpDefaults();
   ensureDefaultTemplates();
   ensureBuiltinAvatars();
+  settingsRegistry.registerAll(ALL_SETTING_ENTRIES);
   return http.createServer(async (req, res) => {
     try {
       const pathname = (req.url ?? '/').split('?')[0] ?? '/';

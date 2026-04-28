@@ -53,4 +53,5 @@ export const WS_EVENT_TYPES: ReadonlySet<BusEventType> = new Set<BusEventType>([
   'action_item.reminder',
   'action_item.resolved',
   'action_item.timeout',
+  'worker.status_changed',
 ]);

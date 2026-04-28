@@ -12,6 +12,7 @@ import { subscribePolicy } from './subscribers/policy.subscriber.js';
 import { subscribeNotification, type NotifSubDeps } from './subscribers/notification.subscriber.js';
 import { subscribeTurnAggregator, type TurnAggregator } from './subscribers/turn-aggregator.subscriber.js';
 import { subscribeTurnHistory } from './subscribers/turn-history.subscriber.js';
+import { subscribeWorkerStatus } from './subscribers/worker-status.subscriber.js';
 import { insertTurn } from '../turn-history/repo.js';
 import { createContainerRegistry } from './subscribers/container-registry.js';
 import { createRestartPolicy } from './subscribers/container-restart-policy.js';
@@ -62,6 +63,8 @@ export function bootSubscribers(
   // T3：turn-history 订阅器接 turn.completed → insertTurn（repo.ts）。
   // 必须晚于 aggregator（aggregator 才 emit turn.completed）。
   masterSub.add(subscribeTurnHistory(eventBus, { insertTurn }));
+  // 数字员工状态增量推送：订阅 instance/driver/turn 触发事件 → emit worker.status_changed。
+  masterSub.add(subscribeWorkerStatus(eventBus));
   if (deps.notification) masterSub.add(subscribeNotification(deps.notification, eventBus));
   if (config.sandbox?.enabled) {
     const registry = createContainerRegistry();
