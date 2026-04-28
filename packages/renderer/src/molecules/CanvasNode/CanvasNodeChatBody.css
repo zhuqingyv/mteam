@@ -1,0 +1,32 @@
+.canvas-node__chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-node__chat-list {
+  flex: 0 0 140px;
+  min-width: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  display: flex;
+}
+
+.canvas-node__chat-list > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.canvas-node__chat-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.canvas-node__chat-panel > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}

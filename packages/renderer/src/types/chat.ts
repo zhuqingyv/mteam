@@ -59,3 +59,17 @@ export interface ChatPeer {
   lastTime?: string;
   unread?: number;
 }
+
+// S4-M3 画布节点数据（INTERFACE-CONTRACTS §2 / §9）。
+export interface CanvasNodeData {
+  id: string;
+  name: string;
+  status: 'idle' | 'thinking' | 'responding' | 'offline';
+  cliType?: string;
+  isLeader: boolean;
+  x: number;
+  y: number;
+  taskCount: number;
+  unreadCount: number;
+  messageCount: number;
+}

@@ -10,6 +10,7 @@ import {
   handleTemplateEvent,
   handleOtherEvent,
 } from './wsEventHandlers';
+import { handleCommEvent } from './handleCommEvent';
 import { applyTurnHistoryResponse, applyTurnsResponse } from './turnHydrator';
 import { useInstanceSubscriptions } from './useInstanceSubscriptions';
 import { useSubscribedInstanceIds } from './instanceSubRegistry';
@@ -90,6 +91,7 @@ export function useWsEvents(): void {
         else if (t.startsWith('driver.')) handleDriverEvent(t, e);
         else if (t.startsWith('instance.')) handleInstanceEvent(t, e);
         else if (t.startsWith('turn.')) handleTurnEvent(t, e);
+        else if (t.startsWith('comm.')) handleCommEvent(t, e);
         else if (t.startsWith('team.')) handleTeamEvent(t, e);
         else if (t.startsWith('template.')) handleTemplateEvent(t, e);
         else handleOtherEvent(t, e);

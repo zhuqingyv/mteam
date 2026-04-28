@@ -3,22 +3,20 @@ import Icon from '../../atoms/Icon';
 import TeamSidebar from '../../molecules/TeamSidebar';
 import TeamCanvas from '../TeamCanvas';
 import type { Transform } from '../../hooks/useCanvasTransform';
+import type { CanvasNodeData } from '../../types/chat';
 import { useLocale } from '../../i18n';
 import './TeamMonitorPanel.css';
 
 interface Team { id: string; name: string; memberCount: number; }
-interface Agent {
-  id: string; name: string; status: string; cliType?: string;
-  lastMessage?: string; x: number; y: number; isLeader?: boolean;
-}
 
 interface TeamMonitorPanelProps {
   teams: Team[];
-  agents: Agent[];
+  agents: CanvasNodeData[];
   activeTeamId?: string;
   onSelectTeam?: (id: string) => void;
   onCreateTeam?: () => void;
   onAgentDragEnd?: (id: string, x: number, y: number) => void;
+  onAgentOpen?: (id: string) => void;
   canvasTransform?: Transform;
   onCanvasTransformCommit?: (t: Transform) => void;
   collapsed?: boolean;
@@ -26,7 +24,7 @@ interface TeamMonitorPanelProps {
 }
 
 export default function TeamMonitorPanel({
-  teams, agents, activeTeamId, onSelectTeam, onCreateTeam, onAgentDragEnd,
+  teams, agents, activeTeamId, onSelectTeam, onCreateTeam, onAgentDragEnd, onAgentOpen,
   canvasTransform, onCanvasTransformCommit,
   collapsed = false, onToggleCollapsed,
 }: TeamMonitorPanelProps) {
@@ -69,6 +67,7 @@ export default function TeamMonitorPanel({
           agents={agents}
           initialTransform={canvasTransform}
           onAgentDragEnd={onAgentDragEnd}
+          onAgentOpen={onAgentOpen}
           onTransformCommit={onCanvasTransformCommit}
         />
       </div>

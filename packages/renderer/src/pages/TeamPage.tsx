@@ -6,10 +6,16 @@ import Button from '../atoms/Button';
 import Icon from '../atoms/Icon';
 import Text from '../atoms/Text';
 import { listTeams, getTeam, createTeam } from '../api/teams';
-import { useTeamStore, usePrimaryAgentStore, useAgentStore } from '../store';
+import { useTeamStore, usePrimaryAgentStore, useAgentStore, useMessageStore } from '../store';
 import { computeLayout } from '../organisms/TeamCanvas/layout';
 import type { Transform } from '../hooks/useCanvasTransform';
+import type { CanvasNodeData } from '../types/chat';
+import { selectUnreadMap } from '../store/selectors/unread';
 import './TeamPage.css';
+
+// Agent.status → CanvasNodeData.status（UI 四态）；running 默认映到 idle，细化态由 state_changed 推。
+const STATUS_MAP: Record<string, CanvasNodeData['status']> = { offline: 'offline', thinking: 'thinking', responding: 'responding' };
+const mapStatus = (raw: string | undefined): CanvasNodeData['status'] => STATUS_MAP[raw ?? ''] ?? 'idle';
 
 const DEFAULT_CANVAS: { width: number; height: number } = { width: 960, height: 560 };
 
@@ -52,7 +58,7 @@ export default function TeamPage() {
   const currentMembers = activeTeamId ? (teamMembers[activeTeamId] ?? []) : [];
 
   const cards = useMemo(() => {
-    const list: { id: string; name: string; status: string; isLeader: boolean }[] = [];
+    const list: { id: string; name: string; status: string; cliType?: string; isLeader: boolean }[] = [];
     if (leaderId) {
       const pool = agentPool.find((a) => a.id === leaderId);
       list.push({
@@ -85,15 +91,25 @@ export default function TeamPage() {
     );
   }, [cards, savedCanvas]);
 
-  const agents = cards.map((c) => {
+  const byInstance = useMessageStore((s) => s.byInstance);
+
+  const agents: CanvasNodeData[] = cards.map((c) => {
     const p = positions[c.id] ?? { x: 0, y: 0 };
+    const bucket = byInstance[c.id];
+    const messageCount = bucket?.messages.length ?? 0;
+    const unreadMap = selectUnreadMap(useMessageStore.getState(), c.id);
+    const unreadCount = Object.values(unreadMap).reduce((a, n) => a + n, 0);
     return {
       id: c.id,
       name: c.name,
-      status: c.status === 'running' ? 'working' : c.status === 'offline' ? 'shutdown' : 'idle',
+      status: mapStatus(c.status),
+      cliType: c.cliType,
+      isLeader: c.isLeader,
       x: p.x,
       y: p.y,
-      isLeader: c.isLeader,
+      taskCount: 0,
+      unreadCount,
+      messageCount,
     };
   });
 

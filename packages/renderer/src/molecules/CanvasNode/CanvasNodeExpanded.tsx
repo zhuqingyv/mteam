@@ -4,6 +4,7 @@ import Button from '../../atoms/Button';
 import Icon from '../../atoms/Icon';
 import StatusDot from '../../atoms/StatusDot';
 import Avatar from '../Avatar';
+import CanvasNodeChatBody from './CanvasNodeChatBody';
 import './CanvasNodeExpanded.css';
 
 type NodeStatus = 'idle' | 'thinking' | 'responding' | 'offline';
@@ -22,6 +23,9 @@ export interface CanvasNodeExpandedProps {
   onMinimize?: () => void;
   onClose?: () => void;
   onDragHeader?: (dx: number, dy: number) => void;
+  // S4-G2a 装配参数：未传 children 时，主区自动渲染 ChatList + InstanceChatPanelConnected。
+  teamId?: string | null;
+  userName?: string;
   children?: ReactNode;
 }
 
@@ -32,6 +36,8 @@ export default function CanvasNodeExpanded({
   onMinimize,
   onClose,
   onDragHeader,
+  teamId = null,
+  userName,
   children,
 }: CanvasNodeExpandedProps) {
   const dragRef = useRef<{ mx: number; my: number } | null>(null);
@@ -88,7 +94,11 @@ export default function CanvasNodeExpanded({
           )}
         </div>
       </div>
-      <div className="canvas-node__body">{children}</div>
+      <div className="canvas-node__body">
+        {children ?? (
+          <CanvasNodeChatBody instanceId={id} teamId={teamId} userName={userName} />
+        )}
+      </div>
     </div>
   );
 }
