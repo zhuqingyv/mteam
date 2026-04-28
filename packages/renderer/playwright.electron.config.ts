@@ -15,6 +15,7 @@ export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: false, // 所有 spec 共享同一 Electron 实例，串行更稳
+  workers: 1, // 多 worker 会并行跑 spec → 同一 Electron 被多个连接抢，必须串行
   retries: 0,
   reporter: [['list']],
   use: {

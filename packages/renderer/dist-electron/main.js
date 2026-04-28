@@ -124,6 +124,7 @@ if (IS_DEV) {
 var mainWindow = null;
 var teamPanelWindow = null;
 var settingsWindow = null;
+var roleListWindow = null;
 var baseGlassOptions = {
   transparent: true,
   frame: false,
@@ -178,12 +179,14 @@ function createWindow() {
 var lastTeamOpenAt = 0;
 var TEAM_OPEN_DEBOUNCE_MS = 500;
 function openPanel(key) {
-  const cfg = key === "team" ? { ref: teamPanelWindow, w: 1200, h: 800, minW: 800, minH: 600, title: "mteam — 团队面板", q: "?window=team" } : { ref: settingsWindow, w: 800, h: 640, minW: 640, minH: 480, title: "mteam — 设置", q: "?window=settings" };
+  const cfg = key === "team" ? { ref: teamPanelWindow, w: 1200, h: 800, minW: 800, minH: 600, title: "mteam — 团队面板", q: "?window=team" } : key === "settings" ? { ref: settingsWindow, w: 800, h: 640, minW: 640, minH: 480, title: "mteam — 设置", q: "?window=settings" } : { ref: roleListWindow, w: 800, h: 640, minW: 640, minH: 480, title: "mteam — 成员管理", q: "?window=roles" };
   if (cfg.ref && cfg.ref.isDestroyed()) {
     if (key === "team")
       teamPanelWindow = null;
-    else
+    else if (key === "settings")
       settingsWindow = null;
+    else
+      roleListWindow = null;
     cfg.ref = null;
   }
   if (cfg.ref && !cfg.ref.isDestroyed()) {
@@ -192,6 +195,8 @@ function openPanel(key) {
       if (now - lastTeamOpenAt < TEAM_OPEN_DEBOUNCE_MS)
         return;
       lastTeamOpenAt = now;
+      cfg.ref.focus();
+    } else if (key === "roles") {
       cfg.ref.focus();
     } else {
       cfg.ref.close();
@@ -210,18 +215,23 @@ function openPanel(key) {
   });
   if (key === "team")
     teamPanelWindow = win;
-  else
+  else if (key === "settings")
     settingsWindow = win;
+  else
+    roleListWindow = win;
   loadRenderer(win, cfg.q);
   win.on("closed", () => {
     if (key === "team")
       teamPanelWindow = null;
-    else
+    else if (key === "settings")
       settingsWindow = null;
+    else
+      roleListWindow = null;
   });
 }
 import_electron.ipcMain.on("window:open-team-panel", () => openPanel("team"));
 import_electron.ipcMain.on("window:open-settings", () => openPanel("settings"));
+import_electron.ipcMain.on("window:open-role-list", () => openPanel("roles"));
 var RESIZE_DIR_MAP = {
   top: "top",
   bottom: "bottom",

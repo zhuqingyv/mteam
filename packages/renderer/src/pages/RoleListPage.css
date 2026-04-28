@@ -1,0 +1,71 @@
+.role-list-page__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 12px;
+  -webkit-app-region: drag;
+}
+
+.role-list-page__title {
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  margin: 0;
+  -webkit-app-region: no-drag;
+}
+
+.role-list-page__actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
+.role-list-page__btn-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.role-list-page__close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms ease, color 150ms ease;
+}
+.role-list-page__close:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+.role-list-page__close .btn {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+
+.role-list-page__body {
+  padding: 0 24px 24px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  -webkit-app-region: no-drag;
+}
+
+.role-list-page__inst-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.role-list-page__inst-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

@@ -36,6 +36,8 @@ export interface Message {
 
 interface MessageState {
   messages: Message[];
+  // 用户连发的排队消息文本。turn streaming 时入队，turn.completed/error 后依次 flush。
+  pendingPrompts: string[];
   addMessage: (m: Message) => void;
   replaceMessage: (id: string, m: Message) => void;
   setMessages: (list: Message[]) => void;
@@ -43,12 +45,16 @@ interface MessageState {
   updateTurnBlock: (turnId: string, block: TurnBlock) => void;
   removeTurnBlocksByType: (turnId: string, type: TurnBlock['type']) => void;
   completeTurn: (turnId: string) => void;
+  enqueuePrompt: (text: string) => void;
+  dequeuePrompt: () => string | undefined;
+  clearPending: () => void;
 }
 
 const MAX_MESSAGES = 1000;
 
-export const useMessageStore = create<MessageState>()((set) => ({
+export const useMessageStore = create<MessageState>()((set, get) => ({
   messages: [],
+  pendingPrompts: [],
   addMessage: (m) =>
     set((s) => {
       const next = [...s.messages, m];
@@ -83,6 +89,15 @@ export const useMessageStore = create<MessageState>()((set) => ({
         return { ...m, streaming: false, thinking: false, blocks };
       }),
     })),
+  enqueuePrompt: (text) => set((s) => ({ pendingPrompts: [...s.pendingPrompts, text] })),
+  dequeuePrompt: () => {
+    const q = get().pendingPrompts;
+    if (q.length === 0) return undefined;
+    const [head, ...rest] = q;
+    set({ pendingPrompts: rest });
+    return head;
+  },
+  clearPending: () => set({ pendingPrompts: [] }),
 }));
 
 if (import.meta.env.DEV && typeof window !== 'undefined') {
@@ -96,3 +111,7 @@ export const selectSetMessages = (s: MessageState) => s.setMessages;
 export const selectClearMessages = (s: MessageState) => s.clear;
 export const selectUpdateTurnBlock = (s: MessageState) => s.updateTurnBlock;
 export const selectCompleteTurn = (s: MessageState) => s.completeTurn;
+export const selectPendingPrompts = (s: MessageState) => s.pendingPrompts;
+export const selectEnqueuePrompt = (s: MessageState) => s.enqueuePrompt;
+export const selectDequeuePrompt = (s: MessageState) => s.dequeuePrompt;
+export const selectClearPending = (s: MessageState) => s.clearPending;

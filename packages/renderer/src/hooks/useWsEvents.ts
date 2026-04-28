@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { createWsClient } from '../api/ws';
-import { useWsStore, usePrimaryAgentStore, handleConfigureAck } from '../store';
+import { useWsStore, usePrimaryAgentStore, useMessageStore, handleConfigureAck } from '../store';
 import {
   handlePrimaryAgentEvent,
   handleDriverEvent,
@@ -158,12 +158,16 @@ export function useWsEvents(): void {
         if (client && currentInstanceSub) client.unsubscribe('instance', currentInstanceSub);
         currentInstanceSub = null;
         useWsStore.getState().setClient(null);
+        // client 关闭代表 WS 生命周期结束（非自动重连期），清空用户消息队列，
+        // 否则遗留的 pending text 会在下一次挂载时错乱。
+        useMessageStore.getState().clearPending();
         client?.close();
       };
     } catch {
       return () => {
         unsubStore?.();
         useWsStore.getState().setClient(null);
+        useMessageStore.getState().clearPending();
         client?.close();
       };
     }

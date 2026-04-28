@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('window:start-resize', direction),
   openTeamPanel: () => ipcRenderer.send('window:open-team-panel'),
   openSettings: () => ipcRenderer.send('window:open-settings'),
+  openRoleList: () => ipcRenderer.send('window:open-role-list'),
   onDragStart: (cb) => {
     const listener = () => cb();
     ipcRenderer.on('window:drag-start', listener);

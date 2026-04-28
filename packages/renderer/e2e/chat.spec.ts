@@ -6,9 +6,11 @@ import { connectElectron, getMainPage, waitMainReady, screenshot } from './cdp-h
 
 async function ensureExpanded(page: Page): Promise<void> {
   const card = page.locator('.card').first();
+  await expect(card).not.toHaveClass(/card--animating/, { timeout: 2_000 });
   if (!(await card.evaluate((el) => el.classList.contains('card--expanded')))) {
     await page.locator('.card__collapsed').first().click();
-    await expect(card).toHaveClass(/card--expanded/);
+    await expect(card).toHaveClass(/card--expanded/, { timeout: 2_000 });
+    await expect(card).not.toHaveClass(/card--animating/, { timeout: 2_000 });
   }
 }
 
@@ -50,8 +52,8 @@ test.describe('对话', () => {
   });
 
   test('消息列表容器可滚动（VirtualList 存在）', async () => {
-    // ChatPanel__messages 是滚动容器；断言存在即可（滚动本身由 VirtualList 负责）
-    const scroller = page.locator('.chat-panel__messages').first();
+    // 真实滚动容器是 .virtual-list（挂在 .chat-panel__messages 里），VirtualList.css 设置 overflow-y:auto
+    const scroller = page.locator('.chat-panel__messages .virtual-list').first();
     await expect(scroller).toBeVisible();
     const overflowY = await scroller.evaluate((el) => getComputedStyle(el).overflowY);
     expect(['auto', 'scroll']).toContain(overflowY);

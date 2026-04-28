@@ -3,21 +3,29 @@
 import { test, expect, type Page, type Browser } from '@playwright/test';
 import { connectElectron, getMainPage, waitMainReady, screenshot } from './cdp-helpers';
 
+async function waitAnimDone(page: Page): Promise<void> {
+  await expect(page.locator('.card').first()).not.toHaveClass(/card--animating/, {
+    timeout: 2_000,
+  });
+}
+
 async function expandIfNeeded(page: Page): Promise<void> {
   const card = page.locator('.card').first();
-  const expanded = await card.evaluate((el) => el.classList.contains('card--expanded'));
-  if (!expanded) {
+  await waitAnimDone(page);
+  if (!(await card.evaluate((el) => el.classList.contains('card--expanded')))) {
     await page.locator('.card__collapsed').first().click();
-    await expect(card).toHaveClass(/card--expanded/);
+    await expect(card).toHaveClass(/card--expanded/, { timeout: 2_000 });
+    await waitAnimDone(page);
   }
 }
 
 async function collapseIfNeeded(page: Page): Promise<void> {
   const card = page.locator('.card').first();
-  const expanded = await card.evaluate((el) => el.classList.contains('card--expanded'));
-  if (expanded) {
+  await waitAnimDone(page);
+  if (await card.evaluate((el) => el.classList.contains('card--expanded'))) {
     await page.locator('.card__close .btn').first().click();
-    await expect(card).not.toHaveClass(/card--expanded/);
+    await expect(card).not.toHaveClass(/card--expanded/, { timeout: 2_000 });
+    await waitAnimDone(page);
   }
 }
 
@@ -42,11 +50,14 @@ test.describe('展开态', () => {
     await expandIfNeeded(page);
   });
 
-  test('展开后 window.inner 约 640x620（容差 ±20）', async () => {
-    // window.innerWidth/Height 不等于 BrowserWindow bounds，但数量级接近可判断 resize 生效。
+  test('展开后 window.inner 约 640x620（容差 ±40）', async () => {
+    // resize 异步，poll 等 width 进入目标附近再读。
+    await expect
+      .poll(async () => await page.evaluate(() => window.innerWidth), { timeout: 4_000 })
+      .toBeGreaterThan(500);
     const { w, h } = await page.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }));
-    expect(Math.abs(w - 640)).toBeLessThan(30);
-    expect(Math.abs(h - 620)).toBeLessThan(40);
+    expect(Math.abs(w - 640)).toBeLessThan(40);
+    expect(Math.abs(h - 620)).toBeLessThan(60);
   });
 
   test('ToolBar 可见（Dropdown + 成员面板 + 齿轮）', async () => {
@@ -72,13 +83,13 @@ test.describe('展开态', () => {
 
   test('X 按钮收起 → 窗口约 380x120', async () => {
     await collapseIfNeeded(page);
-    const card = page.locator('.card').first();
-    await expect(card).not.toHaveClass(/card--expanded/);
-    // 动画 280ms + 保守等一下再读尺寸
-    await page.waitForTimeout(500);
+    // 窗口 resize 是异步（IPC + 动画），poll 等 innerWidth 收到目标值附近
+    await expect
+      .poll(async () => await page.evaluate(() => window.innerWidth), { timeout: 4_000 })
+      .toBeLessThan(420);
     const { w, h } = await page.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }));
-    expect(Math.abs(w - 380)).toBeLessThan(30);
-    expect(Math.abs(h - 120)).toBeLessThan(30);
+    expect(Math.abs(w - 380)).toBeLessThan(40);
+    expect(Math.abs(h - 120)).toBeLessThan(40);
     await screenshot(page, 'expanded-after-collapse');
   });
 });

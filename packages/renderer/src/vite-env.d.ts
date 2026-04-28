@@ -16,6 +16,7 @@ interface Window {
     startResize: (direction: string) => void;
     openTeamPanel: () => void;
     openSettings: () => void;
+    openRoleList: () => void;
     onDragStart?: (cb: () => void) => () => void;
     onDragEnd?: (cb: () => void) => () => void;
   };

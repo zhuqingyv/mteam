@@ -17,12 +17,15 @@ test.describe('胶囊态', () => {
     await browser.close();
   });
 
-  // 收起态是默认态；若上条测试展开过，点关闭或收起区收回。
+  // 收起态是默认态；若上条测试展开过，点关闭回退。动画 ~550ms，需等锁释放。
   test.beforeEach(async () => {
     const card = page.locator('.card').first();
+    // 等动画结束（无 card--animating）再操作
+    await expect(card).not.toHaveClass(/card--animating/, { timeout: 2_000 });
     if (await card.evaluate((el) => el.classList.contains('card--expanded'))) {
       await page.locator('.card__close .btn').first().click();
-      await expect(card).not.toHaveClass(/card--expanded/);
+      await expect(card).not.toHaveClass(/card--expanded/, { timeout: 2_000 });
+      await expect(card).not.toHaveClass(/card--animating/, { timeout: 2_000 });
     }
   });
 

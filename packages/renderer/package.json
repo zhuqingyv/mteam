@@ -14,7 +14,8 @@
     "prestart": "lsof -ti :58590 | xargs kill -9 2>/dev/null; lsof -ti :5180 | xargs kill -9 2>/dev/null; true",
     "start": "concurrently -k -n VITE,ELECTRON -c blue,green \"bun run dev\" \"wait-on http://localhost:5180 && bun run electron:dev\"",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:electron": "playwright test --config playwright.electron.config.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.4",

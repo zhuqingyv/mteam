@@ -21,6 +21,7 @@ if (IS_DEV) {
 let mainWindow: BrowserWindow | null = null;
 let teamPanelWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
+let roleListWindow: BrowserWindow | null = null;
 
 const baseGlassOptions = {
   transparent: true,
@@ -76,14 +77,19 @@ function createWindow(): void {
 let lastTeamOpenAt = 0;
 const TEAM_OPEN_DEBOUNCE_MS = 500;
 
-function openPanel(key: 'team' | 'settings'): void {
+type PanelKey = 'team' | 'settings' | 'roles';
+
+function openPanel(key: PanelKey): void {
   const cfg = key === 'team'
     ? { ref: teamPanelWindow, w: 1200, h: 800, minW: 800, minH: 600, title: 'mteam — 团队面板', q: '?window=team' }
-    : { ref: settingsWindow, w: 800, h: 640, minW: 640, minH: 480, title: 'mteam — 设置', q: '?window=settings' };
+    : key === 'settings'
+      ? { ref: settingsWindow, w: 800, h: 640, minW: 640, minH: 480, title: 'mteam — 设置', q: '?window=settings' }
+      : { ref: roleListWindow, w: 800, h: 640, minW: 640, minH: 480, title: 'mteam — 成员管理', q: '?window=roles' };
   // stale ref 保险：on('closed') 已置 null，但防止异步时序或异常路径留下的已 destroy ref
   if (cfg.ref && cfg.ref.isDestroyed()) {
     if (key === 'team') teamPanelWindow = null;
-    else settingsWindow = null;
+    else if (key === 'settings') settingsWindow = null;
+    else roleListWindow = null;
     cfg.ref = null;
   }
   if (cfg.ref && !cfg.ref.isDestroyed()) {
@@ -91,6 +97,8 @@ function openPanel(key: 'team' | 'settings'): void {
       const now = Date.now();
       if (now - lastTeamOpenAt < TEAM_OPEN_DEBOUNCE_MS) return;
       lastTeamOpenAt = now;
+      cfg.ref.focus();
+    } else if (key === 'roles') {
       cfg.ref.focus();
     } else {
       cfg.ref.close();
@@ -106,12 +114,19 @@ function openPanel(key: 'team' | 'settings'): void {
     minHeight: cfg.minH,
     title: cfg.title,
   });
-  if (key === 'team') teamPanelWindow = win; else settingsWindow = win;
+  if (key === 'team') teamPanelWindow = win;
+  else if (key === 'settings') settingsWindow = win;
+  else roleListWindow = win;
   loadRenderer(win, cfg.q);
-  win.on('closed', () => { if (key === 'team') teamPanelWindow = null; else settingsWindow = null; });
+  win.on('closed', () => {
+    if (key === 'team') teamPanelWindow = null;
+    else if (key === 'settings') settingsWindow = null;
+    else roleListWindow = null;
+  });
 }
 ipcMain.on('window:open-team-panel', () => openPanel('team'));
 ipcMain.on('window:open-settings', () => openPanel('settings'));
+ipcMain.on('window:open-role-list', () => openPanel('roles'));
 
 const RESIZE_DIR_MAP: Record<string, string> = {
   top: 'top', bottom: 'bottom', left: 'left', right: 'right',

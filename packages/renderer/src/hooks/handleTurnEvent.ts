@@ -8,6 +8,7 @@
 //   - turn.error        → 追加 [error] 到正文或新增一条 agent 消息
 
 import { useMessageStore, usePrimaryAgentStore } from '../store';
+import { flushNextPending } from './promptDispatcher';
 
 const SUPPORTED_BLOCK_TYPES = ['text', 'thinking', 'tool_call', 'tool_result'] as const;
 type SupportedBlock = (typeof SUPPORTED_BLOCK_TYPES)[number];
@@ -58,6 +59,8 @@ export function handleTurnEvent(t: string, e: Record<string, unknown>) {
     const turnId = String(e.turnId ?? '');
     if (!turnId) return;
     ms.completeTurn(turnId);
+    // turn 结束后把队列里的下一条立刻派发出去。
+    flushNextPending();
     return;
   }
 
@@ -83,6 +86,8 @@ export function handleTurnEvent(t: string, e: Record<string, unknown>) {
         streaming: false,
       });
     }
+    // 出错也继续派发下一条，避免队列卡死。
+    flushNextPending();
     return;
   }
 

@@ -9,7 +9,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const CDP_URL = process.env.MTEAM_CDP_URL ?? 'http://127.0.0.1:9222';
-const PLAYGROUND_URL = process.env.MTEAM_PLAYGROUND_URL ?? 'http://127.0.0.1:5190';
 const SCREENSHOT_DIR = resolve(__dirname, 'screenshots');
 
 mkdirSync(SCREENSHOT_DIR, { recursive: true });
@@ -56,15 +55,6 @@ export async function getSettingsPage(browser: Browser): Promise<Page> {
   return findPageByUrl(browser, (u) => u.includes('window=settings'));
 }
 
-export async function openPlaygroundPage(browser: Browser): Promise<Page> {
-  // Playground 是普通 Vite 页面，和 Electron 同 CDP 下打不开，所以另起一个 tab 连 5190。
-  // 但 connectOverCDP 附在 Electron 里的 page.goto 也能访问外部 URL。
-  const ctx = browser.contexts()[0];
-  const page = await ctx.newPage();
-  await page.goto(PLAYGROUND_URL, { waitUntil: 'domcontentloaded' });
-  return page;
-}
-
 // 保存截图到 e2e/screenshots/<name>.png。
 export async function screenshot(page: Page, name: string): Promise<string> {
   const p = resolve(SCREENSHOT_DIR, `${name}.png`);
@@ -77,4 +67,4 @@ export async function waitMainReady(page: Page, timeoutMs = 5_000): Promise<void
   await page.locator('.card').first().waitFor({ state: 'visible', timeout: timeoutMs });
 }
 
-export { CDP_URL, PLAYGROUND_URL, SCREENSHOT_DIR };
+export { CDP_URL, SCREENSHOT_DIR };

@@ -7,27 +7,18 @@ import { listCli, type CliInfo } from '../../api/cli';
 import {
   useMessageStore,
   selectMessages,
-  selectAddMessage,
   useInputStore,
   selectInputText,
   selectSetInputText,
   selectClearInput,
-  useWsStore,
   usePrimaryAgentStore,
   selectPaConfig,
 } from '../../store';
-import type { Message } from '../../store/messageStore';
+import { sendUserPrompt } from '../../hooks/promptDispatcher';
 import './ExpandedView.css';
-
-const fmtTime = () => {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
 
 export default function ExpandedView() {
   const messages = useMessageStore(selectMessages);
-  const addMessage = useMessageStore(selectAddMessage);
 
   const inputText = useInputStore(selectInputText);
   const setInputText = useInputStore(selectSetInputText);
@@ -68,32 +59,17 @@ export default function ExpandedView() {
   }, []);
 
   const handleTeamPanel = useCallback(() => {
-    window.electronAPI?.openTeamPanel();
+    window.electronAPI?.openRoleList();
   }, []);
 
   const handleSend = useCallback(() => {
-    const text = useInputStore.getState().text.trim();
-    if (!text) return;
-
-    const iid = usePrimaryAgentStore.getState().instanceId;
-    if (!iid) {
-      addMessage({ id: `e-${Date.now()}`, role: 'agent', content: 'Primary Agent not started.', time: fmtTime() });
-      return;
-    }
-
-    const ts = Date.now();
-    const userMsg: Message = { id: `u-${ts}`, role: 'user', content: text, time: fmtTime(), read: true };
-    addMessage(userMsg);
-    // 先占位 thinking 气泡，避免 turn.started 到达前的空白期。
-    // turn.started 会把这条 pending-* 替换成正式的 turnId 消息。
-    addMessage({ id: `pending-${ts}`, role: 'agent', content: '', time: fmtTime(), thinking: true, streaming: true });
+    const text = useInputStore.getState().text;
+    if (!text.trim()) return;
+    // 连发支持：正在 streaming 时入队，turn.completed 后自动 flush；
+    // 非 streaming 时立即本地 echo user + 插入 pending 占位 + WS prompt。
+    sendUserPrompt(text);
     clearText();
-
-    // 不检查 readyState：ws.ts 的 send 内部有 pending 队列，
-    // CONNECTING 期的 prompt 会在 onopen 时 flush。硬检查会静默吞消息。
-    const wsClient = useWsStore.getState().client;
-    if (wsClient) wsClient.prompt(iid, text, `req-${ts}`);
-  }, [addMessage, clearText]);
+  }, [clearText]);
 
   return (
     <div className="expanded-view">
