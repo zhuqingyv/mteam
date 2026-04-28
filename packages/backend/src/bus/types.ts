@@ -319,11 +319,30 @@ export interface ContainerCrashedEvent extends BusEventBase {
 // 直接推一条"通知指针"事件，由 ws-broadcaster 按订阅投递给对应连接。
 // 不带 sourceEventPayload —— 前端按 sourceEventId 在本地缓存里找原事件，
 // 避免订 global 同时收到原事件 + 通知副本导致 UI 双推。
+//
+// Phase 5 W2：notification-center/repo.pushNotification 落库后也走这条事件，
+// 携带 notificationId + title + body + channel 让前端直接触发 OS 通知。
+// 原 W2-6 路径只填 target + sourceEventType + sourceEventId；两条路径并存，
+// 前端按存在的字段判定来源。因此 source*/target 改为可选（向后兼容扩展）。
 export interface NotificationDeliveredEvent extends BusEventBase {
   type: 'notification.delivered';
-  target: { kind: 'user'; id: string } | { kind: 'agent'; id: string };
-  sourceEventType: string;
-  sourceEventId: string;
+  target?: { kind: 'user'; id: string } | { kind: 'agent'; id: string };
+  sourceEventType?: string;
+  sourceEventId?: string;
+  /** Phase 5：持久化通知的 id，前端可用它去 HTTP ack。 */
+  notificationId?: string;
+  /** Phase 5：通知类型渠道，决定是否触发 OS 通知（system / in_app / both）。 */
+  channel?: string;
+  /** Phase 5：通知级别 info/warn/error，前端用于 OS 通知图标/声音映射。 */
+  severity?: string;
+  /** Phase 5：通知分类（quota_limit / action_item_reminder ...），给前端 kind-aware 渲染。 */
+  kind?: string;
+  /** Phase 5：OS 通知标题，缺省时前端可退化用 sourceEventType。 */
+  title?: string;
+  /** Phase 5：OS 通知正文。 */
+  body?: string;
+  /** Phase 5：结构化 payload，给前端渲染辅助字段（如 quota 详情）。 */
+  payload?: Record<string, unknown>;
 }
 
 // ---------- reliability 域（W1-7 · Phase Reliability）----------

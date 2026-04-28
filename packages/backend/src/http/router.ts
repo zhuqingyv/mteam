@@ -14,6 +14,7 @@ import { handleMcpToolsRoute } from './routes/mcp-tools.routes.js';
 import { handleMessagesRoute } from './routes/messages.routes.js';
 import { handleAvatarsRoute } from './routes/avatars.routes.js';
 import { handleActionItemsRoute } from './routes/action-items.routes.js';
+import { handleWorkflowsRoute } from './routes/workflows.routes.js';
 import { handlePanelRoute } from './routes/panel.routes.js';
 
 export async function route(req: http.IncomingMessage): Promise<ApiResponse> {
@@ -37,6 +38,7 @@ export async function route(req: http.IncomingMessage): Promise<ApiResponse> {
     () => handleTemplatesRoute(req, pathname, method),
     () => handleAvatarsRoute(req, pathname, method),
     () => handleActionItemsRoute(req, pathname, method, query),
+    () => handleWorkflowsRoute(req, pathname, method),
   ];
 
   for (const h of handlers) {

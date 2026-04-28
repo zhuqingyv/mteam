@@ -1,8 +1,11 @@
-// Phase 5 · notifications DAO。lazy prepare + registerCloseHook；纯 DB 访问不 emit 事件。
+// Phase 5 · notifications DAO。lazy prepare + registerCloseHook；
+// Phase 5 W2：push 落库后 emit bus notification.delivered，WS 再把它推到前端触发 OS 通知。
 // 设计：docs/phase5/notification-system-design.md §2.6
 import { randomUUID } from 'node:crypto';
 import type { Statement } from 'bun:sqlite';
 import { getDb, registerCloseHook } from '../db/connection.js';
+import { bus } from '../bus/events.js';
+import { makeBase } from '../bus/helpers.js';
 import type {
   NotificationChannel, NotificationKind, NotificationRecord, Severity,
 } from './types.js';
@@ -66,6 +69,27 @@ export function pushNotification(
   );
   const row = findById(id);
   if (!row) throw new Error(`notifications insert failed: ${id}`);
+  // W2：写库成功后广播事件；订阅 global 的 WS 连接会收到 → 前端触发 OS 通知。
+  // 失败不回滚 DB（通知持久化优先于推送），err 吞到 stderr 防噪声。
+  try {
+    bus.emit({
+      ...makeBase('notification.delivered', 'notification-center'),
+      target: { kind: 'user', id: row.userId ?? 'local' },
+      notificationId: row.id,
+      kind: row.kind,
+      channel: row.channel,
+      severity: row.severity,
+      title: row.title,
+      body: row.body,
+      payload: row.payload,
+      ...(row.sourceEventType ? { sourceEventType: row.sourceEventType } : {}),
+      ...(row.sourceEventId ? { sourceEventId: row.sourceEventId } : {}),
+    });
+  } catch (err) {
+    process.stderr.write(
+      `[notification-center/repo] bus.emit failed for ${row.id}: ${(err as Error).message}\n`,
+    );
+  }
   return row;
 }
 

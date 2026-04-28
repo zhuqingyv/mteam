@@ -10,6 +10,7 @@ import type { CreateRoleInstanceInput } from '../../domain/role-instance.js';
 import type { ApiResponse } from './role-templates.js';
 import { bus } from '../../bus/index.js';
 import { makeBase, newCorrelationId } from '../../bus/helpers.js';
+import { pushNotification } from '../../notification-center/repo.js';
 
 const errRes = (status: number, error: string): ApiResponse => ({ status, body: { error } });
 
@@ -70,6 +71,7 @@ export function handleCreateInstance(body: unknown): ApiResponse {
   } catch (err) {
     if (err instanceof QuotaExceededError) {
       const { message: error, code, resource, current, limit } = err;
+      emitQuotaLimitNotification(err);
       return { status: 409, body: { error, code, resource, current, limit } };
     }
     throw err;
@@ -194,4 +196,30 @@ export function handleDeleteInstance(id: string, force = false): ApiResponse {
   });
 
   return { status: 204, body: null };
+}
+
+// 配额超限 → 落库一条 notification + emit notification.delivered 让 WS 广播。
+// delivered 事件本身不带 body（id:853 决策）；前端收到后按 sourceEventId=通知 id 拉详情。
+function emitQuotaLimitNotification(err: QuotaExceededError): void {
+  try {
+    const rec = pushNotification({
+      userId: 'local',
+      kind: 'quota_limit',
+      channel: 'system',
+      severity: 'warn',
+      title: 'Agent 创建失败',
+      body: `已达上限 ${err.current}/${err.limit}，无法创建新 agent`,
+      payload: { resource: err.resource, current: err.current, limit: err.limit },
+    });
+    bus.emit({
+      ...makeBase('notification.delivered', 'api/panel/role-instances'),
+      target: { kind: 'user', id: 'local' },
+      sourceEventType: 'notification.quota_limit',
+      sourceEventId: rec.id,
+    });
+  } catch (e) {
+    process.stderr.write(
+      `[api/role-instances] emit quota notification failed: ${(e as Error).message}\n`,
+    );
+  }
 }

@@ -13,6 +13,7 @@ import { handlePrimaryAgentRoute } from './primary-agent.routes.js';
 import { handleCliRoute } from './cli.routes.js';
 import { handleAvatarsRoute } from './avatars.routes.js';
 import { handleActionItemsRoute } from './action-items.routes.js';
+import { handleWorkflowsRoute } from './workflows.routes.js';
 import { notFound } from '../http-utils.js';
 
 const PREFIX = '/api/panel';
@@ -60,6 +61,10 @@ export async function handlePanelRoute(
   if (sub === '/action-items' || sub.startsWith('/action-items/')) {
     const forwarded = '/api/action-items' + sub.slice('/action-items'.length);
     return (await handleActionItemsRoute(req, forwarded, method, query)) ?? notFound;
+  }
+  if (sub === '/workflows' || sub.startsWith('/workflows/')) {
+    const forwarded = '/api/workflows' + sub.slice('/workflows'.length);
+    return (await handleWorkflowsRoute(req, forwarded, method)) ?? notFound;
   }
 
   // /api/panel/messages[/...] → /api/messages[/...]（method 不卡，由底层判定）。

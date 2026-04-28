@@ -2,6 +2,7 @@ import type { PrimaryMcpEnv } from '../config.js';
 import { createLeaderSchema, runCreateLeader } from './create_leader.js';
 import { searchSettingsSchema, runSearchSettings } from './search_settings.js';
 import { callSettingSchema, runCallSetting } from './call_setting.js';
+import { launchWorkflowSchema, runLaunchWorkflow } from './launch_workflow.js';
 
 export interface ToolSchema {
   name: string;
@@ -37,6 +38,10 @@ export const ALL_TOOLS: ToolEntry[] = [
   {
     schema: callSettingSchema,
     handler: (_deps, args) => runCallSetting(args),
+  },
+  {
+    schema: launchWorkflowSchema,
+    handler: ({ env }, args) => runLaunchWorkflow(env, args),
   },
 ];
 
