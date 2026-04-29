@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import CapsuleWindow from '../templates/CapsuleWindow';
 import CapsuleCard from '../organisms/CapsuleCard';
 import ExpandedView from '../organisms/ExpandedView';
@@ -7,6 +8,20 @@ import { useNotificationStore, usePrimaryAgentStore, selectOnline, selectAgentSt
 
 export default function CapsulePage() {
   const { expanded, animating, bodyVisible, toggle } = useCapsuleToggle();
+
+  // ESC 关展开态：仅展开且非动画期生效；输入框/textarea/contentEditable 聚焦时让出给原生行为。
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (!expanded || animating) return;
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || t?.isContentEditable) return;
+      toggle();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [expanded, animating, toggle]);
   const notifications = useNotificationStore((s) => s.notifications);
   const acknowledgedIds = useNotificationStore((s) => s.acknowledgedIds);
   const online = usePrimaryAgentStore(selectOnline);

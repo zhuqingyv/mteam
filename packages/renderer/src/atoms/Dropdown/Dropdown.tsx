@@ -39,12 +39,21 @@ export default function Dropdown({ options, value, onChange, className }: Dropdo
 
   const rootClassName = ['dropdown', open ? 'dropdown--open' : '', className ?? ''].filter(Boolean).join(' ');
 
+  const toggle = () => setOpen((v) => !v);
+  const handleTriggerKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    toggle();
+  };
+
   return (
     <div ref={rootRef} className={rootClassName}>
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         className="dropdown__trigger"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
+        onKeyDown={handleTriggerKey}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -53,7 +62,7 @@ export default function Dropdown({ options, value, onChange, className }: Dropdo
         <span className={`dropdown__caret ${open ? 'dropdown__caret--open' : ''}`} aria-hidden="true">
           <Icon name="chevron-down" size={10} />
         </span>
-      </button>
+      </div>
       {open ? (
         <ul className="dropdown__panel" role="listbox">
           {options.map((opt) => (

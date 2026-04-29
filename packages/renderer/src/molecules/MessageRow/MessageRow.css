@@ -32,7 +32,11 @@
 }
 
 .message-row__meta {
-  display: none;
+  padding: 0 6px;
+}
+
+.message-row--user .message-row__meta {
+  align-self: flex-end;
 }
 
 .message-row__tools {

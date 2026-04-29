@@ -29,7 +29,7 @@ interface TemplateEditorProps {
 }
 
 const NAME_MAX = 64;
-const ROLE_MAX = 32;
+const ROLE_MAX = 128;
 const PERSONA_MAX = 8192;
 
 

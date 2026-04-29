@@ -23,31 +23,41 @@ export default function ToolBar({
   const { t } = useLocale();
   const teamLabel = t('toolbar.team_panel');
   const settingsLabel = t('toolbar.settings');
+  const invokeOnEnterOrSpace =
+    (handler?: () => void) => (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      handler?.();
+    };
   return (
     <div className="toolbar">
       <div className="toolbar__left">
         <Dropdown options={modelOptions} value={currentModel} onChange={onModelChange} />
       </div>
       <div className="toolbar__right">
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           className="toolbar__icon-btn"
           onClick={onTeamPanel}
+          onKeyDown={invokeOnEnterOrSpace(onTeamPanel)}
           aria-label={teamLabel}
           title={teamLabel}
           data-active={teamPanelActive ? 'true' : undefined}
         >
           <Icon name="team" size={14} />
-        </button>
-        <button
-          type="button"
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
           className="toolbar__icon-btn"
           onClick={onSettings}
+          onKeyDown={invokeOnEnterOrSpace(onSettings)}
           aria-label={settingsLabel}
           title={settingsLabel}
         >
           <Icon name="settings" size={14} />
-        </button>
+        </div>
       </div>
     </div>
   );

@@ -39,10 +39,23 @@ export default function ChatInput({
     }
   };
 
+  const disabled = streaming ? false : !value.trim();
   const handleClick = () => {
+    if (disabled) return;
     if (streaming) onStop?.();
     else onSend?.();
   };
+  const handleSendKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    handleClick();
+  };
+
+  const sendCls = [
+    'chat-input__send',
+    streaming ? 'chat-input__send--stop' : '',
+    disabled ? 'chat-input__send--disabled' : '',
+  ].filter(Boolean).join(' ');
 
   return (
     <div className="chat-input" data-streaming={streaming ? 'true' : undefined}>
@@ -55,15 +68,17 @@ export default function ChatInput({
         onChange={(e) => onChange?.(e.target.value)}
         onKeyDown={handleKey}
       />
-      <button
-        type="button"
-        className={`chat-input__send${streaming ? ' chat-input__send--stop' : ''}`}
+      <div
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        className={sendCls}
         onClick={handleClick}
-        disabled={streaming ? false : !value.trim()}
+        onKeyDown={handleSendKey}
+        aria-disabled={disabled || undefined}
         aria-label={streaming ? t('common.stop') : t('common.send')}
       >
         <Icon name={streaming ? 'stop' : 'send'} size={16} />
-      </button>
+      </div>
     </div>
   );
 }

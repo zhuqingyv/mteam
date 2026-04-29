@@ -47,7 +47,24 @@ export const useWorkerStore = create<WorkerState>()((set) => ({
   setLoading: (loading) => set({ loading }),
   upsertByName: (patch) => set((s) => {
     const idx = s.workers.findIndex((w) => w.name === patch.name);
-    if (idx === -1) return s;
+    if (idx === -1) {
+      // 新员工首次推送：补占位骨架（role/description/avatar/mcps 走 get_workers 拉全量覆盖），
+      // 让 roles 窗口无需关窗重开就能看到新卡。
+      const fresh: WorkerView = {
+        name: patch.name,
+        role: '',
+        description: null,
+        persona: null,
+        avatar: null,
+        mcps: [],
+        status: patch.status,
+        instanceCount: patch.instanceCount,
+        teams: patch.teams,
+        lastActivity: null,
+      };
+      const next = [...s.workers, fresh];
+      return { workers: next, stats: computeStats(next) };
+    }
     const existing = s.workers[idx];
     if (
       existing.status === patch.status

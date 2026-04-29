@@ -18,19 +18,28 @@ interface ToolCallListProps {
 
 export default function ToolCallList({ calls, defaultCollapsed = false }: ToolCallListProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const toggle = () => setCollapsed((c) => !c);
+  const handleKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    toggle();
+  };
   return (
     <div className="tool-list">
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={!collapsed}
         className="tool-list__header"
-        onClick={() => setCollapsed((c) => !c)}
+        onClick={toggle}
+        onKeyDown={handleKey}
       >
         <span className={`tool-list__chevron ${collapsed ? '' : 'tool-list__chevron--open'}`}>
           <Icon name="chevron" size={10} />
         </span>
         <span>工具调用</span>
         <span className="tool-list__count">{calls.length}</span>
-      </button>
+      </div>
       {!collapsed && (
         <div className="tool-list__body">
           {calls.map((c) => (

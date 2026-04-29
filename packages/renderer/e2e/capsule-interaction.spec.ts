@@ -147,8 +147,7 @@ test.describe('P1 胶囊交互', () => {
   });
 
   // TC-3 ESC 键关闭展开态：展开 → Escape → 收起 + 窗口约 380×120。
-  // blocked: CapsulePage ESC handler 功能缺失，待 issue 修复后开启
-  test.skip('TC-3 ESC 键关闭展开态', async () => {
+  test('TC-3 ESC 键关闭展开态', async () => {
     await ensureExpanded(page);
     // 防止 TC-2 可能残留 streaming 态导致 ESC 行为被输入框吞掉 —— 先 blur 输入框。
     await page.locator('body').first().click({ position: { x: 2, y: 2 } }).catch(() => {});

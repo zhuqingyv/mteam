@@ -50,6 +50,7 @@ export default function SettingsPage() {
   const online = usePrimaryAgentStore(selectOnline);
   const templates = useTemplateStore(selectTemplates);
   const setTemplates = useTemplateStore((s) => s.setTemplates);
+  const removeTemplate = useTemplateStore((s) => s.removeTemplate);
 
   const [tab, setTab] = useState<Tab>('primary');
   const [clis, setClis] = useState<CliEntry[]>([]);
@@ -110,7 +111,10 @@ export default function SettingsPage() {
 
   const confirmDelete = async () => {
     if (!pendingDelete) return;
-    await deleteTemplate(pendingDelete);
+    const res = await deleteTemplate(pendingDelete);
+    // settings 是独立 BrowserWindow，templateStore 是独立 Zustand 实例 — 跨窗口 WS template.deleted
+    // 到不了本窗口 store，删除成功后在本地同步移除，避免卡片残留。
+    if (res.ok) removeTemplate(pendingDelete);
     setPendingDelete(null);
   };
 
