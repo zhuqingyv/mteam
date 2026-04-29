@@ -33,8 +33,9 @@ import {
 import { cleanTeams } from './phase4-helpers';
 
 const REACT_FLUSH_MS = 200;
-const AGENT_CREATE_TEAM_TIMEOUT_MS = 90_000;
-const AGENT_ADD_MEMBER_TIMEOUT_MS = 90_000;
+// 主 Agent 单实例，若与其他 E2E spec 并发运行会排队，给充分 timeout
+const AGENT_CREATE_TEAM_TIMEOUT_MS = 120_000;
+const AGENT_ADD_MEMBER_TIMEOUT_MS = 120_000;
 const AGENT_REPLY_TIMEOUT_MS = 30_000;
 const TEAM_WINDOW_TIMEOUT_MS = 8_000;
 
@@ -96,8 +97,8 @@ async function readTeamsCount(page: Page): Promise<number> {
 test.describe.configure({ mode: 'serial' });
 
 test.describe('链路1 团队全生命周期', () => {
-  // 每步 Agent 真实推理，30s 默认太短 —— 全组 180s
-  test.setTimeout(180_000);
+  // 每步 Agent 真实推理，30s 默认太短 —— 全组 300s（并发跑时 agent 排队可能到几分钟）
+  test.setTimeout(300_000);
 
   let browser: Browser;
   let page: Page;

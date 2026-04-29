@@ -126,51 +126,42 @@ test.describe('链路 4：主 Agent 全状态流转', () => {
     await screenshot(page, 'chain-agent-s1-initial-capsule');
   });
 
-  // Step 2 展开 + 填"你好" + 发送（离开 S2 状态时 streaming 已起）。
-  test('S2 展开 + 发"你好"', async () => {
+  // Step 2-5 合并单 test：发"你好" → thinking → responding → idle。
+  // 拆成 4 个 test 会让"你好"这种秒回 prompt 在 test 间隙直接回到 idle，
+  // 后续 test 抓不到 stop 按钮中间态（参考 primary-agent-states.spec.ts TC-B9 模式）。
+  test('S2-5 发送 → thinking → responding → idle 三态连贯', async () => {
     await ensureExpanded(page);
     await waitIdle(page, REPLY_COMPLETE_TIMEOUT_MS);
 
+    // Step 2: 发送"你好"
     const textarea = page.locator('.chat-input__textarea').first();
     await textarea.fill('你好');
     await page.locator('.chat-input__send').first().click();
 
-    // 用户气泡进入列表（发送成功的唯一本地证据）
     const userRow = page.locator('.message-row--user').filter({ hasText: '你好' }).first();
     await expect(userRow).toBeVisible({ timeout: 3_000 });
-
     await screenshot(page, 'chain-agent-s2-sent-hello');
-  });
 
-  // Step 3 thinking 态：stop 按钮 + typing-dots 可见（可能和 responding 态几乎同时出现）。
-  // 判据对齐 id:965：stop + typing-dots 可见，agent 气泡文字可为 0（pending-*）或 >0（token 已到）。
-  test('S3 thinking 态（stop + typing-dots）', async () => {
-    // stop 按钮可见 = 正在处理
+    // Step 3: thinking 态（stop + typing-dots 同时可见）
     await expect(page.locator('.chat-input__send--stop')).toBeVisible({
       timeout: STREAMING_START_TIMEOUT_MS,
     });
-    // typing-dots 出现（pending-*/thinking block 都会拉起 typing-dots）
     await expect(page.locator('.typing-dots').first()).toBeVisible({
       timeout: STREAMING_START_TIMEOUT_MS,
     });
     await screenshot(page, 'chain-agent-s3-thinking');
-  });
 
-  // Step 4 responding 态：agent 气泡出现文字 + stop 按钮仍在。
-  test('S4 responding 态（文字 > 0 + stop 仍在）', async () => {
+    // Step 4: responding 态（文字出来 + stop 仍在）
     await expect
       .poll(async () => await lastAgentTextLen(page), {
         timeout: TEXT_START_TIMEOUT_MS,
         intervals: [300, 500, 1_000],
       })
       .toBeGreaterThan(0);
-    // 此时 stop 按钮应仍在（还没 completed）
     await expect(page.locator('.chat-input__send--stop')).toBeVisible();
     await screenshot(page, 'chain-agent-s4-responding');
-  });
 
-  // Step 5 回复完成 → idle（stop 消失）+ 最终气泡仍带文字。
-  test('S5 回复完成 idle（stop 消失）', async () => {
+    // Step 5: 回复完成 idle
     await waitIdle(page, REPLY_COMPLETE_TIMEOUT_MS);
     await expect(page.locator('.chat-input__send').first()).toBeVisible();
     const finalLen = await lastAgentTextLen(page);
