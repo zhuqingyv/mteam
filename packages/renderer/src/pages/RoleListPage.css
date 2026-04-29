@@ -1,15 +1,17 @@
 .role-list-page {
-  --role-list-drag-h: 16px;
   --role-list-header-h: 70px;
   --role-list-tab-h: 48px;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .role-list-page__header {
   position: sticky;
-  top: var(--role-list-drag-h);
+  top: 0;
   z-index: 10;
   display: flex;
   justify-content: space-between;
@@ -87,7 +89,7 @@
 
 .role-list-page__tabs {
   position: sticky;
-  top: calc(var(--role-list-drag-h) + var(--role-list-header-h));
+  top: var(--role-list-header-h);
   z-index: 9;
   padding: 4px 24px;
   background: linear-gradient(
@@ -102,7 +104,7 @@
 
 .role-list-page__stats {
   position: sticky;
-  top: calc(var(--role-list-drag-h) + var(--role-list-header-h) + var(--role-list-tab-h));
+  top: calc(var(--role-list-header-h) + var(--role-list-tab-h));
   z-index: 8;
   padding: 4px 24px;
   background: linear-gradient(
