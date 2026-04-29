@@ -6,8 +6,10 @@ export default defineConfig({
   testDir: './e2e',
   testMatch: [
     'capsule.spec.ts',
+    'capsule-interaction.spec.ts',
     'expanded.spec.ts',
     'chat.spec.ts',
+    'chat-interaction.spec.ts',
     'settings.spec.ts',
     'team-panel.spec.ts',
     'playground.spec.ts',
@@ -16,7 +18,11 @@ export default defineConfig({
     'primary-agent-states.spec.ts',
     'primary-agent-advanced.spec.ts',
     'team-canvas-extended.spec.ts',
+    'canvas-interaction.spec.ts',
+    '_tmp-inspect.spec.ts',
     'scroll-regression.spec.ts',
+    'performance-baseline.spec.ts',
+    'visual-compliance.spec.ts',
   ],
   timeout: 120_000, // 主 Agent E2E 含三态完整回复 + cancel 闭环，60s 不够，拉到 120s
   expect: { timeout: 5_000 },
