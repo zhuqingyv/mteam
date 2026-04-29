@@ -126,19 +126,22 @@ test.describe('链路 4：主 Agent 全状态流转', () => {
     await screenshot(page, 'chain-agent-s1-initial-capsule');
   });
 
-  // Step 2-5 合并单 test：发"你好" → thinking → responding → idle。
-  // 拆成 4 个 test 会让"你好"这种秒回 prompt 在 test 间隙直接回到 idle，
-  // 后续 test 抓不到 stop 按钮中间态（参考 primary-agent-states.spec.ts TC-B9 模式）。
+  // Step 2-5 合并单 test：发消息 → thinking → responding → idle。
+  // 拆成 4 个独立 test 会让短 prompt 在 test 间隙直接秒回完成，
+  // 抓不到 stop 按钮中间态（参考 primary-agent-states.spec.ts TC-B9 模式）。
+  // prompt 必须让 Agent 思考足够久（>5s），"你好"秒回不能用。
   test('S2-5 发送 → thinking → responding → idle 三态连贯', async () => {
     await ensureExpanded(page);
     await waitIdle(page, REPLY_COMPLETE_TIMEOUT_MS);
 
-    // Step 2: 发送"你好"
+    // Step 2: 发一条足够长的问题（确保 streaming 可观测）。用带 ts 的 prompt 防误匹历史。
+    const stamp = Date.now();
+    const prompt = `链路测试-${stamp}：请用 200 字左右介绍量子计算的三个核心原理（叠加、纠缠、干涉），并举一个例子`;
     const textarea = page.locator('.chat-input__textarea').first();
-    await textarea.fill('你好');
+    await textarea.fill(prompt);
     await page.locator('.chat-input__send').first().click();
 
-    const userRow = page.locator('.message-row--user').filter({ hasText: '你好' }).first();
+    const userRow = page.locator('.message-row--user').filter({ hasText: `链路测试-${stamp}` }).first();
     await expect(userRow).toBeVisible({ timeout: 3_000 });
     await screenshot(page, 'chain-agent-s2-sent-hello');
 

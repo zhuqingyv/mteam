@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import TeamSidebar from '../../molecules/TeamSidebar';
 import CanvasTopBar from '../../molecules/CanvasTopBar';
 import TeamCanvas from '../TeamCanvas';
@@ -29,6 +30,12 @@ interface TeamMonitorPanelProps {
   onNewMember?: () => void;
   onSettings?: () => void;
   onClose?: () => void;
+  /** 当前展开节点 id 栈；栈顶 focused */
+  expandedIds?: string[];
+  onExpandedDragEnd?: (id: string, x: number, y: number) => void;
+  onExpandedMinimize?: (id: string) => void;
+  onExpandedClose?: (id: string) => void;
+  renderExpandedBody?: (id: string) => ReactNode;
 }
 
 export default function TeamMonitorPanel({
@@ -37,6 +44,7 @@ export default function TeamMonitorPanel({
   canvasTransform, onCanvasTransformCommit,
   collapsed = false, onToggleCollapsed,
   zoomPercent, onFit, onResetZoom, onNewMember, onSettings, onClose,
+  expandedIds, onExpandedDragEnd, onExpandedMinimize, onExpandedClose, renderExpandedBody,
 }: TeamMonitorPanelProps) {
   const { t } = useLocale();
   const memberCount = agents.length;
@@ -87,6 +95,11 @@ export default function TeamMonitorPanel({
             onNodeElement={onNodeElement}
             canvasSize={canvasSize}
             onTransformCommit={onCanvasTransformCommit}
+            expandedIds={expandedIds}
+            onExpandedDragEnd={onExpandedDragEnd}
+            onExpandedMinimize={onExpandedMinimize}
+            onExpandedClose={onExpandedClose}
+            renderExpandedBody={renderExpandedBody}
           />
         </div>
       </div>

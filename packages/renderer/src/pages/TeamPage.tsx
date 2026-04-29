@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import PanelWindow from '../templates/PanelWindow';
 import TeamMonitorPanel from '../organisms/TeamMonitorPanel';
-import { CanvasNodeExpanded } from '../molecules/CanvasNode';
+import CanvasNodeChatBody from '../molecules/CanvasNode/CanvasNodeChatBody';
 import { listTeams, getTeam, createTeam } from '../api/teams';
 import { listInstances } from '../api/instances';
 import { useTeamStore, usePrimaryAgentStore, useAgentStore, useMessageStore } from '../store';
@@ -21,8 +21,7 @@ const NODE_BBOX = { w: 180, h: 80 };
 
 export default function TeamPage() {
   const [collapsed, setCollapsed] = useState(false);
-  const [transformEpoch, setTransformEpoch] = useState(0);
-  const { stack, open, close, popTop, registerNodeEl, getNodeEl, anchorTick } = useExpandedStack();
+  const { stack, open, close, popTop, registerNodeEl } = useExpandedStack();
   const teams = useTeamStore((s) => s.teams);
   const activeTeamId = useTeamStore((s) => s.activeTeamId);
   const teamMembers = useTeamStore((s) => s.teamMembers);
@@ -103,11 +102,14 @@ export default function TeamPage() {
     updateNodePosition(activeTeamId, id, { x, y });
   };
 
-  // 把新 transform 写回 team store；bumpEpoch=true 时同时刷新展开面板锚点。
-  // pan/zoom commit 会 bump；fit/reset 程序性触发不 bump（TeamCanvas 内 useEffect 已统一刷 DOM）。
+  // 展开态顶栏拖动 —— 复用同一张 nodePositions，下次收起时位置保留
+  const handleExpandedDragEnd = (id: string, x: number, y: number) => {
+    if (!activeTeamId) return;
+    updateNodePosition(activeTeamId, id, { x, y });
+  };
+
   const commitTransform = useCallback(
-    (t: Transform, bumpEpoch = false) => {
-      if (bumpEpoch) setTransformEpoch((n) => n + 1);
+    (t: Transform) => {
       if (!activeTeamId) return;
       const prev = canvasStates[activeTeamId];
       saveCanvasState(activeTeamId, {
@@ -146,11 +148,12 @@ export default function TeamPage() {
     onResetZoom: handleResetZoom,
   });
 
-  const agentById = useMemo(() => {
-    const m = new Map<string, CanvasNodeData>();
-    for (const a of agents) m.set(a.id, a);
-    return m;
-  }, [agents]);
+  const renderExpandedBody = useCallback(
+    (id: string) => (
+      <CanvasNodeChatBody instanceId={id} teamId={activeTeamId ?? null} />
+    ),
+    [activeTeamId],
+  );
 
   return (
     <PanelWindow>
@@ -166,36 +169,22 @@ export default function TeamPage() {
           onNodeElement={registerNodeEl}
           canvasSize={DEFAULT_CANVAS}
           canvasTransform={canvasTransform}
-          onCanvasTransformCommit={(t) => commitTransform(t, true)}
+          onCanvasTransformCommit={commitTransform}
           collapsed={collapsed}
           onToggleCollapsed={() => setCollapsed((v) => !v)}
           zoomPercent={zoomPercent}
           onFit={handleFit}
           onResetZoom={handleResetZoom}
           onClose={() => window.close()}
+          expandedIds={stack}
+          onExpandedDragEnd={handleExpandedDragEnd}
+          onExpandedMinimize={close}
+          onExpandedClose={close}
+          renderExpandedBody={renderExpandedBody}
         />
       ) : (
         <TeamPageEmpty onCreateTeam={handleCreateTeam} canCreate={!!leaderInstanceId} />
       )}
-      {stack.map((id, idx) => {
-        const data = agentById.get(id);
-        if (!data) return null;
-        return (
-          <CanvasNodeExpanded
-            key={id}
-            id={id}
-            name={data.name}
-            status={data.status}
-            anchorEl={getNodeEl(id)}
-            expandedIndex={idx}
-            focused={idx === stack.length - 1}
-            transformEpoch={transformEpoch + anchorTick}
-            teamId={activeTeamId ?? null}
-            onMinimize={() => close(id)}
-            onClose={() => close(id)}
-          />
-        );
-      })}
     </PanelWindow>
   );
 }

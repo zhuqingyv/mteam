@@ -37,7 +37,7 @@ const REACT_FLUSH_MS = 200;
 const AGENT_CREATE_TEAM_TIMEOUT_MS = 120_000;
 const AGENT_ADD_MEMBER_TIMEOUT_MS = 120_000;
 const AGENT_REPLY_TIMEOUT_MS = 30_000;
-const TEAM_WINDOW_TIMEOUT_MS = 8_000;
+const TEAM_WINDOW_TIMEOUT_MS = 20_000;
 
 async function waitAnimDone(page: Page): Promise<void> {
   await expect(page.locator('.card').first()).not.toHaveClass(/card--animating/, {
@@ -69,7 +69,13 @@ async function closeAuxWindows(browser: Browser): Promise<void> {
   for (const ctx of browser.contexts()) {
     for (const p of ctx.pages()) {
       const u = p.url();
-      if (u.includes('window=team') || u.includes('window=roles')) {
+      // chrome-error:// 是 Electron 窗口曾经加载失败的残影，也要关，
+      // 否则 openTeamPanel IPC 会判定"已有窗口"只 focus 不新建，导致 findTeamWindow 永远找不到 window=team URL
+      if (
+        u.includes('window=team') ||
+        u.includes('window=roles') ||
+        u.startsWith('chrome-error://')
+      ) {
         await p.close().catch(() => {});
       }
     }
@@ -148,7 +154,9 @@ test.describe('链路1 团队全生命周期', () => {
 
     // 主 Agent 实测会用 MCP 默认 team 名 "Leader's team" —— 不强求传名字。
     // 判据改为：store.teams 出现"不在 baseline 里的新 id"。
-    const prompt = '帮我建一个叫测试链路的团队，成员用默认配置，不用问我任何问题，直接建好';
+    // NOTE：prompt 必须明确要求"调 MCP 工具"，否则 agent 可能纯文字回复不调 create_leader。
+    const prompt =
+      '请立即调用 mteam-primary 的 create_leader 工具，帮我建一个叫"测试链路"的团队，使用默认模板。不要回复文字，直接调用工具。';
     const textarea = page.locator('.chat-input__textarea').first();
     await expect(textarea).toBeVisible({ timeout: 3_000 });
     await expect(textarea).toBeEnabled({ timeout: 3_000 });
@@ -156,8 +164,18 @@ test.describe('链路1 团队全生命周期', () => {
     await page.locator('.chat-input__send').first().click();
 
     await expect(
-      page.locator('.message-row--user').filter({ hasText: '帮我建一个叫测试链路的团队' }).first(),
+      page.locator('.message-row--user').filter({ hasText: '请立即调用 mteam-primary' }).first(),
     ).toBeVisible({ timeout: 3_000 });
+
+    // 调试截图：确认 user 气泡已出现且 send 变为 stop 态（agent 已接手）
+    await screenshot(page, 'chain-team-step1-debug-after-send');
+
+    // 等 send 变成 stop 态说明 agent 真的收到消息开始跑（否则可能只是气泡渲染未触发 agent）
+    await expect(page.locator('.chat-input__send--stop').first())
+      .toBeVisible({ timeout: 10_000 })
+      .catch(() => {
+        // 有些实现不会切 stop 类；继续走轮询
+      });
 
     // 轮询：出现 baseline 之外的新 team —— 即本轮 Agent 调 create_leader 后推入 store 的
     let newTeam: { id: string; name: string } | null = null;
@@ -273,14 +291,18 @@ test.describe('链路1 团队全生命周期', () => {
     const count = await nodes.count();
     expect(count).toBeGreaterThanOrEqual(1);
 
-    // 首节点必有 data-instance-id，且一定是 leader（team 刚建，只有 leader）
+    // 首节点必有 data-instance-id，是 leader（team 刚建，只有 leader 一个节点）
     const firstId = await nodes.first().getAttribute('data-instance-id');
     expect(firstId, 'leader 节点必须有 data-instance-id').toBeTruthy();
 
-    // 进一步断言 leader 类存在 —— team.created 时 leader 一定带 --leader 修饰
-    await expect(tp.locator('.canvas-node.canvas-node--leader').first()).toBeVisible({
-      timeout: 3_000,
-    });
+    // --leader 修饰类依赖 agentPool 含 leaderInstanceId（agent.created WS 晚到时可能暂缺）；
+    // 所以这里 poll 等它补上，timeout 放宽。
+    await expect
+      .poll(async () => tp.locator('.canvas-node.canvas-node--leader').count(), {
+        timeout: 10_000,
+        intervals: [500, 1_000, 2_000],
+      })
+      .toBeGreaterThanOrEqual(1);
 
     await screenshot(tp, 'chain-team-step3-leader-node');
   });
@@ -303,10 +325,10 @@ test.describe('链路1 团队全生命周期', () => {
     await expect(textarea).toBeVisible({ timeout: 3_000 });
     await expect(textarea).toBeEnabled({ timeout: 3_000 });
 
-    // 引用 createdTeamName 让主 Agent 知道要加到哪个 team（并行 spec 可能建多个同名 team，
-    // 主 Agent 会把成员加到最近建的，恰好是本轮 —— 这里名字只是 hint）
+    // add_member 是 leader-only 工具，主 Agent 调不了。正确流程：send_to_agent 把任务派给 leader，
+    // 由 leader 自己 add_member。prompt 必须要求"派给 leader"而非"直接加"。
     const teamRefName = createdTeamName ?? '刚才建的';
-    const prompt = `给团队"${teamRefName}"加一个后端开发成员，用默认模板，不用问我任何问题，直接加好`;
+    const prompt = `请立即用 mteam-primary 的 send_to_agent 把任务派给"${teamRefName}"团队的 leader，让他用 add_member 工具加一个后端开发成员（默认模板）。不要问我，不要回复文字，直接调工具。`;
     await textarea.fill(prompt);
 
     // send 按钮 enabled 才点（防止 stop 态被误点）
@@ -315,9 +337,9 @@ test.describe('链路1 团队全生命周期', () => {
     await expect(sendBtn).not.toHaveClass(/chat-input__send--stop/, { timeout: 2_000 });
     await sendBtn.click();
 
-    // user 气泡："加一个后端开发成员" 是 prompt 片段；timeout 给宽一点
+    // user 气泡（匹配 prompt 关键片段）
     await expect(
-      page.locator('.message-row--user').filter({ hasText: '加一个后端开发成员' }).first(),
+      page.locator('.message-row--user').filter({ hasText: 'send_to_agent' }).first(),
     ).toBeVisible({ timeout: 8_000 });
 
     // 终极判据：team 窗节点数 +1（Agent 调 add_member → WS → TeamCanvas 重绘）

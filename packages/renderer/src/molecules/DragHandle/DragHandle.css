@@ -1,7 +1,8 @@
 .drag-handle {
   display: flex;
+  align-items: center;
   justify-content: center;
-  padding: 8px 0 4px;
+  padding: 10px 0;
   -webkit-app-region: drag;
   cursor: grab;
   transition: opacity 180ms ease;
