@@ -15,6 +15,7 @@ export interface ToolSchema {
 
 export interface ToolDeps {
   env: PrimaryMcpEnv;
+  comm?: import('../../mcp/comm-like.js').CommLike;
 }
 
 export type ToolHandler = (
@@ -34,7 +35,7 @@ export const ALL_TOOLS: ToolEntry[] = [
   },
   {
     schema: sendToAgentSchema,
-    handler: ({ env }, args) => runSendToAgent(env, args),
+    handler: ({ env, comm }, args) => runSendToAgent(env, comm!, args),
   },
   {
     schema: listAddressesSchema,
