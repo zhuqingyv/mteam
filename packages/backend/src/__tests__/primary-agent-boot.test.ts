@@ -22,7 +22,7 @@ process.env.TEAM_HUB_V2_DB = ':memory:';
 
 import { PrimaryAgent } from '../primary-agent/primary-agent.js';
 import {
-  DEFAULT_PRIMARY_PROMPT,
+  buildPrimaryPrompt,
   DEFAULT_PRIMARY_MCP_CONFIG,
 } from '../primary-agent/defaults.js';
 import { upsertConfig, readRow } from '../primary-agent/repo.js';
@@ -280,7 +280,7 @@ describe('[guard] 主 Agent 启动链集成守卫', () => {
     await startedP;
 
     const row = agent.getConfig()!;
-    expect(row.systemPrompt).toBe(DEFAULT_PRIMARY_PROMPT);
+    expect(row.systemPrompt).toBe(buildPrimaryPrompt('MTEAM'));
     expect(row.systemPrompt.length).toBeGreaterThan(0);
     const mcpNames = row.mcpConfig.map((m) => m.name);
     // 模板里只有 mnemo：mteam-primary 由 resolveForPrimary 无条件注入，
@@ -314,7 +314,7 @@ describe('[guard] 主 Agent 启动链集成守卫', () => {
     await startedP;
 
     const after = agent.getConfig()!;
-    expect(after.systemPrompt).toBe(DEFAULT_PRIMARY_PROMPT);
+    expect(after.systemPrompt).toBe(buildPrimaryPrompt('Leader'));
     const mcpNames = after.mcpConfig.map((m) => m.name);
     expect(mcpNames).toContain('mnemo');
     expect(mcpNames).not.toContain('mteam-primary');
@@ -370,7 +370,7 @@ describe('[guard] 主 Agent 启动链集成守卫', () => {
     await startedP;
 
     const after = agent.getConfig()!;
-    expect(after.systemPrompt).toBe(DEFAULT_PRIMARY_PROMPT);
+    expect(after.systemPrompt).toBe(buildPrimaryPrompt('Test'));
     // mcpConfig 是新 schema → 不迁移，保留用户原样
     expect(after.mcpConfig).toEqual([{ name: 'custom-mcp', surface: '*', search: '*' }]);
     expect(after.name).toBe('Test');

@@ -76,9 +76,9 @@ export function buildDriverConfig(input: BuildDriverConfigInput): {
     mcpHttpBaseForDocker: mcpHttpBaseForDocker(),
   });
 
-  const basePrompt = row.systemPrompt ?? '';
+  const rawPrompt = row.systemPrompt ?? '';
   const block = input.historyPromptBlock ?? '';
-  const systemPrompt = block ? basePrompt + block : basePrompt;
+  const systemPrompt = block ? rawPrompt + block : rawPrompt;
 
   const config: DriverConfig = {
     agentType: cliTypeToAgentType(row.cliType),

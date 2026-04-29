@@ -5,7 +5,7 @@ import type { EventBus } from '../bus/events.js';
 import { cliManager } from '../cli-scanner/manager.js';
 import { readRow, upsertConfig, setStatus } from './repo.js';
 import {
-  DEFAULT_PRIMARY_PROMPT,
+  buildPrimaryPrompt,
   DEFAULT_PRIMARY_MCP_CONFIG,
   maybeMigrateDefaults,
 } from './defaults.js';
@@ -28,7 +28,7 @@ export function prepareStart(): PrepareStartResult {
     row = upsertConfig({
       name: 'MTEAM',
       cliType: cliType as 'claude' | 'codex',
-      systemPrompt: DEFAULT_PRIMARY_PROMPT,
+      systemPrompt: buildPrimaryPrompt('MTEAM'),
       mcpConfig: DEFAULT_PRIMARY_MCP_CONFIG,
     });
     process.stderr.write(`[primary-agent] boot: auto-configured with ${cliType}\n`);
