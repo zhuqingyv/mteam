@@ -28,6 +28,8 @@ export function useExpandedStack() {
   }, []);
 
   const registerNodeEl = useCallback((id: string, el: HTMLElement | null) => {
+    const prev = nodeElsRef.current.get(id) ?? null;
+    if (prev === el) return;
     if (el) nodeElsRef.current.set(id, el);
     else nodeElsRef.current.delete(id);
     setAnchorTick((n) => n + 1);
