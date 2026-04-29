@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AgentLogo from '../../atoms/AgentLogo';
 import StatusDot from '../../atoms/StatusDot';
 import Avatar from '../Avatar';
@@ -77,16 +77,21 @@ export default function CanvasNode({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ mx: number; my: number; px: number; py: number; moved: boolean } | null>(null);
   const reboundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // elementRef 身份每次 render 都变（上层 inline 闭包），若把它直接放进 ref 回调的依赖里
+  // 会让 React 每次 detach/attach → 上游 registerNodeEl 反复 bump anchorTick → 无限循环。
+  // 用 latestRef 保持 setRoot 稳定身份，真正的回调走最新值。
+  const elementRefRef = useRef(elementRef);
+  useEffect(() => { elementRefRef.current = elementRef; });
 
   useEffect(() => { setPos({ x, y }); }, [x, y]);
   useEffect(() => () => {
     if (reboundTimerRef.current) clearTimeout(reboundTimerRef.current);
   }, []);
 
-  const setRoot = (el: HTMLDivElement | null) => {
+  const setRoot = useCallback((el: HTMLDivElement | null) => {
     rootRef.current = el;
-    elementRef?.(el);
-  };
+    elementRefRef.current?.(el);
+  }, []);
 
   const onMouseDown = (e: React.MouseEvent) => {
     if (status === 'offline') return;

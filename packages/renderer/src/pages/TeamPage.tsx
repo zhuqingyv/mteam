@@ -3,6 +3,7 @@ import PanelWindow from '../templates/PanelWindow';
 import TeamMonitorPanel from '../organisms/TeamMonitorPanel';
 import { CanvasNodeExpanded } from '../molecules/CanvasNode';
 import { listTeams, getTeam, createTeam } from '../api/teams';
+import { listInstances } from '../api/instances';
 import { useTeamStore, usePrimaryAgentStore, useAgentStore, useMessageStore } from '../store';
 import { computeLayout } from '../organisms/TeamCanvas/layout';
 import { useCanvasHotkeys } from '../hooks/useCanvasHotkeys';
@@ -33,11 +34,31 @@ export default function TeamPage() {
   const updateNodePosition = useTeamStore((s) => s.updateNodePosition);
   const leaderInstanceId = usePrimaryAgentStore((s) => s.instanceId);
   const agentPool = useAgentStore((s) => s.agents);
+  const setAgents = useAgentStore((s) => s.setAgents);
   const byInstance = useMessageStore((s) => s.byInstance);
 
+  // 首次打开 team 窗口：拉 teams；若无激活 team，自动选第一个，让画布有节点。
   useEffect(() => {
-    listTeams().then((r) => { if (r.ok && r.data) setTeams(r.data); }).catch(() => {});
+    listTeams().then((r) => {
+      if (!r.ok || !r.data) return;
+      setTeams(r.data);
+      const s = useTeamStore.getState();
+      if (!s.activeTeamId && r.data.length > 0) s.setActiveTeam(r.data[0].id);
+    }).catch(() => {});
   }, [setTeams]);
+
+  // agentPool 的 name/status 用于节点渲染；仅靠 WS instance.* 事件无法在独立
+  // 窗口冷启动时补齐（事件是增量），所以打开窗口时拉一次全量实例灌入 agentStore。
+  useEffect(() => {
+    listInstances().then((r) => {
+      if (!r.ok || !r.data) return;
+      setAgents(r.data.map((i) => ({
+        id: i.id,
+        name: i.memberName,
+        status: i.status === 'PENDING_OFFLINE' ? 'offline' : 'idle',
+      })));
+    }).catch(() => {});
+  }, [setAgents]);
 
   useEffect(() => {
     if (!activeTeamId) return;

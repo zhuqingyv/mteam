@@ -29,6 +29,9 @@ export default defineConfig({
     'template-member-crud.spec.ts',
     'role-list-search.spec.ts',
     'panel-lifecycle.spec.ts',
+    'chain-template-crud.spec.ts',
+    'chain-agent-states.spec.ts',
+    'chain-team-lifecycle.spec.ts',
   ],
   timeout: 120_000, // 主 Agent E2E 含三态完整回复 + cancel 闭环，60s 不够，拉到 120s
   expect: { timeout: 5_000 },
