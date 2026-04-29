@@ -39,6 +39,9 @@ const zhCN = {
   'canvas.zoom_reset': '重置缩放',
 
   'team.new_team': '新建团队',
+  'team.disband': '解散团队',
+  'team.disband_confirm_title': '解散团队',
+  'team.disband_confirm_message': '确认解散团队 "{name}"？此操作无法撤销，团队下所有成员将退出。',
 
   'roles.title': '成员管理',
   'roles.create': '新建成员',

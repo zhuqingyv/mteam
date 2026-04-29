@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import PanelWindow from '../templates/PanelWindow';
 import TeamMonitorPanel from '../organisms/TeamMonitorPanel';
 import CanvasNodeChatBody from '../molecules/CanvasNode/CanvasNodeChatBody';
-import { listTeams, getTeam, createTeam } from '../api/teams';
+import ConfirmDialog from '../molecules/ConfirmDialog';
+import { listTeams, getTeam, createTeam, disbandTeam } from '../api/teams';
 import { listInstances } from '../api/instances';
 import { useTeamStore, usePrimaryAgentStore, useAgentStore, useMessageStore } from '../store';
+import { useLocale } from '../i18n';
 import { computeLayout } from '../organisms/TeamCanvas/layout';
 import { useCanvasHotkeys } from '../hooks/useCanvasHotkeys';
 import { useExpandedStack } from '../hooks/useExpandedStack';
@@ -21,6 +23,8 @@ const NODE_BBOX = { w: 180, h: 80 };
 
 export default function TeamPage() {
   const [collapsed, setCollapsed] = useState(false);
+  const [disbandTarget, setDisbandTarget] = useState<{ id: string; name: string } | null>(null);
+  const { t } = useLocale();
   const { stack, open, close, popTop, registerNodeEl } = useExpandedStack();
   const teams = useTeamStore((s) => s.teams);
   const activeTeamId = useTeamStore((s) => s.activeTeamId);
@@ -29,6 +33,7 @@ export default function TeamPage() {
   const setTeams = useTeamStore((s) => s.setTeams);
   const setActiveTeam = useTeamStore((s) => s.setActiveTeam);
   const setTeamMembers = useTeamStore((s) => s.setTeamMembers);
+  const removeTeam = useTeamStore((s) => s.removeTeam);
   const saveCanvasState = useTeamStore((s) => s.saveCanvasState);
   const updateNodePosition = useTeamStore((s) => s.updateNodePosition);
   const leaderInstanceId = usePrimaryAgentStore((s) => s.instanceId);
@@ -95,6 +100,25 @@ export default function TeamPage() {
     const name = window.prompt('Team name');
     if (!name?.trim() || !leaderInstanceId) return;
     createTeam({ name: name.trim(), leaderInstanceId }).catch(() => {});
+  };
+
+  const handleDisbandRequest = (id: string) => {
+    const target = teams.find((t) => t.id === id);
+    if (!target) return;
+    setDisbandTarget({ id, name: target.name });
+  };
+
+  const handleDisbandConfirm = async () => {
+    if (!disbandTarget) return;
+    const id = disbandTarget.id;
+    setDisbandTarget(null);
+    const r = await disbandTeam(id);
+    if (!r.ok) return;
+    // 先挑下一个要激活的 team，再从 store 移除（removeTeam 会把 activeTeamId 置 null）
+    const remaining = teams.filter((t) => t.id !== id);
+    const nextActive = activeTeamId === id ? (remaining[0]?.id ?? null) : activeTeamId;
+    removeTeam(id);
+    if (nextActive !== activeTeamId) setActiveTeam(nextActive);
   };
 
   const handleAgentDragEnd = (id: string, x: number, y: number) => {
@@ -164,6 +188,7 @@ export default function TeamPage() {
           activeTeamId={activeTeamId ?? undefined}
           onSelectTeam={setActiveTeam}
           onCreateTeam={handleCreateTeam}
+          onDisbandTeam={handleDisbandRequest}
           onAgentDragEnd={handleAgentDragEnd}
           onAgentOpen={open}
           onNodeElement={registerNodeEl}
@@ -185,6 +210,15 @@ export default function TeamPage() {
       ) : (
         <TeamPageEmpty onCreateTeam={handleCreateTeam} canCreate={!!leaderInstanceId} />
       )}
+      <ConfirmDialog
+        open={!!disbandTarget}
+        title={t('team.disband_confirm_title')}
+        message={t('team.disband_confirm_message', { name: disbandTarget?.name ?? '' })}
+        variant="danger"
+        confirmLabel={t('team.disband')}
+        onConfirm={handleDisbandConfirm}
+        onCancel={() => setDisbandTarget(null)}
+      />
     </PanelWindow>
   );
 }

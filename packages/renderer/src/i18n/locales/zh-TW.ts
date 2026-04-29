@@ -41,6 +41,9 @@ const zhTW: Partial<Record<TranslationKey, string>> = {
   'canvas.zoom_reset': '重設縮放',
 
   'team.new_team': '新建團隊',
+  'team.disband': '解散團隊',
+  'team.disband_confirm_title': '解散團隊',
+  'team.disband_confirm_message': '確認解散團隊「{name}」？此操作無法復原，團隊下所有成員將退出。',
 
   'roles.title': '成員管理',
   'roles.create': '新建成員',

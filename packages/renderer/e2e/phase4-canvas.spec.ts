@@ -92,8 +92,9 @@ test.describe('Phase 4 Canvas 全链路', () => {
   });
 
   test.afterAll(async () => {
+    // 清 team 残留：每个 leader 占一把槽位，不清后续 spec 连 beforeAll 都过不了
+    await cleanTeams(page).catch(() => {});
     await closeAuxWindows(browser);
-    // 不在这里 cleanTeams —— 留残留给下次 run 调试；beforeAll 会清
     await browser.close();
   });
 

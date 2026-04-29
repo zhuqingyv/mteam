@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import TeamSidebarItem from '../../atoms/TeamSidebarItem';
+import Icon from '../../atoms/Icon';
 import { useLocale } from '../../i18n';
 import './TeamSidebar.css';
 
@@ -15,6 +16,8 @@ export interface TeamSidebarProps {
   activeTeamId?: string;
   onSelectTeam?: (id: string) => void;
   onCreateTeam?: () => void;
+  /** 传入才渲染解散按钮；回调内部自行弹 confirm、调后端、更新 store */
+  onDisbandTeam?: (id: string) => void;
   /** 受控：传入时外部驱动；未传则走内部 state（向后兼容） */
   collapsed?: boolean;
   /** 受控收起切换；传入才启用受控模式 */
@@ -46,6 +49,7 @@ export default function TeamSidebar({
   activeTeamId,
   onSelectTeam,
   onCreateTeam,
+  onDisbandTeam,
   collapsed,
   onToggleCollapsed,
   defaultCollapsed = false,
@@ -62,6 +66,7 @@ export default function TeamSidebar({
 
   const cls = getSidebarClassName(actual);
   const newTeamLabel = t('team.new_team');
+  const disbandLabel = t('team.disband');
 
   return (
     <aside className={cls}>
@@ -74,7 +79,10 @@ export default function TeamSidebar({
       </button>
       <div className="tsb__list">
         {teams.map((team) => (
-          <div key={team.id} className="tsb__row">
+          <div
+            key={team.id}
+            className={`tsb__row${onDisbandTeam && !actual ? ' tsb__row--has-disband' : ''}`}
+          >
             <TeamSidebarItem
               name={team.name}
               memberCount={team.memberCount}
@@ -86,6 +94,21 @@ export default function TeamSidebar({
               <span className="tsb__unread" aria-label={`${team.unread} unread`}>
                 {formatUnread(team.unread)}
               </span>
+            )}
+            {onDisbandTeam && !actual && (
+              <button
+                type="button"
+                className="tsb__disband"
+                data-testid={`team-disband-${team.id}`}
+                aria-label={disbandLabel}
+                title={disbandLabel}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDisbandTeam(team.id);
+                }}
+              >
+                <Icon name="close" size={12} />
+              </button>
             )}
           </div>
         ))}

@@ -15,6 +15,7 @@ interface TeamMonitorPanelProps {
   activeTeamId?: string;
   onSelectTeam?: (id: string) => void;
   onCreateTeam?: () => void;
+  onDisbandTeam?: (id: string) => void;
   onAgentDragEnd?: (id: string, x: number, y: number) => void;
   onAgentOpen?: (id: string) => void;
   onNodeElement?: (id: string, el: HTMLElement | null) => void;
@@ -39,7 +40,8 @@ interface TeamMonitorPanelProps {
 }
 
 export default function TeamMonitorPanel({
-  teams, agents, activeTeamId, onSelectTeam, onCreateTeam, onAgentDragEnd, onAgentOpen,
+  teams, agents, activeTeamId, onSelectTeam, onCreateTeam, onDisbandTeam,
+  onAgentDragEnd, onAgentOpen,
   onNodeElement, canvasSize,
   canvasTransform, onCanvasTransformCommit,
   collapsed = false, onToggleCollapsed,
@@ -85,6 +87,7 @@ export default function TeamMonitorPanel({
             activeTeamId={activeTeamId}
             onSelectTeam={onSelectTeam}
             onCreateTeam={onCreateTeam}
+            onDisbandTeam={onDisbandTeam}
           />
           <TeamCanvas
             key={activeTeamId ?? '__none'}

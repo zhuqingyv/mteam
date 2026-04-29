@@ -142,6 +142,8 @@ test.describe('Phase 4 Team Canvas 扩展', () => {
   });
 
   test.afterAll(async () => {
+    // 清 team 残留：每个 leader 占一把槽位，不清后续 spec 连 beforeAll 都过不了
+    await cleanTeams(page).catch(() => {});
     await closeAuxWindows(browser);
     await browser.close();
   });

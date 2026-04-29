@@ -984,10 +984,15 @@ export const registry: ComponentEntry[] = [
         { id: 'devops', name: 'DevOps', memberCount: 2 },
       ],
     },
-    note: 'teams 为 mock；点击 item 触发 onSelectTeam；底部 [+新建团队] 触发 onCreateTeam',
+    note: 'teams 为 mock；点击 item 触发 onSelectTeam；底部 [+新建团队] 触发 onCreateTeam；hover item 出现 × 按钮触发 onDisbandTeam（业务侧需自行弹 confirm 再调后端）',
     handlers: (setValues) => ({
       onSelectTeam: (id: unknown) => setValues((p) => ({ ...p, activeTeamId: id as string })),
       onCreateTeam: () => {},
+      onDisbandTeam: (id: unknown) => setValues((p) => {
+        const next = (p.teams as Array<{ id: string }>).filter((t) => t.id !== id);
+        const nextActive = p.activeTeamId === id ? (next[0]?.id ?? '') : p.activeTeamId;
+        return { ...p, teams: next, activeTeamId: nextActive };
+      }),
     }),
   },
   {
@@ -1459,15 +1464,15 @@ export const registry: ComponentEntry[] = [
         description: '四态状态色',
       },
     ],
-    defaults: { id: 'node-1', name: 'Claude', status: 'responding' },
+    defaults: { id: 'node-1', name: 'Claude', status: 'responding', x: 20, y: 20 },
     renderChildren: () =>
       React.createElement(
         'div',
         { style: { padding: '20px 24px', color: 'rgba(230,237,247,0.8)', fontSize: 13, lineHeight: 1.6 } },
         '展开态主区 children 插槽：S4-G2a 会装入 ChatList + InstanceChatPanelConnected。',
       ),
-    note: '展开态 420×540 面板；顶栏 Avatar + name + StatusDot + 最小化/关闭按钮；顶栏拖拽 onDragHeader(dx,dy)，主区是 children 插槽',
-    handlers: () => ({ onMinimize: () => {}, onClose: () => {}, onDragHeader: () => {} }),
+    note: '画布内原地展开态 400×500：顶栏 Avatar + name + StatusDot + 最小化/关闭；顶栏拖拽更新 viewport 内 x/y 坐标；主区是 children 插槽',
+    handlers: () => ({ onMinimize: () => {}, onClose: () => {}, onDragEnd: () => {} }),
   },
   {
     name: 'InstanceChatPanel',

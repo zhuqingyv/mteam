@@ -23,6 +23,36 @@
   display: block;
 }
 
+.tsb__row--has-disband .tsi { padding-right: 32px; }
+
+.tsb__disband {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(230, 237, 247, 0.6);
+  cursor: pointer;
+  opacity: 0;
+  -webkit-app-region: no-drag;
+  transition: background 150ms ease, color 150ms ease, opacity 150ms ease;
+}
+
+.tsb__row:hover .tsb__disband { opacity: 1; }
+
+.tsb__disband:hover {
+  background: rgba(239, 68, 68, 0.85);
+  color: #fff;
+}
+
 .tsb__unread {
   position: absolute;
   top: 2px;

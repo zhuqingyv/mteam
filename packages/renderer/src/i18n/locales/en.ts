@@ -41,6 +41,9 @@ const en: Partial<Record<TranslationKey, string>> = {
   'canvas.zoom_reset': 'Reset zoom',
 
   'team.new_team': 'New team',
+  'team.disband': 'Disband team',
+  'team.disband_confirm_title': 'Disband team',
+  'team.disband_confirm_message': 'Disband team "{name}"? This cannot be undone; all members will leave.',
 
   'roles.title': 'Member Management',
   'roles.create': 'New Member',
