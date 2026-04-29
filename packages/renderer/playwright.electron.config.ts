@@ -16,6 +16,7 @@ export default defineConfig({
     'primary-agent-states.spec.ts',
     'primary-agent-advanced.spec.ts',
     'team-canvas-extended.spec.ts',
+    'scroll-regression.spec.ts',
   ],
   timeout: 120_000, // 主 Agent E2E 含三态完整回复 + cancel 闭环，60s 不够，拉到 120s
   expect: { timeout: 5_000 },
