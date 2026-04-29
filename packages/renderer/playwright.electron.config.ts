@@ -11,8 +11,10 @@ export default defineConfig({
     'settings.spec.ts',
     'team-panel.spec.ts',
     'playground.spec.ts',
+    'phase4-canvas.spec.ts',
+    'primary-agent-e2e.spec.ts',
   ],
-  timeout: 30_000,
+  timeout: 60_000, // 主 Agent E2E 里有 30s 等真回复 + 30s 等 cancel，整体放宽到 60s
   expect: { timeout: 5_000 },
   fullyParallel: false, // 所有 spec 共享同一 Electron 实例，串行更稳
   workers: 1, // 多 worker 会并行跑 spec → 同一 Electron 被多个连接抢，必须串行
