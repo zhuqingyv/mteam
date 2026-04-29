@@ -7,7 +7,7 @@
 // - 所有等待使用 expect.poll；React 18 flush 需要 ~200ms，调用方在 prompt 后 wait(200)。
 import { expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
-const API_BASE = process.env.MTEAM_BACKEND_URL ?? 'http://localhost:58580';
+const API_BASE = process.env.MTEAM_BACKEND_URL ?? 'http://localhost:58590';
 
 // ---- 唯一名 ----
 
