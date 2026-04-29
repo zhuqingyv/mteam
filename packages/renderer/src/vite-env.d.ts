@@ -22,4 +22,9 @@ interface Window {
     onDragStart?: (cb: () => void) => () => void;
     onDragEnd?: (cb: () => void) => () => void;
   };
+  // dev-only：E2E 测试挂载用，import.meta.env.DEV 门控
+  __messageStore?: typeof import('./store/messageStore').useMessageStore;
+  __teamStore?: typeof import('./store/teamStore').useTeamStore;
+  __agentStore?: typeof import('./store/agentStore').useAgentStore;
+  __primaryAgentStore?: typeof import('./store/primaryAgentStore').usePrimaryAgentStore;
 }

@@ -156,6 +156,7 @@ export default function CanvasNode({
       ref={setRoot}
       className={className}
       data-id={id}
+      data-instance-id={id}
       data-status={status}
       style={{ left: pos.x, top: pos.y, zIndex }}
       onMouseDown={onMouseDown}

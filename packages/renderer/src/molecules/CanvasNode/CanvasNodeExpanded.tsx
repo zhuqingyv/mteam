@@ -146,6 +146,7 @@ export default function CanvasNodeExpanded({
     <div
       className="canvas-node canvas-node--expanded"
       data-id={id}
+      data-instance-id={id}
       data-status={status}
       style={style}
     >
