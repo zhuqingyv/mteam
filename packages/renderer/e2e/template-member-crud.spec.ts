@@ -127,18 +127,18 @@ test.describe('P2 模板 CRUD + 新建成员', () => {
     // 注意：现有种子数据里大多模板 role 字段 > 32 字符（TemplateEditor ROLE_MAX=32），
     // 点"编辑"后 roleError 非空导致保存锁死，这是已知设计-数据不一致（已上报）。
     // 为保证 TC-2 覆盖"编辑 → 改描述 → 保存"流程可靠，先通过 UI 创建一个 role 合规模板再编辑。
-    const seedName = `p2-edit-${Date.now()}`;
+    tc2TemplateName = `p2-edit-${Date.now()}`;
     await settings.getByRole('button', { name: /新建模板/ }).click();
     const createModal = settings.locator('.modal').first();
     await expect(createModal).toBeVisible({ timeout: 3_000 });
-    await createModal.locator('input[placeholder="frontend-engineer"]').first().fill(seedName);
+    await createModal.locator('input[placeholder="frontend-engineer"]').first().fill(tc2TemplateName);
     await createModal.locator('input[placeholder="engineer"]').first().fill('tester');
     await createModal.getByRole('button', { name: /^保存$/ }).first().click();
     await expect(createModal).toBeHidden({ timeout: 5_000 });
 
     // 定位该模板的卡片 → 点卡片里的"编辑"按钮。
     // tpl-list__card 卡片里 .tpl-list__name 写 name，ops 栏里有"编辑"按钮。
-    const seedCard = settings.locator('.tpl-list__card').filter({ hasText: seedName }).first();
+    const seedCard = settings.locator('.tpl-list__card').filter({ hasText: tc2TemplateName }).first();
     await expect(seedCard).toBeVisible({ timeout: 5_000 });
     await seedCard.getByRole('button', { name: /^编辑$/ }).click();
 
@@ -165,17 +165,19 @@ test.describe('P2 模板 CRUD + 新建成员', () => {
     await screenshot(settings, 'p2-tc2-template-saved');
   });
 
-  // TC-3（team-lead 裁决：roles 窗口当前无成员删除入口，改走设置页模板管理的删除流程）
+  // TC-3（team-lead 裁决：删 TC-2 创建的 p2-edit-{ts}，各 TC 自清自己的产物）
   // settings → 模板管理 tab 的 TemplateList 每张卡带删除按钮 + ConfirmDialog。
-  test('TC-3 删除刚创建的成员：settings → 模板管理 → 删除 → 确认 → 列表消失', async () => {
+  test('TC-3 删除刚创建的模板：settings → 模板管理 → 删除 → 确认 → 列表消失', async () => {
+    test.skip(!tc2TemplateName, 'TC-2 未先运行，缺少待删除模板');
+
     const settings = await openSettingsWindow(browser, main);
     await settings.locator('.panel-window').first().waitFor({ state: 'visible', timeout: 5_000 });
     await settings.getByRole('button', { name: /^模板管理$/ }).click();
 
-    // 定位 TC-1 创建的那张模板卡。
+    // 定位 TC-2 创建的 p2-edit-{ts} 模板卡。
     const targetCard = settings
       .locator('.tpl-list__card')
-      .filter({ hasText: createdMemberName })
+      .filter({ hasText: tc2TemplateName })
       .first();
     await expect(targetCard).toBeVisible({ timeout: 5_000 });
 
@@ -185,7 +187,7 @@ test.describe('P2 模板 CRUD + 新建成员', () => {
     // ConfirmDialog = Modal + .confirm-dialog，message 里包含模板名。
     const confirmDialog = settings.locator('.confirm-dialog').first();
     await expect(confirmDialog).toBeVisible({ timeout: 3_000 });
-    await expect(confirmDialog).toContainText(createdMemberName);
+    await expect(confirmDialog).toContainText(tc2TemplateName);
 
     await screenshot(settings, 'p2-tc3-delete-confirm');
 
@@ -197,7 +199,7 @@ test.describe('P2 模板 CRUD + 新建成员', () => {
 
     // 注意：settings 窗口是独立 React root，templateStore 不跨窗口同步，
     // WS template.deleted 事件只在主窗口 store 生效；当前 SettingsPage 删除后
-    // 没有本地 removeTemplate / refetch — 这是第二个交互 bug（已上报）。
+    // 没有本地 removeTemplate / refetch — 这是第三个交互 bug（mnemo id 1014）。
     // 用"关窗再开"纯 UI 路径验证"后端确实删了且列表不会再拉回来"。
     await closePanelIfOpen(browser, 'window=settings');
     const settingsReopen = await openSettingsWindow(browser, main);
@@ -206,7 +208,7 @@ test.describe('P2 模板 CRUD + 新建成员', () => {
 
     const reopenedCard = settingsReopen
       .locator('.tpl-list__card')
-      .filter({ hasText: createdMemberName });
+      .filter({ hasText: tc2TemplateName });
     await expect(reopenedCard).toHaveCount(0, { timeout: 5_000 });
 
     await screenshot(settingsReopen, 'p2-tc3-deleted');
