@@ -9,11 +9,11 @@ import type { PrimaryMcpEnv } from '../config.js';
 export const getTeamStatusSchema = {
   name: 'get_team_status',
   description:
-    "Primary Agent tool: fetch a team's health — teamName, leader, members (with status/task), and memberCount.",
+    '查看某个团队的当前状态：团队名、负责人、所有成员（含在做什么、忙不忙）以及人数。',
   inputSchema: {
     type: 'object' as const,
     properties: {
-      teamId: { type: 'string', description: 'Target team id.' },
+      teamId: { type: 'string', description: '团队的 id（可从 list_addresses 或 launch_workflow 的返回结果里拿到）。' },
     },
     required: ['teamId'],
     additionalProperties: false,

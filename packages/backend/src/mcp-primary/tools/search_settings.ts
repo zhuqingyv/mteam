@@ -7,12 +7,12 @@ import type { SearchResult } from '../../settings/types.js';
 export const searchSettingsSchema = {
   name: 'search_settings',
   description:
-    'Search system settings by keyword. Returns matching settings with current values and schema.',
+    '按关键字搜索系统设置项（比如岗位模板、团队配置等），返回命中项的当前值和说明。',
   inputSchema: {
     type: 'object' as const,
     properties: {
-      q: { type: 'string', description: 'Search keyword' },
-      limit: { type: 'number', description: 'Max results (default 20)' },
+      q: { type: 'string', description: '搜索关键字。' },
+      limit: { type: 'number', description: '最多返回几条（默认 20）。' },
     },
     required: ['q'],
     additionalProperties: false,

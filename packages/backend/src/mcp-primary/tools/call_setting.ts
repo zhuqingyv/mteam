@@ -7,14 +7,14 @@ import type { SettingsRegistry } from '../../settings/registry.js';
 export const callSettingSchema = {
   name: 'call_setting',
   description:
-    'Call a setting: either set it directly (mode=direct) or open the setting panel for the user (mode=show, fire-and-forget).',
+    '操作某个系统设置项：mode=direct 直接改值；mode=show 打开设置面板让用户自己改。',
   inputSchema: {
     type: 'object' as const,
     properties: {
-      key: { type: 'string', description: 'Setting key from search_settings results' },
-      mode: { type: 'string', enum: ['direct', 'show'] },
-      value: { description: 'Required when mode=direct. The new value.' },
-      reason: { type: 'string', description: 'Optional when mode=show. Hint shown to user.' },
+      key: { type: 'string', description: '设置项的 key（从 search_settings 的结果里拿）。' },
+      mode: { type: 'string', enum: ['direct', 'show'], description: 'direct 直接改；show 打开设置面板。' },
+      value: { description: 'mode=direct 时必填，新的值。' },
+      reason: { type: 'string', description: 'mode=show 时可选，告诉用户为什么要改这项。' },
     },
     required: ['key', 'mode'],
     additionalProperties: false,

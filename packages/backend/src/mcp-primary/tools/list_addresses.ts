@@ -7,12 +7,12 @@ import type { PrimaryMcpEnv } from '../config.js';
 export const listAddressesSchema = {
   name: 'list_addresses',
   description:
-    'Primary Agent tool: list all agent addresses. Filter by scope (all/leaders/members) and/or teamId.',
+    '查看通讯录：列出所有可联系的团队成员（含负责人和普通成员）。可按身份筛选，或只看某个团队的人。',
   inputSchema: {
     type: 'object' as const,
     properties: {
-      scope: { type: 'string', enum: ['all', 'leaders', 'members'], description: 'Filter by role kind; defaults to "all".' },
-      teamId: { type: 'string', description: 'Optional team id filter.' },
+      scope: { type: 'string', enum: ['all', 'leaders', 'members'], description: '筛选身份：all 全部 / leaders 只看负责人 / members 只看普通成员。默认 all。' },
+      teamId: { type: 'string', description: '只看某个团队（可选，填团队 id）。' },
     },
     additionalProperties: false,
   },

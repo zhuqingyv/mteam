@@ -6,19 +6,18 @@ import type { PrimaryMcpEnv } from '../config.js';
 export const launchWorkflowSchema = {
   name: 'launch_workflow',
   description:
-    'Launch a workflow template: creates a team with leader + members + assigns goal. ' +
-    'Built-in templates include: code-review, fullstack-team, bug-fix, tech-research, doc-writing. ' +
-    'Returns { teamId, leaderId, members: [...] } on success.',
+    '按既定协作流程一键组建团队：自动拉起负责人、招募成员并分配目标。' +
+    '内置流程包括 code-review 代码评审、fullstack-team 全栈团队、bug-fix 改 bug、tech-research 技术调研、doc-writing 文档撰写。',
   inputSchema: {
     type: 'object' as const,
     properties: {
       templateName: {
         type: 'string',
-        description: 'Workflow template name (e.g. code-review).',
+        description: '协作流程名（如 code-review）。',
       },
-      projectName: { type: 'string', description: 'Team / project display name.' },
-      goal: { type: 'string', description: 'The goal used to render {{goal}} in role tasks.' },
-      deadline: { type: 'number', description: 'Optional absolute ms timestamp.' },
+      projectName: { type: 'string', description: '团队/项目的显示名。' },
+      goal: { type: 'string', description: '本次协作的目标描述。' },
+      deadline: { type: 'number', description: '截止时间（可选，绝对毫秒时间戳）。' },
     },
     required: ['templateName', 'projectName', 'goal'],
     additionalProperties: false,

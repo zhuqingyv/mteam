@@ -45,8 +45,6 @@ function env(): PrimaryMcpEnv {
 }
 
 interface CreateLeaderResult {
-  instanceId?: string;
-  teamId?: string;
   memberName?: string;
   teamName?: string;
   error?: string;
@@ -73,10 +71,11 @@ describe('runCreateLeader', () => {
     expect(result.error).toBeUndefined();
     expect(result.memberName).toBe('alice');
     expect(result.teamName).toBe('T1');
-    expect(typeof result.instanceId).toBe('string');
-    expect(typeof result.teamId).toBe('string');
+    // 返回值不再暴露 instanceId/teamId — 主 Agent 不需要底层 id
+    expect((result as Record<string, unknown>).instanceId).toBeUndefined();
+    expect((result as Record<string, unknown>).teamId).toBeUndefined();
 
-    // 核验 role_instance 建好且是 leader
+    // 核验 role_instance 建好且是 leader（靠 memberName 定位，不用 instanceId）
     const inst = await httpGet<{
       id: string;
       isLeader: boolean;
@@ -84,25 +83,31 @@ describe('runCreateLeader', () => {
       task: string | null;
     }[]>('/api/role-instances');
     expect(inst.status).toBe(200);
-    const self = inst.body.find((r) => r.id === result.instanceId);
+    const self = inst.body.find((r) => r.memberName === 'alice' && r.isLeader);
     expect(self).toBeDefined();
-    expect(self!.isLeader).toBe(true);
-    expect(self!.memberName).toBe('alice');
     expect(self!.task).toBe('kick off');
 
     // 核验 team 存在且 leader + 描述都正确，members 里包含 leader
+    const teams = await httpGet<{
+      id: string;
+      name: string;
+      description: string | null;
+      leaderInstanceId: string;
+    }[]>('/api/teams');
+    const createdTeam = teams.body.find((t) => t.name === 'T1');
+    expect(createdTeam).toBeDefined();
+    expect(createdTeam!.description).toBe('my team');
+    expect(createdTeam!.leaderInstanceId).toBe(self!.id);
+
     const team = await httpGet<{
       id: string;
       name: string;
       description: string | null;
       leaderInstanceId: string;
       members: { instanceId: string }[];
-    }>(`/api/teams/${result.teamId}`);
+    }>(`/api/teams/${createdTeam!.id}`);
     expect(team.status).toBe(200);
-    expect(team.body.name).toBe('T1');
-    expect(team.body.description).toBe('my team');
-    expect(team.body.leaderInstanceId).toBe(result.instanceId);
-    expect(team.body.members.map((m) => m.instanceId)).toContain(result.instanceId);
+    expect(team.body.members.map((m) => m.instanceId)).toContain(self!.id);
   });
 
   it('模板不存在 -> 返回 error', async () => {
@@ -113,8 +118,9 @@ describe('runCreateLeader', () => {
     })) as CreateLeaderResult;
     expect(result.error).toBeTruthy();
     expect(result.error).toContain('nope');
-    expect(result.instanceId).toBeUndefined();
-    expect(result.teamId).toBeUndefined();
+    // 返回值不含底层 id
+    expect((result as Record<string, unknown>).instanceId).toBeUndefined();
+    expect((result as Record<string, unknown>).teamId).toBeUndefined();
   });
 
   it('teamName 为空 -> 返回 error（前置校验，不落库）', async () => {

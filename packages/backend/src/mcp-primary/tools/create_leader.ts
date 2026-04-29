@@ -4,25 +4,21 @@ import type { PrimaryMcpEnv } from '../config.js';
 export const createLeaderSchema = {
   name: 'create_leader',
   description:
-    'Create a Leader role instance, a new team, and add the Leader as a team member. ' +
-    'templateName MUST be an existing role template name — do NOT invent names. ' +
-    'If unsure, call search_settings({q:"templates"}) first or query GET /api/panel/templates. ' +
-    'Built-in templates include: frontend-dev, backend-dev, fullstack-dev, qa-engineer, ' +
-    'tech-architect, code-reviewer, devops-engineer, ui-ux-designer, tech-writer, ' +
-    'perf-optimizer, product-manager. ' +
-    'Returns { instanceId, teamId, memberName, teamName } on success.',
+    '为任务安排一个负责人（Leader），自动组建团队。负责人会根据任务需要自行招募团队成员并分配工作。' +
+    'templateName 是负责人的专业岗位（如 tech-architect 架构师、frontend-dev 前端开发），' +
+    '用 search_settings({q:"templates"}) 可查看所有可用岗位。',
   inputSchema: {
     type: 'object' as const,
     properties: {
       templateName: {
         type: 'string',
         description:
-          'Existing role template name (e.g. frontend-dev). Use search_settings if unsure — never invent.',
+          '负责人的专业岗位名（如 frontend-dev 前端开发）。不确定可先用 search_settings 查询，不要自己编造。',
       },
-      memberName: { type: 'string', description: 'Display name for the Leader.' },
-      teamName: { type: 'string', description: 'Team name.' },
-      description: { type: 'string', description: 'Optional team description.' },
-      task: { type: 'string', description: 'Optional initial task for the Leader.' },
+      memberName: { type: 'string', description: '负责人的显示名（用于团队内称呼）。' },
+      teamName: { type: 'string', description: '团队名称。' },
+      description: { type: 'string', description: '团队简介（可选）。' },
+      task: { type: 'string', description: '交给负责人的初始任务（可选）。' },
     },
     required: ['templateName', 'memberName', 'teamName'],
     additionalProperties: false,
@@ -90,7 +86,6 @@ export async function runCreateLeader(
   if (!teamRes.ok || !teamRes.body?.id) {
     return {
       error: teamRes.error ?? `create team failed (HTTP ${teamRes.status})`,
-      instanceId,
     };
   }
   const teamId = teamRes.body.id;
@@ -106,10 +101,8 @@ export async function runCreateLeader(
   if (!joinRes.ok) {
     return {
       error: joinRes.error ?? `add leader to team failed (HTTP ${joinRes.status})`,
-      instanceId,
-      teamId,
     };
   }
 
-  return { instanceId, teamId, memberName, teamName };
+  return { memberName, teamName };
 }

@@ -14,17 +14,18 @@ type ToolKind = (typeof TOOL_KINDS)[number];
 export const sendToAgentSchema = {
   name: 'send_to_agent',
   description:
-    'Primary Agent tool: send a message to any agent. "to" accepts an address, an alias/member_name, or an instanceId. Set kind≠chat + deadline to open an ActionItem.',
+    '给团队里的任何人发消息：普通聊天、派任务、请求审批或授权。' +
+    'to 可以填对方的显示名、备注名或地址。kind≠chat 并带 deadline 时，会自动生成一条待办交给对方跟进。',
   inputSchema: {
     type: 'object' as const,
     properties: {
-      to: { type: 'string', description: 'Target: address, alias, member_name, or instanceId.' },
-      content: { type: 'string', description: 'Full message body.' },
-      summary: { type: 'string', maxLength: 200, description: 'Short summary; defaults to "给你发了一条消息".' },
-      kind: { type: 'string', enum: TOOL_KINDS, description: 'Message kind; defaults to "chat".' },
-      deadline: { type: 'number', description: 'Absolute ms epoch. Required to open an ActionItem when kind≠chat; must be > now + 1000.' },
-      title: { type: 'string', maxLength: 200, description: 'ActionItem title when kind≠chat; defaults to summary/content slice.' },
-      replyTo: { type: 'string', description: 'Optional envelope id this message replies to.' },
+      to: { type: 'string', description: '发给谁：可填对方的显示名、备注名或地址。' },
+      content: { type: 'string', description: '消息正文。' },
+      summary: { type: 'string', maxLength: 200, description: '简短摘要；默认“给你发了一条消息”。' },
+      kind: { type: 'string', enum: TOOL_KINDS, description: '消息类型：chat 闲聊 / task 任务 / approval 审批 / decision 决策 / authorization 授权。默认 chat。' },
+      deadline: { type: 'number', description: '截止时间（绝对毫秒时间戳）。kind≠chat 时填写才会创建待办，必须大于当前时间 1 秒以上。' },
+      title: { type: 'string', maxLength: 200, description: '待办标题（kind≠chat 时使用），不填则取 summary 或 content 的前 50 字。' },
+      replyTo: { type: 'string', description: '回复哪条消息（可选，填对方的消息 id）。' },
     },
     required: ['to', 'content'],
     additionalProperties: false,
