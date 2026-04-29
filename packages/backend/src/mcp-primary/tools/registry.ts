@@ -1,5 +1,8 @@
 import type { PrimaryMcpEnv } from '../config.js';
 import { createLeaderSchema, runCreateLeader } from './create_leader.js';
+import { sendToAgentSchema, runSendToAgent } from './send_to_agent.js';
+import { listAddressesSchema, runListAddresses } from './list_addresses.js';
+import { getTeamStatusSchema, runGetTeamStatus } from './get_team_status.js';
 import { searchSettingsSchema, runSearchSettings } from './search_settings.js';
 import { callSettingSchema, runCallSetting } from './call_setting.js';
 import { launchWorkflowSchema, runLaunchWorkflow } from './launch_workflow.js';
@@ -24,12 +27,22 @@ export interface ToolEntry {
   handler: ToolHandler;
 }
 
-// 主 Agent 专属工具集。目前只实现 create_leader，
-// send_to_agent / list_addresses / get_team_status 由并行成员实现后追加。
 export const ALL_TOOLS: ToolEntry[] = [
   {
     schema: createLeaderSchema,
     handler: ({ env }, args) => runCreateLeader(env, args),
+  },
+  {
+    schema: sendToAgentSchema,
+    handler: ({ env }, args) => runSendToAgent(env, args),
+  },
+  {
+    schema: listAddressesSchema,
+    handler: ({ env }, args) => runListAddresses(env, args),
+  },
+  {
+    schema: getTeamStatusSchema,
+    handler: ({ env }, args) => runGetTeamStatus(env, args),
   },
   {
     schema: searchSettingsSchema,
