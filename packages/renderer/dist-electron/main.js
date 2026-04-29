@@ -236,6 +236,20 @@ function openPanel(key) {
 import_electron.ipcMain.on("window:open-team-panel", () => openPanel("team"));
 import_electron.ipcMain.on("window:open-settings", () => openPanel("settings"));
 import_electron.ipcMain.on("window:open-role-list", () => openPanel("roles"));
+import_electron.ipcMain.on("window:start-drag", (_e, payload) => {
+  if (!mainWindow)
+    return;
+  const [wx, wy] = mainWindow.getPosition();
+  mainWindow.__dragOrigin = { wx, wy, sx: payload.screenX, sy: payload.screenY };
+});
+import_electron.ipcMain.on("window:drag-move", (_e, payload) => {
+  if (!mainWindow)
+    return;
+  const o = mainWindow.__dragOrigin;
+  if (!o)
+    return;
+  mainWindow.setPosition(Math.round(o.wx + (payload.screenX - o.sx)), Math.round(o.wy + (payload.screenY - o.sy)));
+});
 var RESIZE_DIR_MAP = {
   top: "top",
   bottom: "bottom",

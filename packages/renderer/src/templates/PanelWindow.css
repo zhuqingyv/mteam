@@ -2,7 +2,7 @@
   position: relative;
   width: 100vw;
   height: 100vh;
-  overflow: auto;
+  overflow: hidden;
   color: var(--color-text-primary);
   -webkit-app-region: no-drag;
   box-sizing: border-box;

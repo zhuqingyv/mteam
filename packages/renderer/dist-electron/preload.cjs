@@ -13,6 +13,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openTeamPanel: () => ipcRenderer.send('window:open-team-panel'),
   openSettings: () => ipcRenderer.send('window:open-settings'),
   openRoleList: () => ipcRenderer.send('window:open-role-list'),
+  startDrag: (screenX, screenY) =>
+    ipcRenderer.send('window:start-drag', { screenX, screenY }),
+  dragMove: (screenX, screenY) =>
+    ipcRenderer.send('window:drag-move', { screenX, screenY }),
   onDragStart: (cb) => {
     const listener = () => cb();
     ipcRenderer.on('window:drag-start', listener);

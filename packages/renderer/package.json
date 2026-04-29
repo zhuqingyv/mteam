@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "vite",
     "playground": "vite --config ./playground/vite.config.ts",
+    "playground:dev": "vite --config ./playground/vite.config.ts",
+    "playground:build": "vite build --config ./playground/vite.config.ts",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "electron:build": "bun build electron-main/main.ts electron-main/backend.ts --outdir dist-electron --target node --format cjs -e electron && node -e \"require('fs').writeFileSync('dist-electron/package.json', JSON.stringify({type:'commonjs'})); require('fs').copyFileSync('electron-main/preload.cjs', 'dist-electron/preload.cjs')\"",

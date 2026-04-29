@@ -6,7 +6,7 @@
 // 行为：
 // - activePeerId 默认 'user'；切换 peer → markPeerRead(iid, peerId) 清未读
 // - peer=user → InstanceChatPanelConnected 走 ws.prompt 路径
-// - peer !== 'user' → 暂显"跨成员聊天接入中"占位（disabled），S4-G4 接入 sendAgentMessage
+// - peer !== 'user' → 输入框可用，点击发送触发"跨成员聊天即将上线" toast（见 InstanceChatPanelConnected）
 
 import { useCallback, useMemo, useState } from 'react';
 import ChatList from '../ChatList';
@@ -68,8 +68,7 @@ export default function CanvasNodeChatBody({
           instanceId={instanceId}
           peerId={activePeerId}
           peerName={activePeer?.name ?? activePeerId}
-          emptyHint={isUserPeer ? '还没有消息，发条消息开始对话' : '跨成员聊天接入中…'}
-          disabled={!isUserPeer}
+          emptyHint={isUserPeer ? '还没有消息，发条消息开始对话' : '跨成员聊天即将上线，先可以打字预览'}
         />
       </div>
     </div>

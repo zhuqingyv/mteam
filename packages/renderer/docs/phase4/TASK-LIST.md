@@ -243,13 +243,14 @@
 - **类型**：独立模块（临时页）
 - **文件**：`src/pages/CanvasDebugPage.tsx`（Sprint 6 搬到 playground-only 或删除）
 - **复杂度**：M
-- **完成判据**：
-  - [ ] 页面两栏并排，每栏一个 `InstanceChatPanel`
-  - [ ] 顶部各有一个 instanceId 输入框
-  - [ ] 不依赖画布 / 节点，纯测试页
-  - [ ] 不接真实数据（props 用 mock），由 G 阶段接真
+- **状态**：🗑️ **已由 S6-G3 清理**（2026-04-28）——Phase 4 质检确认 `src/pages/CanvasDebugPage.tsx` 不再存在，属于 S6 收尾阶段的合理清理。验证策略改为 playground（组件逐个验证）+ TeamPage 端到端（双 instance 并行消息走真实链路）。
+- **完成判据（历史记录）**：
+  - [x] 页面两栏并排，每栏一个 `InstanceChatPanel`（S3 时存在，S6 删除）
+  - [x] 顶部各有一个 instanceId 输入框
+  - [x] 不依赖画布 / 节点，纯测试页
+  - [x] 不接真实数据（props 用 mock），由 G 阶段接真
 - **交叉验证**：
-  - [ ] `tsc` + `build` 通过
+  - [x] S3 期间 `tsc` + `build` 通过；S6-G3 删除后同样三绿
 
 ### S3-G1 InstanceChatPanel 接 messageStore selector + dispatcher
 - **类型**：胶水层

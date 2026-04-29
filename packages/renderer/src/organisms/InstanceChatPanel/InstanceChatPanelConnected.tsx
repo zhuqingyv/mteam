@@ -25,8 +25,10 @@ export function deriveStreaming(messages: Message[]): boolean {
   return messages.some((m) => m.role === 'agent' && m.streaming === true && !!m.turnId);
 }
 
-// 发送决策：peer='user' 走 ws.prompt（契约 §10.1）；其它 peer 当前不支持，no-op。
-// S4-G4 会扩成 peer!==user 时走 sendAgentMessage。
+// 发送决策：peer='user' 走 ws.prompt（契约 §10.1）；其它 peer 目前降级为提示。
+// S4-G4 降级方案：messages-api.md 的 /api/messages/send 不是 /api/panel/ 入口，
+// 按前端铁律不能直调。`agent-message` 路径弹 toast 提示"跨成员聊天即将上线"。
+// 等 /api/panel/messages 上线后在本文件把 toast 改为 sendAgentMessage 调用即可。
 export type SendDecision = 'user-prompt' | 'agent-message' | 'noop';
 
 export function decideSendPath(peerId: string, text: string): SendDecision {
@@ -65,9 +67,16 @@ export default function InstanceChatPanelConnected({
     if (decision === 'user-prompt') {
       sendUserPrompt(inputValue.trim(), instanceId);
       setInputValue('');
+      return;
     }
-    // 'agent-message' 路径留给 S4-G4 接入 sendAgentMessage；现阶段不发送。
-    // 'noop' 路径（纯空白）不做任何事。
+    if (decision === 'agent-message') {
+      // S4-G4 降级：/api/panel/messages 尚未上线，暂用 alert 作为 toast 告知用户。
+      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+        window.alert('跨成员聊天即将上线');
+      }
+      return;
+    }
+    // 'noop'：纯空白，不做任何事。
   }, [inputValue, instanceId, peerId]);
 
   const handleStop = useCallback(() => {

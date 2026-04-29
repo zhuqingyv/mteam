@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import PanelWindow from '../templates/PanelWindow';
 import TeamMonitorPanel from '../organisms/TeamMonitorPanel';
-import Surface from '../atoms/Surface';
-import Button from '../atoms/Button';
-import Icon from '../atoms/Icon';
-import Text from '../atoms/Text';
 import { CanvasNodeExpanded } from '../molecules/CanvasNode';
 import { listTeams, getTeam, createTeam } from '../api/teams';
 import { useTeamStore, usePrimaryAgentStore, useAgentStore, useMessageStore } from '../store';
 import { computeLayout } from '../organisms/TeamCanvas/layout';
 import { useCanvasHotkeys } from '../hooks/useCanvasHotkeys';
 import { useExpandedStack } from '../hooks/useExpandedStack';
+import { computeFitTransform } from '../hooks/useCanvasControls';
 import { buildTeamAgents } from './teamPageSelectors';
+import TeamPageEmpty from './TeamPageEmpty';
 import type { Transform } from '../hooks/useCanvasTransform';
 import type { CanvasNodeData } from '../types/chat';
 import './TeamPage.css';
 
 const DEFAULT_CANVAS: { width: number; height: number } = { width: 960, height: 560 };
+// 节点默认尺寸估计值，用于 fit 时的包围盒计算（CanvasNode 收起态 ~180x80）。
+const NODE_BBOX = { w: 180, h: 80 };
 
 export default function TeamPage() {
   const [collapsed, setCollapsed] = useState(false);
@@ -82,27 +82,48 @@ export default function TeamPage() {
     updateNodePosition(activeTeamId, id, { x, y });
   };
 
-  const handleCanvasTransformCommit = (t: Transform) => {
-    setTransformEpoch((n) => n + 1);
-    if (!activeTeamId) return;
-    const prev = canvasStates[activeTeamId];
-    saveCanvasState(activeTeamId, {
-      pan: { x: t.x, y: t.y },
-      zoom: t.zoom,
-      nodePositions: prev?.nodePositions ?? {},
-    });
-  };
+  // 把新 transform 写回 team store；bumpEpoch=true 时同时刷新展开面板锚点。
+  // pan/zoom commit 会 bump；fit/reset 程序性触发不 bump（TeamCanvas 内 useEffect 已统一刷 DOM）。
+  const commitTransform = useCallback(
+    (t: Transform, bumpEpoch = false) => {
+      if (bumpEpoch) setTransformEpoch((n) => n + 1);
+      if (!activeTeamId) return;
+      const prev = canvasStates[activeTeamId];
+      saveCanvasState(activeTeamId, {
+        pan: { x: t.x, y: t.y },
+        zoom: t.zoom,
+        nodePositions: prev?.nodePositions ?? {},
+      });
+    },
+    [activeTeamId, canvasStates, saveCanvasState],
+  );
 
   const canvasTransform: Transform | undefined = savedCanvas
     ? { x: savedCanvas.pan.x, y: savedCanvas.pan.y, zoom: savedCanvas.zoom }
     : undefined;
+
+  const zoomPercent = Math.round((canvasTransform?.zoom ?? 1) * 100);
+
+  // S5-G3 hotkeys + S4-M4 controls：onFit 按节点包围盒居中缩放；onResetZoom 回原点 100%。
+  const handleFit = useCallback(() => {
+    const bboxes = agents.map((a) => ({ x: a.x, y: a.y, w: NODE_BBOX.w, h: NODE_BBOX.h }));
+    commitTransform(computeFitTransform(bboxes, { w: DEFAULT_CANVAS.width, h: DEFAULT_CANVAS.height }));
+  }, [agents, commitTransform]);
+
+  const handleResetZoom = useCallback(() => {
+    commitTransform({ x: 0, y: 0, zoom: 1 });
+  }, [commitTransform]);
 
   const closeTopOrWindow = useCallback(() => {
     const popped = popTop();
     if (popped === null) window.close();
   }, [popTop]);
 
-  useCanvasHotkeys({ onEscape: closeTopOrWindow });
+  useCanvasHotkeys({
+    onEscape: closeTopOrWindow,
+    onFit: handleFit,
+    onResetZoom: handleResetZoom,
+  });
 
   const agentById = useMemo(() => {
     const m = new Map<string, CanvasNodeData>();
@@ -112,11 +133,6 @@ export default function TeamPage() {
 
   return (
     <PanelWindow>
-      <div className="team-page__close">
-        <Button variant="icon" size="sm" onClick={() => window.close()}>
-          <Icon name="close" size={20} />
-        </Button>
-      </div>
       {hasTeams ? (
         <TeamMonitorPanel
           teams={sidebarTeams}
@@ -129,27 +145,16 @@ export default function TeamPage() {
           onNodeElement={registerNodeEl}
           canvasSize={DEFAULT_CANVAS}
           canvasTransform={canvasTransform}
-          onCanvasTransformCommit={handleCanvasTransformCommit}
+          onCanvasTransformCommit={(t) => commitTransform(t, true)}
           collapsed={collapsed}
           onToggleCollapsed={() => setCollapsed((v) => !v)}
+          zoomPercent={zoomPercent}
+          onFit={handleFit}
+          onResetZoom={handleResetZoom}
+          onClose={() => window.close()}
         />
       ) : (
-        <div className="team-page__empty">
-          <Surface variant="panel">
-            <div className="team-page__empty-inner">
-              <div className="team-page__empty-icon" aria-hidden>
-                <Icon name="team" size={32} />
-              </div>
-              <Text variant="title">尚未创建团队</Text>
-              <Text variant="subtitle">让主 Agent 帮你拉起第一个团队，开始协作</Text>
-              <div className="team-page__empty-actions">
-                <Button variant="primary" size="md" onClick={handleCreateTeam} disabled={!leaderInstanceId}>
-                  创建团队
-                </Button>
-              </div>
-            </div>
-          </Surface>
-        </div>
+        <TeamPageEmpty onCreateTeam={handleCreateTeam} canCreate={!!leaderInstanceId} />
       )}
       {stack.map((id, idx) => {
         const data = agentById.get(id);
